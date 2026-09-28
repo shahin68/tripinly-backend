@@ -7,6 +7,7 @@
   "AGE_REQUIREMENT_NOT_MET": "You must be at least 16 years old to use Tripinly.",
   "USERNAME_TAKEN": "This username is already taken.",
   "USERNAME_INVALID": "Usernames can use 3 to 30 lowercase letters, numbers, dots and underscores.",
+  "USERNAME_CHANGE_TOO_SOON": "You can change your username once every 30 days.",
   "VALIDATION_FAILED": "Some of the information you entered is not valid.",
   "NOT_FOUND": "We couldn't find what you were looking for.",
   "FORBIDDEN": "You don't have permission to do that.",

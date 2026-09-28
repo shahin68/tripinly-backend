@@ -13,3 +13,158 @@ datasource db {
   provider   = "postgresql"
   extensions = [postgis, pg_trgm]
 }
+
+// ─── Identity ────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  user
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleting
+}
+
+enum TripVisibility {
+  public
+  private
+}
+
+enum AuthProvider {
+  google
+  apple
+  /// Local development only (DEV_AUTH_ENABLED); never accepted in production.
+  dev
+}
+
+enum ConsentDocumentType {
+  terms
+  privacy
+  marketing
+}
+
+enum DevicePlatform {
+  ios
+  android
+}
+
+model User {
+  id                    String         @id @default(uuid()) @db.Uuid
+  /// Null until chosen during onboarding. Stored lowercase; unique.
+  username              String?        @unique
+  usernameChangedAt     DateTime?
+  displayName           String?
+  /// Never shown to other users; used for the 16+ check.
+  birthDate             DateTime?      @db.Date
+  locale                String         @default("en")
+  defaultTripVisibility TripVisibility @default(public)
+  role                  UserRole       @default(user)
+  status                UserStatus     @default(active)
+  onboardedAt           DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  identities    AuthIdentity[]
+  refreshTokens RefreshToken[]
+  consents      Consent[]
+  devices       Device[]
+
+  @@map("users")
+}
+
+model AuthIdentity {
+  id                String       @id @default(uuid()) @db.Uuid
+  userId            String       @db.Uuid
+  provider          AuthProvider
+  providerSubject   String
+  /// As given by the provider (may be an Apple private relay address). Never an identity key.
+  email             String?
+  /// AES-256-GCM encrypted; needed to revoke the Apple session on account deletion.
+  appleRefreshToken String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("auth_identities")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  /// SHA-256 of the token; the token itself is never stored.
+  tokenHash    String    @unique
+  familyId     String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  deviceLabel  String?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Consent {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @db.Uuid
+  documentType ConsentDocumentType
+  version      String
+  locale       String
+  grantedAt    DateTime?
+  withdrawnAt  DateTime?
+  createdAt    DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, documentType, createdAt])
+  @@map("consents")
+}
+
+model LegalDocument {
+  id                String              @id @default(uuid()) @db.Uuid
+  documentType      ConsentDocumentType
+  version           String
+  locale            String
+  url               String
+  publishedAt       DateTime
+  /// When true, users who accepted an older version get CONSENT_REQUIRED until they accept this one.
+  requiresReconsent Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+
+  @@unique([documentType, version, locale])
+  @@index([documentType, publishedAt])
+  @@map("legal_documents")
+}
+
+model Device {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  fcmToken   String         @unique
+  platform   DevicePlatform
+  locale     String
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("devices")
+}
+
+/// Freed usernames stay reserved until releasedAt (30 days after account deletion or a handle change).
+model UsernameHold {
+  id         String   @id @default(uuid()) @db.Uuid
+  username   String   @unique
+  releasedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@map("username_holds")
+}

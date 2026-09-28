@@ -35,6 +35,18 @@ export default async function globalSetup(): Promise<void> {
     LOG_LEVEL: 'silent',
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
+    JWT_ACCESS_SECRET:
+      process.env.JWT_ACCESS_SECRET ??
+      'test-only-access-token-secret-32-chars!',
+    ENCRYPTION_KEY:
+      process.env.ENCRYPTION_KEY ?? Buffer.alloc(32, 7).toString('base64'),
+    DEV_AUTH_ENABLED: 'true',
+    GOOGLE_CLIENT_IDS: 'test-google-client-id',
+    // Apple verification uses a local key set in tests; the code exchange is stubbed.
+    APPLE_BUNDLE_ID: 'com.tripinly.test',
+    APPLE_TEAM_ID: 'TESTTEAM01',
+    APPLE_KEY_ID: 'TESTKEY001',
+    APPLE_PRIVATE_KEY: 'unused-in-tests',
   });
 
   execFileSync('npx', ['prisma', 'migrate', 'deploy'], {

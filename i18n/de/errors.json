@@ -7,6 +7,7 @@
   "AGE_REQUIREMENT_NOT_MET": "Du musst mindestens 16 Jahre alt sein, um Tripinly zu nutzen.",
   "USERNAME_TAKEN": "Dieser Benutzername ist bereits vergeben.",
   "USERNAME_INVALID": "Benutzernamen bestehen aus 3 bis 30 Kleinbuchstaben, Ziffern, Punkten und Unterstrichen.",
+  "USERNAME_CHANGE_TOO_SOON": "Du kannst deinen Benutzernamen nur alle 30 Tage ändern.",
   "VALIDATION_FAILED": "Einige deiner Angaben sind ungültig.",
   "NOT_FOUND": "Wir konnten nicht finden, wonach du suchst.",
   "FORBIDDEN": "Dazu bist du nicht berechtigt.",

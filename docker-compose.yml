@@ -11,6 +11,7 @@ services:
       - '5432:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./docker/postgis-init.sh:/docker-entrypoint-initdb.d/10_postgis.sh:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U tripinly -d tripinly']
       interval: 5s
@@ -48,6 +49,9 @@ services:
       LOG_LEVEL: info
       DATABASE_URL: postgresql://tripinly:tripinly@db:5432/tripinly
       REDIS_URL: redis://redis:6379
+      # Local-only values; never reuse them anywhere else.
+      JWT_ACCESS_SECRET: local-compose-access-token-secret-32chars
+      ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE=
     depends_on:
       db:
         condition: service_healthy

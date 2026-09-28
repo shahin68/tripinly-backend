@@ -17,6 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import request from 'supertest';
+import { Public } from '../../src/common/auth/auth.decorators';
 import { AppException } from '../../src/common/errors/app.exception';
 import { ErrorCode } from '../../src/common/errors/error-codes';
 import { createTestApp } from '../utils/create-test-app';
@@ -31,6 +32,7 @@ class ProbeDto {
   @ValidateNested() @Type(() => LocationDto) location: LocationDto;
 }
 
+@Public()
 @Controller('test-probe')
 class ProbeController {
   @Post()

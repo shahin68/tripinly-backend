@@ -7,12 +7,12 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Identity
 
 **users**
-- `username` (unique, lowercase), `displayName`, `birthDate` (date), `locale` (BCP 47, e.g. `hu-HU`)
+- `username` (unique, lowercase, null until onboarding), `usernameChangedAt` (last change after onboarding; one change per 30 days), `displayName`, `birthDate` (date), `locale` (BCP 47, e.g. `hu-HU`)
 - `defaultTripVisibility` (`public` | `private`, default `public`)
 - `role` (`user` | `admin`), `status` (`active` | `suspended` | `deleting`)
 - `onboardedAt` (null until profile + consents complete)
 
-**auth_identities** — user → users, `provider` (`google` | `apple`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
+**auth_identities** — user → users, `provider` (`google` | `apple` | `dev`; `dev` only exists where `DEV_AUTH_ENABLED`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
 
 **refresh_tokens** — user → users, `tokenHash`, `familyId`, `expiresAt`, `revokedAt`, `replacedById`, `deviceLabel`.
 

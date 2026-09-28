@@ -15,7 +15,8 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - Unique, case-insensitive. Stored lowercase.
 - Reserved list (e.g. `admin`, `tripinly`, `support`, `api`, `help`) cannot be taken.
 - Searchable by prefix; search results exclude users who blocked you or whom you blocked.
-- A freed username (account deleted) is held for 30 days before reuse. (Open question: can users change their handle? See `09-open-questions.md`.)
+- A freed username (account deleted) is held for 30 days before reuse.
+- Users may change their username once every 30 days after onboarding; the old handle is held for 30 days so nobody can impersonate them right away.
 
 ## Consent
 

@@ -16,7 +16,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
   `code` is stable and documented; clients switch on `code`, never on `message`. Validation errors use `VALIDATION_FAILED` with per-field `details`.
 - **Status codes:** 200/201/204 success, 400 validation, 401 unauthenticated, 403 forbidden, 404 not found (also used for private resources the caller can't see — never reveal existence), 409 conflict (e.g. username taken), 422 domain rule violated, 429 rate limited.
 - **Idempotency:** likes and unlikes are idempotent. `POST` creating content accepts an optional `Idempotency-Key` header.
-- **Rate limits:** per user and per IP on auth, search, comment and upload endpoints.
+- **Rate limits:** every route is limited per user (per IP when signed out), default 120 requests/minute; auth routes 20/minute per IP. Search, comment and upload endpoints get tighter limits as they are built.
 
 ## Endpoints
 
@@ -25,21 +25,26 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 |---|---|---|
 | POST | `/auth/google` | Body: Google ID token. Returns tokens + `onboardingRequired` |
 | POST | `/auth/apple` | Body: Apple identity token + authorization code (for revocation later) + optional `givenName`/`familyName` (Apple sends the name only on first sign-in) |
-| POST | `/auth/refresh` | Rotates refresh token; reuse of an old token revokes the whole family |
-| POST | `/auth/logout` | Revokes current refresh token and removes the device |
+| POST | `/auth/dev` | Local development only (`DEV_AUTH_ENABLED`; 404 otherwise). Body: `subject`, optional `name` |
+| POST | `/auth/refresh` | Body: `refreshToken`. Rotates refresh token; reuse of an old token revokes the whole family |
+| POST | `/auth/logout` | Body: `refreshToken`, optional `fcmToken`. Revokes the session and removes that device. No access token needed; always 204 |
+
+Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`, `refreshToken`, `refreshTokenExpiresAt`, `onboardingRequired`. Google body: `idToken`. A provider that isn't configured answers 503 `SERVICE_UNAVAILABLE` with `details.provider`; an invalid provider token answers 401 `UNAUTHENTICATED` with `details.reason = invalid_identity_token`.
+
+**Onboarding gate:** until the profile (username, displayName, birthDate) and the current Terms and Privacy consents are complete, only `GET/PATCH /me`, `GET/POST /me/consents`, `PUT/DELETE /me/devices/{fcmToken}` and `GET /users/check-username` work; everything else answers 403 `ONBOARDING_INCOMPLETE`. When a new document version requires re-consent, the same routes stay open and the rest answer 403 `CONSENT_REQUIRED`.
 
 ### Legal and consent
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/legal/documents` | Current versions and URLs per locale |
-| GET | `/me/consents` | |
-| POST | `/me/consents` | Grant or withdraw, with document version |
+| GET | `/me/consents` | Latest record per document + `missingRequired[]` |
+| POST | `/me/consents` | Body: `documentType`, `version`, `locale`, `granted`. Granting needs the current version (else 400 with `fields.version = ['notCurrentVersion']`). Returns the same shape as GET |
 
 ### Me
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/me` | Profile, settings, onboarding state, entitlements |
-| PATCH | `/me` | Display name, username (onboarding), birth date (onboarding only), locale, `defaultTripVisibility` |
+| PATCH | `/me` | Display name, username (once per 30 days after onboarding, else 422 `USERNAME_CHANGE_TOO_SOON` with `details.availableAt`), birth date (onboarding only; under 16 → 422 `AGE_REQUIREMENT_NOT_MET` and the account is deleted), locale, `defaultTripVisibility` |
 | GET | `/me/stats` | Trips, markers, photos counts |
 | GET | `/me/trips` | Owned + collaborating, cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount` |
 | PUT | `/me/devices/{fcmToken}` | Register/refresh push device. Body: `platform` (`android`\|`ios`), `locale` |
@@ -50,7 +55,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 ### Users
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/users/check-username?username=` | Availability during onboarding |
+| GET | `/users/check-username?username=` | `{ username (normalized), available, reason? (invalid\|taken) }`. Allowed during onboarding |
 | GET | `/users/search?q=` | Prefix search on username and display name |
 | GET | `/users/{username}` | Public profile + public trips |
 | POST | `/users/{id}/block` | |
@@ -171,6 +176,6 @@ Field names the client relies on (full schemas in OpenAPI):
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED`, `PHOTO_LIMIT_REACHED`, `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED`, `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE`, `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED`, `PHOTO_LIMIT_REACHED`, `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE`, `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.

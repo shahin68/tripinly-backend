@@ -7,7 +7,8 @@ import { buildOpenApiDocument } from '../bootstrap/openapi';
 
 /**
  * Writes openapi.json at the repository root; the KMP client generates its API
- * layer from it. Needs env vars to boot, but never opens a DB or Redis connection.
+ * layer from it. Needs env vars to boot; never queries the database, and a
+ * missing Redis only logs a warning.
  */
 async function exportOpenApi(): Promise<void> {
   const app = await NestFactory.create(AppModule, { logger: false });

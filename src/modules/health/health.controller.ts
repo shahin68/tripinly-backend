@@ -6,6 +6,7 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../../common/auth/auth.decorators';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { ErrorResponseDto } from '../../common/errors/error-response.dto';
@@ -33,6 +34,7 @@ class ReadinessDto {
 }
 
 @ApiTags('ops')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthService) {}

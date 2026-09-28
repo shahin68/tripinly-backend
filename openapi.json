@@ -54,6 +54,422 @@
           "ops"
         ]
       }
+    },
+    "/v1/auth/google": {
+      "post": {
+        "operationId": "Auth_google_",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sign in with Google; creates the account on first use",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/apple": {
+      "post": {
+        "operationId": "Auth_apple_",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleSignInDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sign in with Apple; creates the account on first use",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/dev": {
+      "post": {
+        "description": "Only when DEV_AUTH_ENABLED=true (never in production); 404 otherwise.",
+        "operationId": "Auth_dev",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevSignInDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Development sign-in without a provider",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "description": "Refresh tokens are single use. Presenting one twice revokes the whole session (REFRESH_TOKEN_REUSED).",
+        "operationId": "Auth_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Exchange a refresh token for new tokens",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "Auth_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "End this session and unregister the device from push",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/legal/documents": {
+      "get": {
+        "operationId": "Legal_documents",
+        "parameters": [
+          {
+            "name": "locale",
+            "required": false,
+            "in": "query",
+            "description": "Defaults to Accept-Language, then en",
+            "schema": {
+              "example": "de-AT",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Current Terms, Privacy Policy and marketing documents",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "Me_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Own profile, onboarding state and entitlements",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "Onboarding sets username, displayName and birthDate. Under-16 birth dates delete the account (AGE_REQUIREMENT_NOT_MET).",
+        "operationId": "Me_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update profile",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/consents": {
+      "get": {
+        "operationId": "Me_listConsents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Latest consent per document and what is still required",
+        "tags": [
+          "me"
+        ]
+      },
+      "post": {
+        "operationId": "Me_recordConsent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordConsentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Grant or withdraw consent to a document version",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/devices/{fcmToken}": {
+      "put": {
+        "operationId": "Me_registerDevice",
+        "parameters": [
+          {
+            "name": "fcmToken",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register or refresh a push device",
+        "tags": [
+          "me"
+        ]
+      },
+      "delete": {
+        "operationId": "Me_removeDevice",
+        "parameters": [
+          {
+            "name": "fcmToken",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unregister a push device",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/users/check-username": {
+      "get": {
+        "operationId": "Users_checkUsername",
+        "parameters": [
+          {
+            "name": "username",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "jonas.k",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsernameAvailabilityDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether a username is valid and free",
+        "tags": [
+          "users"
+        ]
+      }
     }
   },
   "info": {
@@ -138,6 +554,7 @@
               "AGE_REQUIREMENT_NOT_MET",
               "USERNAME_TAKEN",
               "USERNAME_INVALID",
+              "USERNAME_CHANGE_TOO_SOON",
               "VALIDATION_FAILED",
               "NOT_FOUND",
               "FORBIDDEN",
@@ -183,6 +600,447 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "GoogleSignInDto": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "description": "Google ID token from the Credential Manager / Google Sign-In SDK"
+          }
+        },
+        "required": [
+          "idToken"
+        ]
+      },
+      "AuthTokensDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Bearer token for API calls"
+          },
+          "accessTokenExpiresAt": {
+            "type": "string",
+            "example": "2026-09-28T12:15:00.000Z"
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "Single use: each refresh returns a new one"
+          },
+          "refreshTokenExpiresAt": {
+            "type": "string",
+            "example": "2026-11-27T12:00:00.000Z"
+          },
+          "onboardingRequired": {
+            "type": "boolean",
+            "description": "Profile or consents still missing: show onboarding"
+          }
+        },
+        "required": [
+          "accessToken",
+          "accessTokenExpiresAt",
+          "refreshToken",
+          "refreshTokenExpiresAt",
+          "onboardingRequired"
+        ]
+      },
+      "AppleSignInDto": {
+        "type": "object",
+        "properties": {
+          "identityToken": {
+            "type": "string",
+            "description": "Identity token (JWT) from Sign in with Apple"
+          },
+          "authorizationCode": {
+            "type": "string",
+            "description": "Authorization code; exchanged for a token used to revoke the Apple session on account deletion"
+          },
+          "givenName": {
+            "type": "string",
+            "description": "Apple sends the name only on the first sign-in"
+          },
+          "familyName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "identityToken",
+          "authorizationCode"
+        ]
+      },
+      "DevSignInDto": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "example": "alice",
+            "description": "Any stable test identifier; the same subject signs in to the same account"
+          },
+          "name": {
+            "type": "string",
+            "example": "Alice"
+          }
+        },
+        "required": [
+          "subject"
+        ]
+      },
+      "RefreshDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "LogoutDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          },
+          "fcmToken": {
+            "type": "string",
+            "description": "This device's FCM token, unregistered from push"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "LegalDocumentDto": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "2026-09-01"
+          },
+          "locale": {
+            "type": "string",
+            "example": "en"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://tripinly.example/legal/terms"
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Must be accepted before using the app"
+          }
+        },
+        "required": [
+          "documentType",
+          "version",
+          "locale",
+          "url",
+          "publishedAt",
+          "required"
+        ]
+      },
+      "LegalDocumentsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegalDocumentDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OnboardingStateDto": {
+        "type": "object",
+        "properties": {
+          "completed": {
+            "type": "boolean",
+            "description": "Profile complete and all required consents given"
+          },
+          "missingProfileFields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "username",
+                "displayName",
+                "birthDate"
+              ]
+            }
+          },
+          "missingConsents": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "marketing"
+              ]
+            }
+          }
+        },
+        "required": [
+          "completed",
+          "missingProfileFields",
+          "missingConsents"
+        ]
+      },
+      "MeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "example": "jonas.k"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Jonas"
+          },
+          "birthDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "1995-04-12",
+            "description": "Only ever returned to its owner"
+          },
+          "locale": {
+            "type": "string",
+            "example": "de-AT"
+          },
+          "defaultTripVisibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ]
+          },
+          "onboarding": {
+            "$ref": "#/components/schemas/OnboardingStateDto"
+          },
+          "entitlements": {
+            "example": [
+              "best_route_realtime"
+            ],
+            "description": "Active premium features. Show paid UI from this, never from a local flag.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "birthDate",
+          "locale",
+          "defaultTripVisibility",
+          "role",
+          "onboarding",
+          "entitlements"
+        ]
+      },
+      "UpdateMeDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "username": {
+            "type": "string",
+            "example": "jonas.k",
+            "description": "Set during onboarding; afterwards changeable once every 30 days"
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "1995-04-12",
+            "description": "Onboarding only. Users must be 16 or older."
+          },
+          "locale": {
+            "type": "string",
+            "example": "de-AT"
+          },
+          "defaultTripVisibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          }
+        }
+      },
+      "ConsentDto": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "granted": {
+            "type": "boolean",
+            "description": "Currently granted (latest record is a grant)"
+          },
+          "grantedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "withdrawnAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "documentType",
+          "version",
+          "locale",
+          "granted",
+          "grantedAt",
+          "withdrawnAt"
+        ]
+      },
+      "ConsentsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentDto"
+            }
+          },
+          "missingRequired": {
+            "type": "array",
+            "description": "Required documents still to accept (current versions)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "marketing"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items",
+          "missingRequired"
+        ]
+      },
+      "RecordConsentDto": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "The version shown to the user; must be current when granting"
+          },
+          "locale": {
+            "type": "string",
+            "example": "en",
+            "description": "Locale of the document shown"
+          },
+          "granted": {
+            "type": "boolean",
+            "description": "true to grant, false to withdraw"
+          }
+        },
+        "required": [
+          "documentType",
+          "version",
+          "locale",
+          "granted"
+        ]
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "android"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "example": "hu-HU",
+            "description": "Device language, used to localize push"
+          }
+        },
+        "required": [
+          "platform",
+          "locale"
+        ]
+      },
+      "UsernameAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Normalized (trimmed, lowercase)"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "invalid",
+              "taken"
+            ]
+          }
+        },
+        "required": [
+          "username",
+          "available"
         ]
       }
     }

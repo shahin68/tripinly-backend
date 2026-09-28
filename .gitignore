@@ -7,3 +7,6 @@ src/generated/
 !.env.example
 *.tsbuildinfo
 .DS_Store
+
+# Local redis-server snapshots
+dump.rdb
