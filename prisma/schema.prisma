@@ -1,0 +1,15 @@
+// Tripinly database schema. docs/knowledge/03-data-model.md describes the intent;
+// this file is the implementation. Spatial columns are declared as
+// Unsupported("geography(Point,4326)") and queried with parameterized $queryRaw.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  moduleFormat    = "cjs"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [postgis, pg_trgm]
+}

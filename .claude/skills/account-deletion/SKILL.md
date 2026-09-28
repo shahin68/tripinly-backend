@@ -24,7 +24,7 @@ The rules are product decisions in `docs/knowledge/02-domain-rules.md` → "Acco
 | 5 | Recompute | Counters on affected trips/markers/photos/comments and `places.popularity` for affected places. |
 | 6 | Account rows | Blocks (both directions), notifications (to and from), entitlements, invites created, devices, refresh tokens, auth identities. Reports filed keep `reporterId = null`; reports **about** the user are closed. |
 | 7 | Apple revocation | If an Apple identity exists, call Apple's token revocation endpoint with the stored refresh token. Log success/failure without the token. |
-| 8 | Consent proof | Replace consent rows with the minimal retained record defined in `07-security-and-gdpr.md` (pending legal confirmation — see open questions). |
+| 8 | Consent proof | Replace consent rows with the minimal retained record defined in `07-security-and-gdpr.md` (keyed user-ID hash, document, version, locale, timestamps), purged after `CONSENT_PROOF_RETENTION_YEARS`. Also delete the RevenueCat customer (`DELETE /v1/subscribers/{app_user_id}` with `REVENUECAT_API_KEY`). |
 | 9 | User row | Hold the username in `username_holds` for 30 days, then delete the user row. |
 | 10 | Storage | Enqueue `storage.delete` for every collected key (batched `DeleteObjects`, retried). |
 | 11 | Email | Send `account_deletion_confirmed` to the captured address, then discard it from job state. |

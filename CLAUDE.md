@@ -23,7 +23,7 @@ If the code and the docs disagree, the docs win unless the user says otherwise. 
 
 ## Stack (fixed — do not swap without asking)
 
-- **NestJS** (TypeScript, `strict: true`), Node LTS
+- **NestJS 12** (TypeScript 6, `strict: true`), **Node 24 LTS**; lint with oxlint, format with Prettier
 - **PostgreSQL 16 + PostGIS**, accessed through **Prisma**; spatial queries use `$queryRaw` with parameters (never string interpolation)
 - **Redis**: BullMQ job queues, Socket.IO adapter, rate limiting
 - **Socket.IO** through NestJS gateways for real time
@@ -49,6 +49,12 @@ If the code and the docs disagree, the docs win unless the user says otherwise. 
 11. **Don't add dependencies silently.** Say what you're adding and why.
 12. **Never store Google Maps content** (place IDs, names, coordinates, photos, routes from Google APIs). Places come from OSM or from users. Keep "© OpenStreetMap contributors" attribution in API responses that return OSM-derived data where the spec says so.
 13. **Don't call public OSM infrastructure** (tile servers, Nominatim, Overpass) from production code paths.
+
+## Git workflow
+
+- Every change goes on its own feature branch and is merged into **`develop`** through a pull request.
+- **Never push to `master`** directly.
+- Before opening a PR: `npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration`, then `npm run build && npm run openapi` and commit `openapi.json` if it changed. CI enforces all of these.
 
 ## Code conventions
 

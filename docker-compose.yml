@@ -1,0 +1,83 @@
+# Local development stack. `docker compose up -d db redis minio` for dependencies
+# while running the app with `npm run start:dev`, or `docker compose up` for everything.
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: tripinly
+      POSTGRES_PASSWORD: tripinly
+      POSTGRES_DB: tripinly
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tripinly -d tripinly']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible stand-in for Cloudflare R2 (used from the photos stage on).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: tripinly
+      MINIO_ROOT_PASSWORD: tripinly-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+
+  migrate:
+    build: .
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    environment: &app-env
+      NODE_ENV: development
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://tripinly:tripinly@db:5432/tripinly
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment:
+      <<: *app-env
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: ['node', 'dist/main.worker.js']
+    environment:
+      <<: *app-env
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  minio-data:
