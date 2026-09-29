@@ -27,6 +27,7 @@ import {
   MarkerOrderDto,
   UpdateMarkerDto,
 } from './markers.dto';
+import { AddToTripDto } from '../places/places.dto';
 import { MarkersService } from './markers.service';
 
 class MarkerOrderResultDto {
@@ -56,6 +57,26 @@ export class MarkersController {
     @Body() body: CreateMarkerDto,
   ): Promise<MarkerDto> {
     return this.markers.create(user.id, id, body);
+  }
+
+  @Post('places/:id/add-to-trip')
+  @ApiTags('places')
+  @ApiOperation({
+    summary: 'Add a place to a trip day',
+    description:
+      'Same as adding a marker with placeId (editor or owner of the trip).',
+  })
+  @ApiCreatedResponse({ type: MarkerDto })
+  addPlace(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+    @Body() body: AddToTripDto,
+  ): Promise<MarkerDto> {
+    return this.markers.create(user.id, body.dayId, {
+      placeId: id,
+      time: body.time,
+      position: body.position,
+    });
   }
 
   @Get('markers/:id')

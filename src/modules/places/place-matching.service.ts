@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { AppException } from '../../common/errors/app.exception';
-import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
+import {
+  Prisma,
+  type PlaceCategory,
+  type PlaceSource,
+} from '../../generated/prisma/client';
+import { TripAccessService } from '../trips/trip-access.service';
 import { normalizePlaceName } from './normalize-name';
 
 type Tx = Prisma.TransactionClient;
@@ -32,14 +37,30 @@ export interface MatchedPlace {
  */
 @Injectable()
 export class PlaceMatchingService {
-  async match(tx: Tx, input: PlaceInput): Promise<MatchedPlace> {
+  constructor(private readonly access: TripAccessService) {}
+
+  /** `userId` is the caller: a place picked by id must be one they can see. */
+  async match(
+    tx: Tx,
+    input: PlaceInput,
+    userId: string,
+  ): Promise<MatchedPlace> {
     if ('placeId' in input) {
       const place = await tx.place.findFirst({
         where: { id: input.placeId, isActive: true },
-        select: { id: true, name: true, lat: true, lng: true },
+        select: {
+          id: true,
+          name: true,
+          lat: true,
+          lng: true,
+          source: true,
+          popularity: true,
+        },
       });
-      if (!place) throw AppException.validation({ placeId: ['notFound'] });
-      return place;
+      if (!place || !(await this.isVisible(tx, userId, place))) {
+        throw AppException.validation({ placeId: ['notFound'] });
+      }
+      return { id: place.id, name: place.name, lat: place.lat, lng: place.lng };
     }
 
     const normalizedName = normalizePlaceName(input.name);
@@ -64,6 +85,7 @@ export class PlaceMatchingService {
     const data: Prisma.PlaceCreateInput = {
       name: input.name,
       normalizedName,
+      searchText: normalizedName,
       category: input.category ?? 'other',
       lat: input.lat,
       lng: input.lng,
@@ -79,11 +101,29 @@ export class PlaceMatchingService {
     }
     // Two markers for the same OSM feature may race; the unique (osmType, osmId) decides.
     const [created] = await tx.$queryRaw<MatchedPlace[]>`
-      INSERT INTO places (id, name, "normalizedName", category, lat, lng, source, "osmType", "osmId", "updatedAt")
-      VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${data.category}::"PlaceCategory",
+      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "updatedAt")
+      VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${normalizedName}, ${data.category}::"PlaceCategory",
               ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, now())
       ON CONFLICT ("osmType", "osmId") DO UPDATE SET "updatedAt" = places."updatedAt"
       RETURNING id, name, lat, lng`;
     return created;
+  }
+
+  /**
+   * OSM places and places liked on public trips are public. Any other user
+   * place (a custom pin, maybe from a private trip) only to people who can see
+   * a marker at it.
+   */
+  async isVisible(
+    db: Tx,
+    userId: string,
+    place: { id: string; source: PlaceSource; popularity: number },
+  ): Promise<boolean> {
+    if (place.source === 'osm' || place.popularity > 0) return true;
+    const marker = await db.marker.findFirst({
+      where: { placeId: place.id, trip: this.access.visibleTripsWhere(userId) },
+      select: { id: true },
+    });
+    return marker !== null;
   }
 }

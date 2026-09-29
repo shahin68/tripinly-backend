@@ -59,6 +59,44 @@ export const envSchema = z
         'must be a URL such as https://tripinly.app',
       )
       .default('tripinly://app'),
+    // Places (docs/knowledge/10-maps-places-routing.md)
+    /** Photon geocoder for address and city search. Public komoot instance at first, self-hosted later. */
+    PHOTON_BASE_URL: z
+      .string()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .default('https://photon.komoot.io'),
+    /** Comma-separated Geofabrik extracts, e.g. europe/austria,europe/hungary. */
+    OSM_IMPORT_REGIONS: z
+      .string()
+      .default('europe/austria,europe/hungary')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((region) => region.trim())
+          .filter(Boolean),
+      )
+      .pipe(
+        z
+          .array(
+            z
+              .string()
+              .regex(
+                /^[a-z0-9-]+(\/[a-z0-9-]+)*$/,
+                'must be Geofabrik paths such as europe/austria',
+              ),
+          )
+          .min(1),
+      ),
+    /** The worker schedules imports only when true (they download hundreds of MB). */
+    OSM_IMPORT_ENABLED: booleanFlag,
+    /** Cron (UTC) for the monthly refresh. */
+    OSM_IMPORT_CRON: z.string().trim().min(9).default('0 3 2 * *'),
+    GEOFABRIK_BASE_URL: z
+      .string()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .default('https://download.geofabrik.de'),
+    /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
+    OSM_IMPORT_TMP_DIR: optionalString,
     /** Enables POST /v1/auth/dev for local development. Refused in production. */
     DEV_AUTH_ENABLED: booleanFlag,
   })

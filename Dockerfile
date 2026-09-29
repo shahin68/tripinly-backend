@@ -18,6 +18,10 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npx prisma genera
 
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production
+# osmium filters and exports OSM extracts in the worker's place import.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends osmium-tool ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=node:node /app/package.json /app/prisma.config.ts ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules

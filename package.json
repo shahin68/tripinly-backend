@@ -24,9 +24,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "openapi": "node dist/scripts/export-openapi.js",
-    "db:seed": "prisma db execute --file prisma/seed.sql"
+    "db:seed": "prisma db execute --file prisma/seed.sql",
+    "osm:import": "node dist/scripts/osm-import.js"
   },
   "dependencies": {
+    "@nestjs/bullmq": "^12.0.0",
     "@nestjs/common": "^12.1.1",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^12.1.1",
@@ -36,6 +38,7 @@
     "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bullmq": "^6.3.9",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "google-auth-library": "^11.1.0",

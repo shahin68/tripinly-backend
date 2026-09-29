@@ -56,7 +56,7 @@ export class MarkersService {
       if (count >= TripLimits.MARKERS_PER_DAY) {
         throw limitReached('markers', TripLimits.MARKERS_PER_DAY);
       }
-      const place = await this.places.match(tx, placeInput);
+      const place = await this.places.match(tx, placeInput, userId);
       const position = Math.min(input.position ?? count, count);
       await tx.marker.updateMany({
         where: { dayId, position: { gte: position } },
@@ -134,6 +134,7 @@ export class MarkersService {
                 lat: input.location!.lat,
                 lng: input.location!.lng,
               },
+          userId,
         );
         data.placeId = place.id;
         data.lat = input.location?.lat ?? place.lat;
