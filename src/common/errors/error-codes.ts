@@ -20,6 +20,8 @@ export const ErrorCode = {
   USER_BLOCKED: 'USER_BLOCKED',
   INVITE_EXPIRED: 'INVITE_EXPIRED',
   PHOTO_LIMIT_REACHED: 'PHOTO_LIMIT_REACHED',
+  /** Days per trip, markers per day, trips per user, active invites; `details.resource` and `details.max`. */
+  LIMIT_REACHED: 'LIMIT_REACHED',
   UPLOAD_TOO_LARGE: 'UPLOAD_TOO_LARGE',
   UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
   PREMIUM_REQUIRED: 'PREMIUM_REQUIRED',

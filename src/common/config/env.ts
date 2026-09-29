@@ -51,6 +51,14 @@ export const envSchema = z
     APPLE_KEY_ID: optionalString,
     /** The .p8 key contents; literal "\n" sequences are accepted. */
     APPLE_PRIVATE_KEY: optionalString,
+    /** Base for invite and share links (App Links / Universal Links domain once there is one). */
+    APP_LINK_BASE_URL: z
+      .string()
+      .regex(
+        /^[a-z][a-z0-9+.-]*:\/\/\S+$/,
+        'must be a URL such as https://tripinly.app',
+      )
+      .default('tripinly://app'),
     /** Enables POST /v1/auth/dev for local development. Refused in production. */
     DEV_AUTH_ENABLED: booleanFlag,
   })

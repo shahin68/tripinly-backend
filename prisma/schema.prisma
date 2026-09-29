@@ -6,7 +6,7 @@ generator client {
   provider        = "prisma-client"
   output          = "../src/generated/prisma"
   moduleFormat    = "cjs"
-  previewFeatures = ["postgresqlExtensions"]
+  previewFeatures = ["postgresqlExtensions", "partialIndexes"]
 }
 
 datasource db {
@@ -70,6 +70,14 @@ model User {
   refreshTokens RefreshToken[]
   consents      Consent[]
   devices       Device[]
+
+  ownedTrips     Trip[]       @relation("TripOwner")
+  memberships    TripMember[] @relation("TripMemberUser")
+  membersAdded   TripMember[] @relation("TripMemberAddedBy")
+  invitesCreated TripInvite[]
+  markersCreated Marker[]
+  blocksGiven    Block[]      @relation("Blocker")
+  blocksReceived Block[]      @relation("Blocked")
 
   @@map("users")
 }
@@ -167,4 +175,205 @@ model UsernameHold {
   createdAt  DateTime @default(now())
 
   @@map("username_holds")
+}
+
+// ─── Trips ───────────────────────────────────────────────────────────────────
+
+enum TripRole {
+  owner
+  editor
+}
+
+model Trip {
+  id               String         @id @default(uuid()) @db.Uuid
+  ownerId          String         @db.Uuid
+  title            String
+  /// With a start date, endDate = startDate + days - 1 (kept in sync by TripsService).
+  startDate        DateTime?      @db.Date
+  endDate          DateTime?      @db.Date
+  visibility       TripVisibility
+  copiedFromTripId String?        @db.Uuid
+  likeCount        Int            @default(0)
+  copyCount        Int            @default(0)
+  /// Set by moderation; hidden trips are visible only to their owner and admins.
+  hiddenAt         DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  owner      User         @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  copiedFrom Trip?        @relation("TripCopies", fields: [copiedFromTripId], references: [id], onDelete: SetNull)
+  copies     Trip[]       @relation("TripCopies")
+  members    TripMember[]
+  days       TripDay[]
+  invites    TripInvite[]
+  markers    Marker[]
+
+  @@index([ownerId])
+  @@index([visibility, likeCount(sort: Desc)], map: "trips_explore_idx", where: raw("((visibility = 'public'::\"TripVisibility\") AND (\"hiddenAt\" IS NULL))"))
+  @@map("trips")
+}
+
+model TripMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @db.Uuid
+  userId    String   @db.Uuid
+  role      TripRole
+  addedById String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  trip    Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user    User  @relation("TripMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy User? @relation("TripMemberAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, userId])
+  @@index([userId])
+  @@map("trip_members")
+}
+
+/// A day's date is derived: trip.startDate + position (none when the trip has no dates).
+model TripDay {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @db.Uuid
+  /// 0-based; contiguous within a trip.
+  position  Int
+  createdAt DateTime @default(now())
+
+  trip    Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  markers Marker[]
+
+  @@unique([tripId, position])
+  @@map("trip_days")
+}
+
+model TripInvite {
+  id          String    @id @default(uuid()) @db.Uuid
+  tripId      String    @db.Uuid
+  /// SHA-256 of the link token; the token itself is never stored.
+  tokenHash   String    @unique
+  createdById String    @db.Uuid
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  trip      Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_invites")
+}
+
+// ─── Places and markers ──────────────────────────────────────────────────────
+
+enum PlaceCategory {
+  cafe
+  restaurant
+  bar
+  attraction
+  museum
+  historic
+  park
+  nature
+  landmark
+  other
+}
+
+enum PlaceSource {
+  osm
+  user
+}
+
+enum OsmType {
+  node
+  way
+  relation
+}
+
+/// OSM POIs and user-created places. Never Google data.
+model Place {
+  id             String                                @id @default(uuid()) @db.Uuid
+  name           String
+  /// Lowercase, diacritics removed, whitespace collapsed; used for matching and search.
+  normalizedName String
+  /// name:<lang> variants from OSM.
+  names          Json                                  @default("{}")
+  category       PlaceCategory                         @default(other)
+  lat            Float
+  lng            Float
+  /// Generated from lat/lng (see the migration); read-only, for PostGIS queries.
+  location       Unsupported("geography(Point,4326)")? @default(dbgenerated("(st_setsrid(st_makepoint(lng, lat), 4326))::geography"))
+  source         PlaceSource
+  osmType        OsmType?
+  osmId          BigInt?
+  tags           Json                                  @default("{}")
+  isActive       Boolean                               @default(true)
+  importedAt     DateTime?
+  /// Likes on public markers here + direct place likes (denormalized).
+  popularity     Int                                   @default(0)
+  createdAt      DateTime                              @default(now())
+  updatedAt      DateTime                              @updatedAt
+
+  markers Marker[]
+
+  @@unique([osmType, osmId])
+  @@index([location], type: Gist)
+  @@index([location], map: "places_location_popular_idx", type: Gist, where: raw("(popularity > 0)"))
+  @@index([normalizedName(ops: raw("gin_trgm_ops"))], map: "places_normalized_name_trgm_idx", type: Gin)
+  @@index([popularity(sort: Desc)])
+  @@index([category])
+  @@map("places")
+}
+
+model Marker {
+  id                 String                                @id @default(uuid()) @db.Uuid
+  dayId              String                                @db.Uuid
+  /// Denormalized from the day for access checks.
+  tripId             String                                @db.Uuid
+  placeId            String                                @db.Uuid
+  name               String
+  lat                Float
+  lng                Float
+  /// Generated from lat/lng (see the migration); read-only, for PostGIS queries.
+  location           Unsupported("geography(Point,4326)")? @default(dbgenerated("(st_setsrid(st_makepoint(lng, lat), 4326))::geography"))
+  /// Local time "HH:mm", or null.
+  time               String?
+  /// 0-based; contiguous within a day.
+  position           Int
+  createdById        String?                               @db.Uuid
+  copiedFromMarkerId String?                               @db.Uuid
+  likeCount          Int                                   @default(0)
+  commentCount       Int                                   @default(0)
+  hiddenAt           DateTime?
+  createdAt          DateTime                              @default(now())
+  updatedAt          DateTime                              @updatedAt
+
+  day        TripDay  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  place      Place    @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  createdBy  User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  copiedFrom Marker?  @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
+  copies     Marker[] @relation("MarkerCopies")
+
+  @@index([dayId, position])
+  @@index([tripId])
+  @@index([placeId])
+  @@index([createdById])
+  @@index([location], type: Gist)
+  @@map("markers")
+}
+
+// ─── Moderation ──────────────────────────────────────────────────────────────
+
+/// Mutual in effect: queries check both directions.
+model Block {
+  id        String   @id @default(uuid()) @db.Uuid
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
 }

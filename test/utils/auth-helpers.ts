@@ -17,7 +17,7 @@ export const CURRENT_VERSION = 'v1';
 export async function resetState(app: INestApplication): Promise<void> {
   const prisma = app.get(PrismaService);
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "users", "username_holds", "legal_documents" RESTART IDENTITY CASCADE',
+    'TRUNCATE "users", "username_holds", "legal_documents", "places" RESTART IDENTITY CASCADE',
   );
   const redis = app.get<Redis>(REDIS);
   if (redis.status !== 'ready') {

@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { Prisma, type User } from '../../generated/prisma/client';
 import { ConsentsService } from '../consents/consents.service';
+import { BlocksService } from '../moderation/blocks.service';
 import { ageOn, MINIMUM_AGE, parseCalendarDate, toCalendarDate } from './age';
 import {
   isReservedUsername,
@@ -14,7 +15,14 @@ import {
   USERNAME_CHANGE_INTERVAL_DAYS,
   USERNAME_HOLD_DAYS,
 } from './username';
+import {
+  toUserSummary,
+  USER_SUMMARY_SELECT,
+  type UserSummaryDto,
+} from './user-summary';
 import type { MeDto, UpdateMeDto, UsernameAvailabilityDto } from './users.dto';
+
+export const USER_SEARCH_LIMIT = 20;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -137,6 +145,30 @@ export class UsersService {
     return available
       ? { username, available: true }
       : { username, available: false, reason: 'taken' };
+  }
+
+  /**
+   * Prefix search on username and display name among onboarded, active users,
+   * excluding the caller and anyone with a block in either direction.
+   */
+  async search(userId: string, query: string): Promise<UserSummaryDto[]> {
+    const prefix = query.trim();
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { not: userId },
+        status: 'active',
+        onboardedAt: { not: null },
+        OR: [
+          { username: { startsWith: normalizeUsername(prefix) } },
+          { displayName: { startsWith: prefix, mode: 'insensitive' } },
+        ],
+        ...BlocksService.notBlockedWith(userId),
+      },
+      orderBy: [{ username: 'asc' }],
+      take: USER_SEARCH_LIMIT,
+      select: USER_SUMMARY_SELECT,
+    });
+    return users.map(toUserSummary);
   }
 
   /** Sets onboardedAt once the profile is complete and required consents are given. */

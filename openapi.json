@@ -470,6 +470,921 @@
           "users"
         ]
       }
+    },
+    "/v1/users/search": {
+      "get": {
+        "operationId": "Users_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Prefix of a username or display name",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 50,
+              "example": "jon",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSearchResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Find people by username or display name prefix",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/v1/users/{id}/block": {
+      "post": {
+        "description": "Mutual in effect. Also removes each user from the other’s trips as an editor. Idempotent.",
+        "operationId": "Blocks_block",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Block a user",
+        "tags": [
+          "blocks"
+        ]
+      },
+      "delete": {
+        "operationId": "Blocks_unblock",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unblock a user. Idempotent.",
+        "tags": [
+          "blocks"
+        ]
+      }
+    },
+    "/v1/me/blocks": {
+      "get": {
+        "operationId": "Blocks_list",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedUsersDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Users I have blocked",
+        "tags": [
+          "blocks"
+        ]
+      }
+    },
+    "/v1/trips": {
+      "post": {
+        "description": "One day per date, or one \"Day 1\" without dates.",
+        "operationId": "Trips_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTripDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a trip",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}": {
+      "get": {
+        "operationId": "Trips_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trip with members, days and markers",
+        "tags": [
+          "trips"
+        ]
+      },
+      "patch": {
+        "operationId": "Trips_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTripDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: title, dates, visibility",
+        "tags": [
+          "trips"
+        ]
+      },
+      "delete": {
+        "operationId": "Trips_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: delete the trip with everything in it",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/days": {
+      "post": {
+        "description": "Extends endDate by one day for dated trips.",
+        "operationId": "Trips_addDay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDayDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Append a day",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/days/{id}": {
+      "delete": {
+        "description": "Later days move up. The last remaining day can’t be deleted (fields.id = [\"lastDay\"]).",
+        "operationId": "Trips_deleteDay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a day and its markers",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/members": {
+      "post": {
+        "operationId": "Trips_addMember",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripMemberDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner adds an editor by username. Idempotent.",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/members/{userId}": {
+      "delete": {
+        "operationId": "Trips_removeMember",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner removes an editor, or an editor leaves (own userId)",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/me/trips": {
+      "get": {
+        "operationId": "Trips_myTrips",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSummaryPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trips I own or collaborate on, most recently changed first",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/me/stats": {
+      "get": {
+        "operationId": "Trips_stats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeStatsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My trip, marker and photo counts",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/days/{id}/markers": {
+      "post": {
+        "description": "Send placeId (a place from our results) or name + location (custom pin, or a Photon result with osmType/osmId). Google place IDs are rejected.",
+        "operationId": "Markers_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMarkerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a marker to a day",
+        "tags": [
+          "markers"
+        ]
+      }
+    },
+    "/v1/markers/{id}": {
+      "get": {
+        "operationId": "Markers_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A marker",
+        "tags": [
+          "markers"
+        ]
+      },
+      "patch": {
+        "description": "Name, time, place or location, or move it to another day of the same trip / another position.",
+        "operationId": "Markers_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMarkerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit a marker",
+        "tags": [
+          "markers"
+        ]
+      },
+      "delete": {
+        "operationId": "Markers_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a marker",
+        "tags": [
+          "markers"
+        ]
+      }
+    },
+    "/v1/days/{id}/marker-order": {
+      "put": {
+        "operationId": "Markers_reorder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkerOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerOrderResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set the order of a day's markers",
+        "tags": [
+          "markers"
+        ]
+      }
+    },
+    "/v1/trips/{id}/invites": {
+      "post": {
+        "operationId": "Invites_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner creates an invite link (valid 7 days, reusable)",
+        "tags": [
+          "invites"
+        ]
+      },
+      "get": {
+        "operationId": "Invites_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner lists the trip's active invite links",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/v1/trips/{id}/invites/{inviteId}": {
+      "delete": {
+        "operationId": "Invites_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "inviteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner revokes an invite link. Idempotent.",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/v1/invites/{token}": {
+      "get": {
+        "description": "410 INVITE_EXPIRED when expired or revoked.",
+        "operationId": "Invites_preview",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview an invite (trip title, owner)",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/v1/invites/{token}/accept": {
+      "post": {
+        "operationId": "Invites_accept",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Join the trip as an editor. Idempotent for members.",
+        "tags": [
+          "invites"
+        ]
+      }
     }
   },
   "info": {
@@ -562,6 +1477,7 @@
               "USER_BLOCKED",
               "INVITE_EXPIRED",
               "PHOTO_LIMIT_REACHED",
+              "LIMIT_REACHED",
               "UPLOAD_TOO_LARGE",
               "UNSUPPORTED_MEDIA_TYPE",
               "PREMIUM_REQUIRED",
@@ -1041,6 +1957,750 @@
         "required": [
           "username",
           "available"
+        ]
+      },
+      "UserSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "example": "jonas.k"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jonas"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName"
+        ]
+      },
+      "UserSearchResultDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Up to 20 matches",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BlockedUsersDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummaryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CreateTripDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "Vienna weekend"
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-10-09",
+            "description": "Without dates the trip has one \"Day 1\""
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2026-10-11",
+            "description": "Needs startDate; one day is created per date (max 20)"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "Defaults to the user's defaultTripVisibility"
+          },
+          "memberUsernames": {
+            "maxItems": 20,
+            "description": "Added as editors",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "TripMemberDto": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor"
+            ]
+          }
+        },
+        "required": [
+          "user",
+          "role"
+        ]
+      },
+      "CopiedFromDto": {
+        "type": "object",
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          }
+        },
+        "required": [
+          "tripId",
+          "owner"
+        ]
+      },
+      "LocationDto": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "example": 48.2082,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lng": {
+            "type": "number",
+            "example": 16.3738,
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ]
+      },
+      "MarkerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tripId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dayId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "placeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "time": {
+            "type": "string",
+            "nullable": true,
+            "example": "14:30"
+          },
+          "position": {
+            "type": "number"
+          },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed URL, expires after ~1 h"
+          },
+          "photoCount": {
+            "type": "number"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "commentCount": {
+            "type": "number"
+          },
+          "createdBy": {
+            "nullable": true,
+            "description": "Null after the creator deleted their account",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tripId",
+          "dayId",
+          "placeId",
+          "name",
+          "location",
+          "time",
+          "position",
+          "coverPhotoId",
+          "coverThumbUrl",
+          "photoCount",
+          "likeCount",
+          "likedByMe",
+          "commentCount",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TripDayDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "number",
+            "description": "0-based; the client shows \"Day n\" as position + 1"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-10-09",
+            "description": "startDate + position, or null"
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkerDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "date",
+          "markers"
+        ]
+      },
+      "TripDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-10-09"
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-10-11"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "owner": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "myRole": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripMemberDto"
+            }
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "copyCount": {
+            "type": "number"
+          },
+          "copiedFrom": {
+            "nullable": true,
+            "description": "Shown as \"Copied from @handle\" while the source exists",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CopiedFromDto"
+              }
+            ]
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripDayDto"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "startDate",
+          "endDate",
+          "visibility",
+          "owner",
+          "myRole",
+          "members",
+          "likeCount",
+          "likedByMe",
+          "copyCount",
+          "copiedFrom",
+          "days",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateTripDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-10-09",
+            "description": "null removes the dates (days stay, shown as \"Day n\")"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2026-10-11",
+            "description": "Resizes the trip: adds empty days, or removes trailing days if they have no markers (else 400 fields.endDate = [\"daysNotEmpty\"])"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          }
+        }
+      },
+      "AddMemberDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "anna.n"
+          }
+        },
+        "required": [
+          "username"
+        ]
+      },
+      "TripSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "owner": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "First cover photo in the trip (from stage 5)"
+          },
+          "dayCount": {
+            "type": "number"
+          },
+          "markerCount": {
+            "type": "number"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "copyCount": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "startDate",
+          "endDate",
+          "visibility",
+          "owner",
+          "role",
+          "coverThumbUrl",
+          "dayCount",
+          "markerCount",
+          "likeCount",
+          "copyCount",
+          "updatedAt"
+        ]
+      },
+      "TripSummaryPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripSummaryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "MeStatsDto": {
+        "type": "object",
+        "properties": {
+          "tripCount": {
+            "type": "number",
+            "description": "Trips I own or collaborate on"
+          },
+          "markerCount": {
+            "type": "number",
+            "description": "Markers I created"
+          },
+          "photoCount": {
+            "type": "number",
+            "description": "Photos I uploaded (from stage 5)"
+          }
+        },
+        "required": [
+          "tripCount",
+          "markerCount",
+          "photoCount"
+        ]
+      },
+      "CreateMarkerDto": {
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A place from our in-view, search or along-the-way results. Omit when sending location."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Required with location (custom pin or Photon result). With placeId, overrides the place name."
+          },
+          "location": {
+            "description": "Custom pin or Photon result. Omit when sending placeId.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            ]
+          },
+          "osmType": {
+            "type": "string",
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
+            "description": "From a Photon result, with osmId"
+          },
+          "osmId": {
+            "type": "string",
+            "example": "240109189",
+            "description": "From a Photon result, with osmType"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other"
+            ],
+            "description": "Category for a new place; defaults to other"
+          },
+          "time": {
+            "type": "string",
+            "example": "14:30",
+            "description": "Local time HH:mm"
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insert position in the day; appended when omitted"
+          }
+        }
+      },
+      "UpdateMarkerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "time": {
+            "type": "string",
+            "nullable": true,
+            "example": "09:15"
+          },
+          "placeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Link to another existing place"
+          },
+          "location": {
+            "description": "Move the pin; the place is matched again",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            ]
+          },
+          "dayId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Move to another day of the same trip"
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Position in the (target) day"
+          }
+        }
+      },
+      "MarkerOrderDto": {
+        "type": "object",
+        "properties": {
+          "markerIds": {
+            "description": "All of the day's marker IDs in the new order",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "markerIds"
+        ]
+      },
+      "MarkerOrderResultDto": {
+        "type": "object",
+        "properties": {
+          "dayId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "markerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "dayId",
+          "markerIds"
+        ]
+      },
+      "InviteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "example": "tripinly://app/invites/3q2…",
+            "description": "Only returned when the invite is created"
+          },
+          "token": {
+            "type": "string",
+            "description": "Only returned when the invite is created"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "expiresAt",
+          "createdAt"
+        ]
+      },
+      "InvitesDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Active (not expired, not revoked) invites",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InviteDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "InvitePreviewDto": {
+        "type": "object",
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "alreadyMember": {
+            "type": "boolean",
+            "description": "The caller is already a member"
+          }
+        },
+        "required": [
+          "tripId",
+          "title",
+          "owner",
+          "startDate",
+          "endDate",
+          "expiresAt",
+          "alreadyMember"
         ]
       }
     }

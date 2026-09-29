@@ -15,6 +15,7 @@
   "USER_BLOCKED": "You can't interact with this user.",
   "INVITE_EXPIRED": "This invite link has expired or was revoked.",
   "PHOTO_LIMIT_REACHED": "This place already has the maximum number of photos.",
+  "LIMIT_REACHED": "You've reached the limit for this.",
   "UPLOAD_TOO_LARGE": "This file is too large.",
   "UNSUPPORTED_MEDIA_TYPE": "This file type isn't supported.",
   "PREMIUM_REQUIRED": "This feature is part of Tripinly Pro.",
