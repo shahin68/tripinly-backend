@@ -50,14 +50,15 @@ Adding anything else: state the reason.
 | `NODE_ENV`, `PORT`, `LOG_LEVEL` | `LOG_LEVEL` is a pino level (`info` default) |
 | `DATABASE_URL` | Postgres |
 | `REDIS_URL` | Redis |
-| `JWT_ACCESS_SECRET` (or key pair), `JWT_ACCESS_TTL` (15m), `JWT_REFRESH_TTL` (60d) | Tokens |
-| `GOOGLE_CLIENT_IDS` | Accepted audiences (iOS + Android client IDs) |
-| `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple sign-in verification and token revocation |
+| `JWT_ACCESS_SECRET` (≥ 32 chars, HS256), `JWT_ACCESS_TTL_SECONDS` (900), `JWT_REFRESH_TTL_DAYS` (60) | Tokens |
+| `GOOGLE_CLIENT_IDS` | Comma-separated accepted audiences (iOS + Android + web client IDs). Unset = Google sign-in answers 503 |
+| `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple sign-in verification and token revocation. All four or none; unset = Apple sign-in answers 503. The `.p8` key may use literal `\n` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Storage |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email |
 | `APP_LINK_BASE_URL` | Share and invite links |
-| `ENCRYPTION_KEY` | Encrypting stored Apple refresh tokens |
+| `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens |
+| `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted) |
 | `OSM_IMPORT_REGIONS` | Geofabrik extract paths, e.g. `europe/austria,europe/hungary` |

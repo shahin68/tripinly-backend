@@ -27,6 +27,12 @@ export class HealthService {
       this.check('redis', async () => {
         if (this.redis.status === 'wait') {
           await this.redis.connect();
+        } else if (
+          this.redis.status === 'connecting' ||
+          this.redis.status === 'connect'
+        ) {
+          // Bootstrap started connecting; the probe timeout bounds this wait.
+          await new Promise((resolve) => this.redis.once('ready', resolve));
         }
         await this.redis.ping();
       }),

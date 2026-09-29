@@ -7,6 +7,7 @@
   "AGE_REQUIREMENT_NOT_MET": "A Tripinly használatához legalább 16 évesnek kell lenned.",
   "USERNAME_TAKEN": "Ez a felhasználónév már foglalt.",
   "USERNAME_INVALID": "A felhasználónév 3–30 kisbetűből, számjegyből, pontból és aláhúzásjelből állhat.",
+  "USERNAME_CHANGE_TOO_SOON": "A felhasználónevedet 30 naponta egyszer módosíthatod.",
   "VALIDATION_FAILED": "A megadott adatok egy része érvénytelen.",
   "NOT_FOUND": "Nem találtuk, amit keresel.",
   "FORBIDDEN": "Ehhez nincs jogosultságod.",

@@ -23,7 +23,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "openapi": "node dist/scripts/export-openapi.js"
+    "openapi": "node dist/scripts/export-openapi.js",
+    "db:seed": "prisma db execute --file prisma/seed.sql"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.1",
@@ -31,12 +32,15 @@
     "@nestjs/core": "^12.1.1",
     "@nestjs/platform-express": "^12.1.1",
     "@nestjs/swagger": "^12.0.2",
+    "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "google-auth-library": "^11.1.0",
     "helmet": "^8.3.0",
     "ioredis": "^5.11.1",
+    "jose": "^6.2.12",
     "nestjs-i18n": "^10.8.5",
     "nestjs-pino": "^5.2.1",
     "pg": "^8.23.0",
