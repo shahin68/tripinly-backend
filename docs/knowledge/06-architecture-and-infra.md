@@ -56,7 +56,7 @@ Adding anything else: state the reason.
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Storage |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email |
-| `APP_LINK_BASE_URL` | Share and invite links |
+| `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
 | `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice |

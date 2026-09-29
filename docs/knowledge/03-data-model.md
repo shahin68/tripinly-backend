@@ -1,6 +1,6 @@
 # Tripinly — Data Model
 
-PostgreSQL 16 with PostGIS. Prisma schema is the implementation; this file is the intent. Spatial columns use `geography(Point, 4326)`, declared in Prisma as `Unsupported("geography(Point,4326)")` and queried with `$queryRaw`.
+PostgreSQL 16 with PostGIS. Prisma schema is the implementation; this file is the intent. Points are stored as plain `lat`/`lng` columns that Prisma reads and writes, plus a `location geography(Point, 4326)` column **generated** from them (`GENERATED ALWAYS AS … STORED`, written by hand in the migration). `location` is declared in Prisma as `Unsupported("geography(Point,4326)")?` with a matching `dbgenerated` default, never written by the app, and queried with `$queryRaw`.
 
 All tables have `id uuid` (primary key) and `createdAt`; mutable tables also have `updatedAt`. Foreign keys noted as → table.
 
@@ -27,22 +27,22 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Trips
 
 **trips**
-- owner → users, `title`, `startDate`, `endDate` (nullable), `visibility`
+- owner → users, `title`, `startDate`, `endDate` (both nullable; with a start date, `endDate = startDate + days − 1`, kept in sync on every day or date change), `visibility`
 - `copiedFromTripId` → trips (nullable, `ON DELETE SET NULL`)
 - `likeCount`, `copyCount` (denormalized, maintained in the same transaction or by job)
 - `hiddenAt` (moderation)
 
-**trip_members** — trip → trips, user → users, `role` (`owner` | `editor`), `addedById`. Unique (`tripId`, `userId`). The owner also has a row.
+**trip_members** — trip → trips, user → users, `role` (`owner` | `editor`), `addedById` (→ users, `SET NULL`). Unique (`tripId`, `userId`). The owner also has a row.
 
-**trip_days** — trip → trips, `position` (0-based), optional `date`. Unique (`tripId`, `position`).
+**trip_days** — trip → trips, `position` (0-based, contiguous). Unique (`tripId`, `position`). No stored date: a day's date is `trip.startDate + position`, or none for undated trips ("Day n").
 
-**trip_invites** — trip → trips, `tokenHash`, `createdById`, `expiresAt`, `revokedAt`.
+**trip_invites** — trip → trips, `tokenHash` (SHA-256; unique), `createdById`, `expiresAt`, `revokedAt`.
 
 ## Places and markers
 
 **places**
-- `name`, `normalizedName`, `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `location geography(Point)`
-- `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) where not null.
+- `name`, `normalizedName`, `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `lat`, `lng`, `location geography(Point)` (generated)
+- `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) (nulls don't collide). A `user` place created from a Photon result carries the OSM ids, so the import later recognises it.
 - `tags` (json subset: website, opening_hours, cuisine, wikidata), `isActive`, `importedAt`
 - `popularity` (int, denormalized: likes on public markers + direct place likes)
 - GiST index on `location`; index on `popularity desc`; partial GiST index on `location WHERE popularity > 0`; GIN trigram index on `normalizedName` (extension `pg_trgm`); index on `category`.
@@ -51,8 +51,8 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 **osm_import_runs** — `region`, `sourceFile`, `sourceTimestamp`, `startedAt`, `finishedAt`, `inserted`, `updated`, `deactivated`, `status`.
 
 **markers**
-- day → trip_days, `tripId` (denormalized for access checks), place → places
-- `name`, `location geography(Point)`, `time` (nullable `HH:mm`), `position`
+- day → trip_days, `tripId` (denormalized for access checks), place → places (`RESTRICT`: places with markers are never deleted)
+- `name`, `lat`, `lng`, `location geography(Point)` (generated), `time` (nullable `HH:mm`), `position` (0-based, contiguous per day)
 - `coverPhotoId` → photos (nullable)
 - `createdById` → users (nullable, `ON DELETE SET NULL`)
 - `copiedFromMarkerId` → markers (nullable, `SET NULL`)

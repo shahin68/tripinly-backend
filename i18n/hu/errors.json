@@ -15,6 +15,7 @@
   "USER_BLOCKED": "Ezzel a felhasználóval nem léphetsz kapcsolatba.",
   "INVITE_EXPIRED": "Ez a meghívó link lejárt vagy visszavonták.",
   "PHOTO_LIMIT_REACHED": "Ehhez a helyhez már elérted a fotók maximális számát.",
+  "LIMIT_REACHED": "Elérted ennek a korlátját.",
   "UPLOAD_TOO_LARGE": "Ez a fájl túl nagy.",
   "UNSUPPORTED_MEDIA_TYPE": "Ez a fájltípus nem támogatott.",
   "PREMIUM_REQUIRED": "Ez a funkció a Tripinly Pro része.",

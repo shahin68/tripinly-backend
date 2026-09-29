@@ -45,8 +45,8 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 |---|---|---|
 | GET | `/me` | Profile, settings, onboarding state, entitlements |
 | PATCH | `/me` | Display name, username (once per 30 days after onboarding, else 422 `USERNAME_CHANGE_TOO_SOON` with `details.availableAt`), birth date (onboarding only; under 16 → 422 `AGE_REQUIREMENT_NOT_MET` and the account is deleted), locale, `defaultTripVisibility` |
-| GET | `/me/stats` | Trips, markers, photos counts |
-| GET | `/me/trips` | Owned + collaborating, cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount` |
+| GET | `/me/stats` | `{ tripCount (own + collaborating), markerCount (created by me), photoCount }` |
+| GET | `/me/trips` | Owned + collaborating, most recently changed first (marker and day edits count), cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount` |
 | PUT | `/me/devices/{fcmToken}` | Register/refresh push device. Body: `platform` (`android`\|`ios`), `locale` |
 | DELETE | `/me/devices/{fcmToken}` | |
 | POST | `/me/export` | Starts GDPR export job; email when ready |
@@ -56,18 +56,18 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/users/check-username?username=` | `{ username (normalized), available, reason? (invalid\|taken) }`. Allowed during onboarding |
-| GET | `/users/search?q=` | Prefix search on username and display name |
+| GET | `/users/search?q=` | Prefix search (2–50 chars) on username and display name; onboarded users only, never yourself or anyone with a block either way. `{ items: [user summary] }`, max 20 |
 | GET | `/users/{username}` | Public profile + public trips |
-| POST | `/users/{id}/block` | |
-| DELETE | `/users/{id}/block` | |
-| GET | `/me/blocks` | |
+| POST | `/users/{id}/block` | 204, idempotent. Also removes each user from the other's trips as an editor |
+| DELETE | `/users/{id}/block` | 204, idempotent |
+| GET | `/me/blocks` | Users I blocked, cursor paginated |
 
 ### Trips
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips` | Title, dates, visibility, optional initial `memberUsernames` |
+| POST | `/trips` | `title`, optional `startDate`/`endDate` (one day per date, max 20; `endDate` needs `startDate`; no dates → one "Day 1"), `visibility` (default: my `defaultTripVisibility`), `memberUsernames` (≤ 20, added as editors; unknown → 400 `fields["memberUsernames.<i>"] = ["notFound"]`, ones I blocked → `["blocked"]`). Max 200 owned trips |
 | GET | `/trips/{id}` | Trip with days, markers (cover thumbnail URLs), members, `copiedFrom` summary |
-| PATCH | `/trips/{id}` | Owner: title, dates, visibility |
+| PATCH | `/trips/{id}` | Owner: `title`, `visibility`, `startDate` (null removes both dates, days stay), `endDate` (resizes: adds empty days, removes trailing days only if empty, else 400 `fields.endDate = ["daysNotEmpty"]`) |
 | DELETE | `/trips/{id}` | Owner |
 | POST | `/trips/{id}/copy` | "Add to my trips". Public, not own. Returns the new trip |
 | GET | `/explore/trips` | Public trips from others, ranked |
@@ -75,27 +75,28 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Days
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips/{id}/days` | Append a day |
-| DELETE | `/days/{id}` | Deletes its markers |
-| PUT | `/days/{id}/marker-order` | Body: ordered marker IDs |
+| POST | `/trips/{id}/days` | Append a day (owner or editor); extends `endDate` for dated trips. Max 20 |
+| DELETE | `/days/{id}` | Deletes its markers; later days move up and `endDate` shrinks. The last day can't be deleted (400 `fields.id = ["lastDay"]`) |
+| PUT | `/days/{id}/marker-order` | Body: `markerIds`, exactly the day's markers in the new order (else 400 `fields.markerIds = ["mustMatchDayMarkers"]`). Returns `{ dayId, markerIds }` |
 | POST | `/days/{id}/optimize` | Best route. Free: straight-line. Premium: travel times. Returns proposed order + `mode` + optional `savedMinutes`; `?apply=true` persists |
 
 ### Members and invites
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips/{id}/members` | Owner adds by username |
-| DELETE | `/trips/{id}/members/{userId}` | Owner removes, or editor removes self (leave) |
-| POST | `/trips/{id}/invites` | Owner creates invite link → `{ url, expiresAt }` |
-| DELETE | `/trips/{id}/invites/{inviteId}` | Revoke |
-| GET | `/invites/{token}` | Preview (trip title, owner) |
-| POST | `/invites/{token}/accept` | Join as editor |
+| POST | `/trips/{id}/members` | Owner adds by `username` → member `{ user, role }`; idempotent. Someone I blocked → 403 `USER_BLOCKED`; someone who blocked me or unknown → 404. Max 50 members |
+| DELETE | `/trips/{id}/members/{userId}` | Owner removes, or editor removes self (leave). The owner can't be removed (403) |
+| POST | `/trips/{id}/invites` | Owner creates invite link → `{ id, url, token, expiresAt, createdAt }` (the token is shown only here). Valid 7 days, reusable, max 20 active |
+| GET | `/trips/{id}/invites` | Owner lists active invites (`id`, `expiresAt`, `createdAt`) so they can be revoked |
+| DELETE | `/trips/{id}/invites/{inviteId}` | Revoke; idempotent |
+| GET | `/invites/{token}` | Preview: `tripId`, `title`, `owner`, dates, `expiresAt`, `alreadyMember`. 410 `INVITE_EXPIRED` when expired or revoked; 404 if unknown or the owner and I have a block |
+| POST | `/invites/{token}/accept` | Join as editor → the trip. Idempotent for members |
 
 ### Markers
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/days/{id}/markers` | Either `placeId`, or `name` + `location` (+ optional `osmType`/`osmId` from a Photon result). Optional `time`. Google IDs not accepted |
+| POST | `/days/{id}/markers` | Either `placeId` (optional `name` overrides the place name), or `name` + `location` (+ optional `osmType`/`osmId` from a Photon result, `category` for a new place). Optional `time` (`HH:mm`), `position` (insert; appended when omitted). Unknown fields such as a Google place ID → 400. Max 50 per day |
 | GET | `/markers/{id}` | Marker with photos, like state, comment count |
-| PATCH | `/markers/{id}` | Name, time, location, move to another day of the same trip |
+| PATCH | `/markers/{id}` | `name`, `time` (null clears), `placeId` or `location` (re-matches the place), `dayId` (another day of the same trip, else 400 `fields.dayId = ["notInTrip"]`), `position` |
 | DELETE | `/markers/{id}` | |
 | POST | `/markers/{id}/copy` | Body: target `dayId` in one of my trips |
 
@@ -167,8 +168,8 @@ See `10-maps-places-routing.md` for response shape, buffers and caching.
 
 Field names the client relies on (full schemas in OpenAPI):
 
-- **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]`, `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: { username } }` or null), `days[]` → `{ id, position, date, markers[] }`.
-- **Marker**: `id`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary or null).
+- **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]` → `{ user, role }` (owner first; people with a block with me are left out), `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: user summary }` or null), `days[]` → `{ id, position, date (startDate + position, or null), markers[] }`, `createdAt`, `updatedAt`.
+- **Marker**: `id`, `tripId`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary, or null after account deletion or across a block), `createdAt`, `updatedAt`.
 - **Photo**: `id`, `markerId`, `status` (`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (signed, expire after ~1 h), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader`.
 - **User summary**: `id`, `username`, `displayName`.
 - **Place** (in-view/search/along-the-way): see `10-maps-places-routing.md`.
@@ -176,6 +177,6 @@ Field names the client relies on (full schemas in OpenAPI):
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED`, `PHOTO_LIMIT_REACHED`, `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE`, `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE`, `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.

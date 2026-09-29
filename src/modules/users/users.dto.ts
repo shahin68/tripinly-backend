@@ -156,3 +156,16 @@ export class RegisterDeviceDto {
   @Matches(LOCALE_PATTERN)
   locale: string;
 }
+
+export class SearchUsersQueryDto {
+  @ApiProperty({
+    minLength: 2,
+    maxLength: 50,
+    example: 'jon',
+    description: 'Prefix of a username or display name',
+  })
+  @Transform(trim)
+  @IsString()
+  @Length(2, 50)
+  q: string;
+}
