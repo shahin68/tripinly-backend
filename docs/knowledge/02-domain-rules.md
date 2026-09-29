@@ -87,4 +87,4 @@ When a user deletes their account, **everything about them is deleted**:
 ## Premium
 
 - **Best route with real travel times** is a paid feature. Free users get straight-line ordering (nearest-neighbour from the first marker).
-- Entitlements are checked server-side through `EntitlementService`. How purchases are made and verified is an open question.
+- Entitlements are checked server-side through `EntitlementService`. Purchases go through **RevenueCat** (entitlement `tripinly_pro`; products monthly, yearly, lifetime); its webhook keeps the `entitlements` table current. See the `premium-feature` skill.

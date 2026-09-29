@@ -1,0 +1,190 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "operationId": "Health_liveness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness: the process is up",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/health/ready": {
+      "get": {
+        "operationId": "Health_readiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE with `details.checks`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness: Postgres and Redis are reachable",
+        "tags": [
+          "ops"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Tripinly API",
+    "description": "REST API for the Tripinly apps. Errors use `{ error: { code, message, details } }`; switch on `code`.",
+    "version": "1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "LivenessDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ReadinessChecksDto": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "redis": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "redis"
+        ]
+      },
+      "ReadinessDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecksDto"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ]
+      },
+      "ErrorBodyDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "UNAUTHENTICATED",
+              "TOKEN_EXPIRED",
+              "REFRESH_TOKEN_REUSED",
+              "ONBOARDING_INCOMPLETE",
+              "CONSENT_REQUIRED",
+              "AGE_REQUIREMENT_NOT_MET",
+              "USERNAME_TAKEN",
+              "USERNAME_INVALID",
+              "VALIDATION_FAILED",
+              "NOT_FOUND",
+              "FORBIDDEN",
+              "TRIP_NOT_COPYABLE",
+              "USER_BLOCKED",
+              "INVITE_EXPIRED",
+              "PHOTO_LIMIT_REACHED",
+              "UPLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "PREMIUM_REQUIRED",
+              "RATE_LIMITED",
+              "ACCOUNT_SUSPENDED",
+              "REAUTH_REQUIRED",
+              "ROUTING_UNAVAILABLE",
+              "BBOX_TOO_LARGE",
+              "SERVICE_UNAVAILABLE",
+              "INTERNAL_ERROR"
+            ],
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "type": "string",
+            "description": "Localized, human-readable text. Never switch on it."
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Extra data for the code. VALIDATION_FAILED carries `fields`: { \"<path>\": [\"<constraint>\"] }."
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "details"
+        ]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBodyDto"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}

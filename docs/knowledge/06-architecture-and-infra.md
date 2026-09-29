@@ -47,7 +47,7 @@ Adding anything else: state the reason.
 
 | Name | Purpose |
 |---|---|
-| `NODE_ENV`, `PORT` | |
+| `NODE_ENV`, `PORT`, `LOG_LEVEL` | `LOG_LEVEL` is a pino level (`info` default) |
 | `DATABASE_URL` | Postgres |
 | `REDIS_URL` | Redis |
 | `JWT_ACCESS_SECRET` (or key pair), `JWT_ACCESS_TTL` (15m), `JWT_REFRESH_TTL` (60d) | Tokens |
@@ -61,8 +61,10 @@ Adding anything else: state the reason.
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted) |
 | `OSM_IMPORT_REGIONS` | Geofabrik extract paths, e.g. `europe/austria,europe/hungary` |
+| `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup, customer deletion) and the webhook's shared Authorization value |
+| `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |
 
-All validated at startup; the app refuses to boot if one is missing.
+All validated at startup (`src/common/config/env.ts`); the app refuses to boot if one is missing. Each variable is added to the schema by the stage that first uses it, so local development never needs keys for features that don't exist yet.
 
 ## Environments
 

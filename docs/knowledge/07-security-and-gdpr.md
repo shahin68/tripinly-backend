@@ -32,7 +32,7 @@
 | Provider email | Account emails (export, deletion confirmation) | Until deletion; used once more for the deletion confirmation, then discarded |
 | Photos (EXIF stripped) | Core feature | Until deleted by user or account deletion |
 | Trips, markers, comments, likes | Core feature | Until deleted |
-| Consent records | Proof of consent (legal obligation) | Keep minimal record (pseudonymous user ID hash, document, version, timestamps) for the legal retention period after deletion — **confirm period with the user / legal advice** |
+| Consent records | Proof of consent (GDPR Art. 7(1); kept under Art. 17(3)(e) for defending legal claims) | After deletion keep only a minimal record: keyed hash of the user ID, document type, version, locale, granted/withdrawn timestamps. Kept for `CONSENT_PROOF_RETENTION_YEARS` (default **5**, the Hungarian general limitation period), then purged by a job. The value is configuration so legal counsel can change it without code changes. |
 | Device tokens, locale | Push | Until logout, token invalid, or deletion |
 | Current location (Nearby) | Query only | **Not stored, not logged** |
 | IP addresses in logs | Security | Short log retention (e.g. 14 days) |
