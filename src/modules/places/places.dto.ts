@@ -31,7 +31,7 @@ export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 const NUMBER = '-?\\d{1,3}(\\.\\d+)?';
 const BBOX_PATTERN = new RegExp(`^${NUMBER},${NUMBER},${NUMBER},${NUMBER}$`);
 
-const toCategoryList = ({ value }: { value: unknown }) =>
+export const toCategoryList = ({ value }: { value: unknown }) =>
   typeof value === 'string'
     ? value
         .split(',')

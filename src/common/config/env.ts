@@ -79,6 +79,20 @@ export const envSchema = z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://photon.komoot.io'),
+    // Routing: openrouteservice. Without a key, routes are straight lines
+    // (degraded) and best route uses straight-line distance.
+    ORS_API_KEY: optionalString,
+    ORS_BASE_URL: z
+      .string()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .default('https://api.openrouteservice.org'),
+    /** Calls per UTC day before falling back (free plan: 2000 directions, 500 matrix). */
+    ORS_DIRECTIONS_DAILY_QUOTA: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(2000),
+    ORS_MATRIX_DAILY_QUOTA: z.coerce.number().int().positive().default(500),
     /** Comma-separated Geofabrik extracts, e.g. europe/austria,europe/hungary. */
     OSM_IMPORT_REGIONS: z
       .string()

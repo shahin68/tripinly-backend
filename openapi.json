@@ -2425,6 +2425,214 @@
           "discovery"
         ]
       }
+    },
+    "/v1/routes": {
+      "get": {
+        "description": "Free for everyone. 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).",
+        "operationId": "Routing_route",
+        "parameters": [
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "walking",
+              "type": "string",
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
+            }
+          },
+          {
+            "name": "categories",
+            "required": false,
+            "in": "query",
+            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other. All when omitted",
+            "schema": {
+              "example": "cafe,attraction",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "description": "lat,lng",
+            "schema": {
+              "example": "48.2082,16.3738",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "description": "lat,lng",
+            "schema": {
+              "example": "48.1986,16.3417",
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeTripId",
+            "required": false,
+            "in": "query",
+            "description": "Leave this trip's places out of alongTheWay",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Route from A to B with places along the way",
+        "tags": [
+          "routing"
+        ]
+      }
+    },
+    "/v1/days/{id}/route": {
+      "get": {
+        "description": "With places along the way (not the trip's own). route is null for fewer than two markers.",
+        "operationId": "Routing_dayRoute",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "walking",
+              "type": "string",
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
+            }
+          },
+          {
+            "name": "categories",
+            "required": false,
+            "in": "query",
+            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other. All when omitted",
+            "schema": {
+              "example": "cafe,attraction",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Route through a day's markers in order",
+        "tags": [
+          "routing"
+        ]
+      }
+    },
+    "/v1/days/{id}/optimize": {
+      "post": {
+        "description": "The first marker stays first. Tripinly Pro: by real travel times, with savedMinutes. Otherwise by straight-line distance. Up to 25 markers. apply=true saves the order (owner or editor) and emits markers.reordered.",
+        "operationId": "Routing_optimize",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "Travel mode for premium travel times",
+            "schema": {
+              "default": "walking",
+              "type": "string",
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
+            }
+          },
+          {
+            "name": "apply",
+            "required": false,
+            "in": "query",
+            "description": "Save the proposed order (owner or editor)",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizeResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Best order for a day",
+        "tags": [
+          "routing"
+        ]
+      }
     }
   },
   "info": {
@@ -4539,6 +4747,167 @@
           "targetId",
           "liked",
           "likeCount"
+        ]
+      },
+      "RouteLegDto": {
+        "type": "object",
+        "properties": {
+          "fromMarkerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for A→B routes"
+          },
+          "toMarkerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "fromMarkerId",
+          "toMarkerId",
+          "distanceMeters",
+          "durationSeconds"
+        ]
+      },
+      "RouteDto": {
+        "type": "object",
+        "properties": {
+          "polyline": {
+            "type": "string",
+            "description": "Encoded polyline, precision 5"
+          },
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteLegDto"
+            }
+          }
+        },
+        "required": [
+          "polyline",
+          "distanceMeters",
+          "durationSeconds",
+          "legs"
+        ]
+      },
+      "AlongTheWayDto": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "$ref": "#/components/schemas/PlaceItemDto"
+          },
+          "distanceFromRouteMeters": {
+            "type": "number"
+          },
+          "positionAlongRoute": {
+            "type": "number",
+            "description": "0 at the start, 1 at the end"
+          },
+          "etaFromStartSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "place",
+          "distanceFromRouteMeters",
+          "positionAlongRoute",
+          "etaFromStartSeconds"
+        ]
+      },
+      "RouteResponseDto": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "nullable": true,
+            "description": "Null for a day with fewer than two markers",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RouteDto"
+              }
+            ]
+          },
+          "alongTheWay": {
+            "description": "Ordered along the route",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlongTheWayDto"
+            }
+          },
+          "degraded": {
+            "type": "boolean",
+            "description": "True when routing is unavailable (quota used up, not configured): the route is straight lines with estimated times"
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© openrouteservice.org | © OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "route",
+          "alongTheWay",
+          "degraded",
+          "attribution"
+        ]
+      },
+      "OptimizeResultDto": {
+        "type": "object",
+        "properties": {
+          "dayId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "markerIds": {
+            "description": "Proposed order; the first marker stays first",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "straight_line",
+              "travel_time"
+            ],
+            "description": "travel_time with Tripinly Pro, otherwise straight_line"
+          },
+          "savedMinutes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Minutes saved against the current order (travel_time only)"
+          },
+          "degraded": {
+            "type": "boolean",
+            "description": "Pro user, but travel times were unavailable: straight_line was used"
+          },
+          "applied": {
+            "type": "boolean",
+            "description": "The order was saved (apply=true)"
+          }
+        },
+        "required": [
+          "dayId",
+          "markerIds",
+          "mode",
+          "savedMinutes",
+          "degraded",
+          "applied"
         ]
       }
     }

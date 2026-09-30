@@ -58,7 +58,7 @@ const SIGHT_CATEGORIES: PlaceCategory[] = [
   'landmark',
 ];
 
-interface PlaceRow {
+export interface PlaceRow {
   id: string;
   name: string;
   names: Prisma.JsonValue;
@@ -69,7 +69,7 @@ interface PlaceRow {
 }
 
 /** Columns every place list selects (PlaceRow). */
-const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity`;
+export const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity`;
 
 /**
  * Map, search and discovery reads over our places (geo-discovery skill).
@@ -288,7 +288,7 @@ export class PlacesService {
    * Fills each place's cover (the cover photo of its most liked marker in a
    * public trip, left out across blocks) and likedByMe for this viewer.
    */
-  private async personalize<T extends PlaceItem>(
+  async personalize<T extends PlaceItem>(
     userId: string,
     items: T[],
   ): Promise<T[]> {
@@ -525,7 +525,7 @@ function gridCell(bbox: Bbox, grid: number): Prisma.Sql {
 }
 
 /** Sights before parks before food and drink. */
-function categoryPriority(): Prisma.Sql {
+export function categoryPriority(): Prisma.Sql {
   return Prisma.sql`CASE
     WHEN p.category IN ('attraction', 'museum', 'historic', 'landmark') THEN 0
     WHEN p.category IN ('park', 'nature') THEN 1
@@ -550,9 +550,9 @@ export function localizedName(
 }
 
 /** Plain-object view of the DTO, so callers can spread it into larger shapes. */
-type PlaceItem = Pick<PlaceItemDto, keyof PlaceItemDto>;
+export type PlaceItem = Pick<PlaceItemDto, keyof PlaceItemDto>;
 
-function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
+export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
   return {
     id: row.id,
     name: localizedName(row, lang),

@@ -78,7 +78,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | POST | `/trips/{id}/days` | Append a day (owner or editor); extends `endDate` for dated trips. Max 20 |
 | DELETE | `/days/{id}` | Deletes its markers; later days move up and `endDate` shrinks. The last day can't be deleted (400 `fields.id = ["lastDay"]`) |
 | PUT | `/days/{id}/marker-order` | Body: `markerIds`, exactly the day's markers in the new order (else 400 `fields.markerIds = ["mustMatchDayMarkers"]`). Returns `{ dayId, markerIds }` |
-| POST | `/days/{id}/optimize` | Best route. Free: straight-line. Premium: travel times. Returns proposed order + `mode` + optional `savedMinutes`; `?apply=true` persists |
+| POST | `/days/{id}/optimize?mode=&apply=` | Best route, first marker fixed → 200 `{ dayId, markerIds, mode (straight_line\|travel_time), savedMinutes (travel_time only, else null), degraded, applied }`. Free: straight-line distance. With `best_route_realtime`: openrouteservice travel times for `mode` (default walking); if they're unavailable, straight line with `degraded: true`. Anyone who can see the trip gets a proposal; `apply=true` (owner or editor) saves it and emits `markers.reordered`. Up to 25 markers (422 `LIMIT_REACHED`, `resource: optimizeMarkers`) |
 
 ### Members and invites
 | Method | Path | Notes |
@@ -132,8 +132,10 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Routing
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/routes?from=lat,lng&to=lat,lng&mode=walking\|cycling\|driving&categories=` | Route line + places along the way |
-| GET | `/days/{id}/route?mode=&categories=` | Route through the day's markers in order + places along the way |
+| GET | `/routes?from=lat,lng&to=lat,lng&mode=walking\|cycling\|driving&categories=&excludeTripId=` | Route line + places along the way (leaving out `excludeTripId`'s places; I must be able to see that trip) |
+| GET | `/days/{id}/route?mode=&categories=` | Route through the day's visible markers in order + places along the way (not the trip's own). `route` is null with fewer than two markers |
+
+Both return `{ route: { polyline, distanceMeters, durationSeconds, legs[] → { fromMarkerId, toMarkerId, distanceMeters, durationSeconds } }, alongTheWay[] → { place, distanceFromRouteMeters, positionAlongRoute (0–1), etaFromStartSeconds }, degraded, attribution }`. `degraded: true` means routing isn't available right now (daily quota used up, or not configured): the route is straight lines with times estimated from typical speeds. An openrouteservice failure (timeout, 429, 5xx) answers 503 `ROUTING_UNAVAILABLE`. Route lines are free for everyone.
 
 See `10-maps-places-routing.md` for response shape, buffers and caching.
 
@@ -179,6 +181,6 @@ Field names the client relies on (full schemas in OpenAPI):
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`\|`optimizeMarkers`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.
