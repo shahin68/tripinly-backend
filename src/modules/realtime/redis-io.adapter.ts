@@ -29,6 +29,7 @@ export class RedisIoAdapter extends IoAdapter {
     const pub = new Redis(this.redisUrl, { family: 0 });
     const sub = pub.duplicate();
     for (const client of [pub, sub]) {
+      ignoreUnhandledCommandErrors(client);
       client.on('error', (error: Error) =>
         this.logger.warn(`Socket.IO Redis connection: ${error.message}`),
       );
@@ -51,4 +52,18 @@ export class RedisIoAdapter extends IoAdapter {
       ),
     );
   }
+}
+
+/**
+ * The Redis adapter sends (un)subscribe commands without handling their
+ * promises. A command rejected while Redis is unreachable, or pending when the
+ * app shuts down, must not crash the process as an unhandled rejection.
+ * Callers that await a command still see its error.
+ */
+function ignoreUnhandledCommandErrors(client: Redis): void {
+  const send = client.sendCommand.bind(client);
+  client.sendCommand = (command, stream) => {
+    command.promise.catch(() => undefined);
+    return send(command, stream);
+  };
 }
