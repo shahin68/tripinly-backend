@@ -1,13 +1,22 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import {
+  ApiHeader,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { I18nLang } from 'nestjs-i18n';
+import { timingSafeEqual } from 'node:crypto';
 import { Public } from '../../common/auth/auth.decorators';
 import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
@@ -30,6 +39,7 @@ import { GoogleIdentityVerifier } from './identity/google-identity.verifier';
 @Controller('auth')
 export class AuthController {
   private readonly devAuthEnabled: boolean;
+  private readonly devAuthSecret?: string;
 
   constructor(
     private readonly auth: AuthService,
@@ -38,6 +48,7 @@ export class AuthController {
     config: ConfigService<Env, true>,
   ) {
     this.devAuthEnabled = config.get('DEV_AUTH_ENABLED', { infer: true });
+    this.devAuthSecret = config.get('DEV_AUTH_SECRET', { infer: true });
   }
 
   @Post('google')
@@ -80,14 +91,18 @@ export class AuthController {
   @ApiOperation({
     summary: 'Development sign-in without a provider',
     description:
-      'Only when DEV_AUTH_ENABLED=true (never in production); 404 otherwise.',
+      'Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.',
   })
+  @ApiHeader({ name: 'X-Dev-Auth-Secret', required: false })
   @ApiOkResponse({ type: AuthTokensDto })
   dev(
     @Body() body: DevSignInDto,
     @I18nLang() lang: string,
+    @Headers('x-dev-auth-secret') secret?: string,
   ): Promise<AuthTokensDto> {
-    if (!this.devAuthEnabled) throw AppException.notFound();
+    if (!this.devAuthEnabled || !secretMatches(this.devAuthSecret, secret)) {
+      throw AppException.notFound();
+    }
     return this.auth.signIn(
       { provider: 'dev', subject: body.subject, name: body.name },
       { locale: lang },
@@ -115,4 +130,12 @@ export class AuthController {
   logout(@Body() body: LogoutDto): Promise<void> {
     return this.auth.logout(body.refreshToken, body.fcmToken);
   }
+}
+
+/** No secret configured (local) passes; otherwise a constant-time match. */
+function secretMatches(expected: string | undefined, given?: string): boolean {
+  if (!expected) return true;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(given ?? '');
+  return a.length === b.length && timingSafeEqual(a, b);
 }

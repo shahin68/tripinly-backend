@@ -22,6 +22,8 @@ export const envSchema = z
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default('development'),
+    /** Which deployment this is; only `staging` may enable dev sign-in in production mode. */
+    DEPLOY_ENV: z.enum(['local', 'staging', 'production']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
@@ -135,8 +137,10 @@ export const envSchema = z
       .default('https://download.geofabrik.de'),
     /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
     OSM_IMPORT_TMP_DIR: optionalString,
-    /** Enables POST /v1/auth/dev for local development. Refused in production. */
+    /** Enables POST /v1/auth/dev for local development and staging. Refused in production. */
     DEV_AUTH_ENABLED: booleanFlag,
+    /** Staging: dev sign-in also needs this value in the X-Dev-Auth-Secret header. */
+    DEV_AUTH_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     const apple = [
@@ -192,11 +196,27 @@ export const envSchema = z
         message: 'set EMAIL_FROM together with RESEND_API_KEY',
       });
     }
-    if (env.DEV_AUTH_ENABLED && env.NODE_ENV === 'production') {
+    // Dev sign-in: local freely; staging only behind a shared secret; never production.
+    const staging = env.DEPLOY_ENV === 'staging';
+    const production =
+      env.DEPLOY_ENV === 'production' ||
+      (env.NODE_ENV === 'production' && !staging);
+    if (env.DEV_AUTH_ENABLED && production) {
       ctx.addIssue({
         code: 'custom',
         path: ['DEV_AUTH_ENABLED'],
         message: 'must not be enabled in production',
+      });
+    }
+    if (
+      env.DEV_AUTH_ENABLED &&
+      staging &&
+      (env.DEV_AUTH_SECRET?.length ?? 0) < 32
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEV_AUTH_SECRET'],
+        message: 'set at least 32 characters to enable dev sign-in on staging',
       });
     }
   });

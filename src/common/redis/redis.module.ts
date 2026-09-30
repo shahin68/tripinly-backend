@@ -22,6 +22,8 @@ export const REDIS = Symbol('REDIS');
       useFactory: (config: ConfigService<Env, true>) =>
         new Redis(config.get('REDIS_URL', { infer: true }), {
           lazyConnect: true,
+          // Railway's private network is IPv6-only.
+          family: 0,
           maxRetriesPerRequest: 2,
           enableOfflineQueue: false,
         }),

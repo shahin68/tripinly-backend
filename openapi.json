@@ -121,9 +121,26 @@
     },
     "/v1/auth/dev": {
       "post": {
-        "description": "Only when DEV_AUTH_ENABLED=true (never in production); 404 otherwise.",
+        "description": "Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.",
         "operationId": "Auth_dev",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-dev-auth-secret",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Dev-Auth-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
