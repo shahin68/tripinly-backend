@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseServiceAccount } from '../../modules/notifications/push.provider';
 
 const optionalString = z
   .string()
@@ -93,6 +94,13 @@ export const envSchema = z
       .positive()
       .default(2000),
     ORS_MATRIX_DAILY_QUOTA: z.coerce.number().int().positive().default(500),
+    // Push: the Firebase service account JSON (raw or base64). Pushes are
+    // skipped while unset; in-app notifications still work.
+    FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,
+    // Email: Resend. Emails are skipped (with a warning) while unset.
+    RESEND_API_KEY: optionalString,
+    /** Sender, e.g. "Tripinly <no-reply@mail.tripinly.app>" on a domain verified in Resend. */
+    EMAIL_FROM: optionalString,
     /** Comma-separated Geofabrik extracts, e.g. europe/austria,europe/hungary. */
     OSM_IMPORT_REGIONS: z
       .string()
@@ -162,6 +170,24 @@ export const envSchema = z
         path: ['R2_ACCOUNT_ID'],
         message:
           'set R2_ACCOUNT_ID (or R2_ENDPOINT) with the storage credentials',
+      });
+    }
+    if (
+      env.FIREBASE_SERVICE_ACCOUNT_JSON &&
+      !parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
+        message:
+          'must be the service account JSON (project_id, client_email, private_key), raw or base64',
+      });
+    }
+    if (env.RESEND_API_KEY && !env.EMAIL_FROM) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['EMAIL_FROM'],
+        message: 'set EMAIL_FROM together with RESEND_API_KEY',
       });
     }
     if (env.DEV_AUTH_ENABLED && env.NODE_ENV === 'production') {

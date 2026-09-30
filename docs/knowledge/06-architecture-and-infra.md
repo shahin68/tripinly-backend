@@ -5,7 +5,7 @@
 | Process | Runs | Railway service |
 |---|---|---|
 | **api** | NestJS HTTP server + Socket.IO gateway | `api` (public domain, HTTPS terminated by Railway) |
-| **worker** | Same codebase, `main.worker.ts`: BullMQ processors (thumbnails, push, email, deletion, export, popularity recompute, like grouping) | `worker` (no public domain) |
+| **worker** | Same codebase, `main.worker.ts`: BullMQ processors (thumbnails, OSM import, counter rebuild, notification planning and push batching, email; deletion and export in stage 9) and realtime events raised there | `worker` (no public domain) |
 | **postgres** | PostgreSQL 16 with PostGIS | Railway Postgres with PostGIS (use a PostGIS-enabled image/template; run `CREATE EXTENSION IF NOT EXISTS postgis` in the first migration) |
 | **redis** | Queues, Socket.IO adapter, rate limits, short caches | Railway Redis |
 
@@ -43,7 +43,7 @@ docs/knowledge/           # this folder
 
 ## Key libraries
 
-`@nestjs/*`, `@nestjs/swagger`, `@nestjs/config` (validated with zod or Joi), `@nestjs/throttler` (Redis store), `@nestjs/event-emitter`, `@nestjs/bullmq` + `bullmq`, `@nestjs/websockets` + `socket.io` + `@socket.io/redis-adapter`, `prisma` + `@prisma/client`, `nestjs-i18n`, `class-validator`, `class-transformer`, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, `sharp` (thumbnails, EXIF stripping; its prebuilt libvips cannot decode HEIC, so the app uploads JPEG), `firebase-admin`, `resend`, `google-auth-library` (Google ID token), `jose` (Apple token verification, JWT signing), `pino` via `nestjs-pino`.
+`@nestjs/*`, `@nestjs/swagger`, `@nestjs/config` (validated with zod or Joi), `@nestjs/throttler` (Redis store), `@nestjs/event-emitter`, `@nestjs/bullmq` + `bullmq`, `@nestjs/websockets` + `@nestjs/platform-socket.io` + `socket.io` (pinned to the version `@nestjs/platform-socket.io` ships, so there is one copy) + `@socket.io/redis-adapter` + `@socket.io/redis-emitter` (worker → sockets), `socket.io-client` (tests only), `prisma` + `@prisma/client`, `nestjs-i18n`, `class-validator`, `class-transformer`, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, `sharp` (thumbnails, EXIF stripping; its prebuilt libvips cannot decode HEIC, so the app uploads JPEG), `firebase-admin`, `resend`, `google-auth-library` (Google ID token), `jose` (Apple token verification, JWT signing), `pino` via `nestjs-pino`.
 
 Adding anything else: state the reason.
 
@@ -59,8 +59,8 @@ Adding anything else: state the reason.
 | `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple sign-in verification and token revocation. All four or none; unset = Apple sign-in answers 503. The `.p8` key may use literal `\n` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Private photo bucket (R2 API token with Object Read & Write on that bucket). Key, secret and bucket together or not at all; unset = photo endpoints answer 503. No public bucket URL: clients get signed URLs |
 | `R2_ENDPOINT` | Overrides `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, e.g. the local VersityGW S3 stand-in (`http://localhost:7070`). Signed URLs use this host, so clients must reach it |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Email |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM: the service account key JSON from the Firebase console (Project settings → Service accounts), raw or base64. Worker only. Unset = no pushes (in-app notifications still work); malformed = refused at boot |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Email through Resend. Worker only. `EMAIL_FROM` (e.g. `Tripinly <no-reply@mail.tripinly.app>`, on a domain verified in Resend) is required with the key. Unset = emails skipped with a warning |
 | `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
 | `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |

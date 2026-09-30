@@ -1,7 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
+import type { Env } from '../common/config/env';
+import { RedisIoAdapter } from '../modules/realtime/redis-io.adapter';
 
 export const API_PREFIX = 'v1';
 export const JSON_BODY_LIMIT = '1mb';
@@ -25,5 +28,9 @@ export function configureApp(app: INestApplication): void {
       '.well-known/apple-app-site-association',
     ],
   });
+  const config = express.get<ConfigService<Env, true>>(ConfigService);
+  express.useWebSocketAdapter(
+    new RedisIoAdapter(express, config.get('REDIS_URL', { infer: true })),
+  );
   express.enableShutdownHooks();
 }

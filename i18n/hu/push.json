@@ -1,0 +1,37 @@
+{
+  "someone": "Valaki",
+  "comment_on_marker": {
+    "title": "{actor} hozzászólt: {marker}",
+    "body": "{excerpt}"
+  },
+  "added_to_trip": {
+    "title": "Hozzáadtak: {trip}",
+    "body": "{actor} hozzáadott ehhez az úthoz."
+  },
+  "trip_changed_by_collaborator": {
+    "title": "Változások: {trip}",
+    "places_added": {
+      "one": "{actor} hozzáadott egy helyet",
+      "other": "{actor} {count} helyet adott hozzá"
+    },
+    "one_actor": {
+      "one": "{actor} módosított valamit",
+      "other": "{actor} {count} módosítást végzett"
+    },
+    "many_actors": {
+      "one": "{actor} és mások módosítottak valamit",
+      "other": "{actor} és mások {count} módosítást végeztek"
+    }
+  },
+  "likes_grouped": {
+    "title": "Új kedvelések",
+    "in_trip": {
+      "one": "{actor} kedvelte a bejegyzésedet itt: {trip}",
+      "other": "{count} ember kedvelte a bejegyzéseidet itt: {trip}"
+    },
+    "anywhere": {
+      "one": "{actor} kedvelte a bejegyzésedet",
+      "other": "{count} ember kedvelte a bejegyzéseidet"
+    }
+  }
+}

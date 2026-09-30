@@ -33,6 +33,38 @@ describe('validateEnv', () => {
     );
   });
 
+  it('checks the Firebase service account and the email sender', () => {
+    const account = {
+      project_id: 'tripinly',
+      client_email: 'push@tripinly.iam.gserviceaccount.com',
+      private_key:
+        '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n',
+    };
+    expect(
+      validateEnv({
+        ...valid,
+        FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify(account),
+      }).FIREBASE_SERVICE_ACCOUNT_JSON,
+    ).toBeDefined();
+    expect(
+      validateEnv({
+        ...valid,
+        FIREBASE_SERVICE_ACCOUNT_JSON: Buffer.from(
+          JSON.stringify(account),
+        ).toString('base64'),
+      }).FIREBASE_SERVICE_ACCOUNT_JSON,
+    ).toBeDefined();
+    expect(() =>
+      validateEnv({
+        ...valid,
+        FIREBASE_SERVICE_ACCOUNT_JSON: '{"project_id":"x"}',
+      }),
+    ).toThrow(/FIREBASE_SERVICE_ACCOUNT_JSON/);
+    expect(() => validateEnv({ ...valid, RESEND_API_KEY: 're_123' })).toThrow(
+      /EMAIL_FROM/,
+    );
+  });
+
   it('refuses dev auth in production', () => {
     expect(() =>
       validateEnv({

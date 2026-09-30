@@ -17,7 +17,10 @@ import { MarkersModule } from './modules/markers/markers.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PhotosModule } from './modules/photos/photos.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
+import { EmailModule } from './modules/notifications/email/email.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlacesModule } from './modules/places/places.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RoutingModule } from './modules/routing/routing.module';
 import { SocialModule } from './modules/social/social.module';
 import { TripsModule } from './modules/trips/trips.module';
@@ -43,6 +46,9 @@ import { UsersModule } from './modules/users/users.module';
     SocialModule,
     DiscoveryModule,
     RoutingModule,
+    RealtimeModule,
+    NotificationsModule,
+    EmailModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

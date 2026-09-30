@@ -81,7 +81,9 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 ## Notifications and billing
 
-**notifications** — recipient → users, `type`, `actorId` (nullable), `tripId`, `markerId`, `payload` (json), `groupKey` (for grouped likes), `count`, `readAt`.
+**notifications** — recipient → users (`CASCADE`), `type` (`comment_on_marker` | `added_to_trip` | `trip_changed_by_collaborator` | `likes_grouped`), `actorId` (latest actor; `SET NULL` on account deletion), `tripId` (`CASCADE`; null for likes across several trips), `markerId` (`CASCADE`), `payload` (json: comment id, marker name and excerpt; or actor ids and change counts; or liker and trip ids), `groupKey` (`changes:{tripId}:{recipientId}`, `likes:{recipientId}`), `count`, `readAt`, `pushedAt` (push sent; for groups it closes the group), `createdAt`, `updatedAt`. A partial unique index keeps one open group per key (`groupKey` set, `pushedAt` null).
+
+**notification_settings** — `userId` (PK, `CASCADE`), `commentOnMarker`, `addedToTrip`, `tripChangedByCollaborator`, `likesGrouped` (booleans, default true). No row = all on.
 
 **entitlements** — user → users (`CASCADE`), `feature` (`best_route_realtime`), `source` (`revenuecat`, or `manual` from `npm run entitlement:grant`), `expiresAt` (null = never), `externalRef`. Unique (`userId`, `feature`, `source`). Active = no `expiresAt` or one in the future.
 
@@ -97,7 +99,8 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 | likes given | delete, recompute counts |
 | copies others made (`copiedFrom…`) | keep, link set null |
 | reports filed | keep report, `reporterId = null` |
-| notifications, devices, tokens, identities, blocks, entitlements | delete |
+| notifications (received), notification settings, devices, tokens, identities, blocks, entitlements | delete |
+| notifications others received about this user | keep, `actorId = null` (shown as "Someone") |
 
 Storage-object deletion runs as a job after the database transaction commits.
 

@@ -1,0 +1,16 @@
+{
+  "footer": "Ezt az e-mailt a Tripinly-fiókod miatt kapod. Automatikusan küldtük, a válaszokat nem olvassuk.",
+  "data_export_ready": {
+    "subject": "Elkészültek a Tripinly-adataid",
+    "heading": "Elkészült az adatexportod",
+    "body": "Másolatot kértél a Tripinly-adataidról. Az alábbi gombbal letöltheted. A link 7 napig érvényes.",
+    "button": "Adataim letöltése",
+    "ignore": "Ha nem te kérted, hagyd figyelmen kívül ezt az e-mailt, és jelentkezz ki a Tripinlyből a többi eszközödön."
+  },
+  "account_deletion_confirmed": {
+    "subject": "Töröltük a Tripinly-fiókodat",
+    "heading": "A fiókodat töröltük",
+    "body": "Kérésedre töröltük a Tripinly-fiókodat és a hozzá kapcsolódó adatokat. Több e-mailt nem küldünk.",
+    "ignore": "Köszönjük, hogy velünk utaztál."
+  }
+}

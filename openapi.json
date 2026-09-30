@@ -2633,6 +2633,149 @@
           "routing"
         ]
       }
+    },
+    "/v1/notifications": {
+      "get": {
+        "description": "Title and body are localized by Accept-Language (else my saved locale). Live updates arrive as notification.created on the user room.",
+        "operationId": "Notifications_list",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My in-app notifications, newest first",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/notifications/read": {
+      "post": {
+        "description": "Body `{ \"ids\": [...] }` (up to 100) or `{ \"all\": true }`. Unknown or foreign ids are ignored.",
+        "operationId": "Notifications_markRead",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark notifications as read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/me/notification-settings": {
+      "get": {
+        "description": "All on by default. Off stops the push only; the in-app notification is still created.",
+        "operationId": "Notifications_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My push switches per notification type",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "Notifications_updateSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change push switches (send only what changes)",
+        "tags": [
+          "notifications"
+        ]
+      }
     }
   },
   "info": {
@@ -4909,6 +5052,192 @@
           "degraded",
           "applied"
         ]
+      },
+      "NotificationTripDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ]
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "comment_on_marker",
+              "added_to_trip",
+              "trip_changed_by_collaborator",
+              "likes_grouped"
+            ]
+          },
+          "actor": {
+            "nullable": true,
+            "description": "Who caused it (the latest person for grouped types)",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
+          },
+          "trip": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTripDto"
+              }
+            ]
+          },
+          "markerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "count": {
+            "type": "number",
+            "description": "trip_changed_by_collaborator: number of changes; likes_grouped: number of people; else 1"
+          },
+          "title": {
+            "type": "string",
+            "description": "Localized, same text as the push"
+          },
+          "body": {
+            "type": "string"
+          },
+          "deepLink": {
+            "type": "string",
+            "example": "tripinly://trips/0b7c…"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Grouped types keep collecting until their push goes out; the same id may arrive again with a higher count"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "actor",
+          "trip",
+          "markerId",
+          "count",
+          "title",
+          "body",
+          "deepLink",
+          "read",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "NotificationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadCount": {
+            "type": "number",
+            "description": "Unread notifications in total"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "unreadCount"
+        ]
+      },
+      "MarkReadDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "maxItems": 100,
+            "description": "Mark these as read. Send either ids or all.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "all": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Mark everything as read"
+          }
+        }
+      },
+      "NotificationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "commentOnMarker": {
+            "type": "boolean",
+            "description": "Push for comments on my places"
+          },
+          "addedToTrip": {
+            "type": "boolean",
+            "description": "Push when someone adds me to a trip"
+          },
+          "tripChangedByCollaborator": {
+            "type": "boolean",
+            "description": "Push for collaborator changes (batched per 10 minutes)"
+          },
+          "likesGrouped": {
+            "type": "boolean",
+            "description": "Push for likes (at most one per hour)"
+          }
+        },
+        "required": [
+          "commentOnMarker",
+          "addedToTrip",
+          "tripChangedByCollaborator",
+          "likesGrouped"
+        ]
+      },
+      "UpdateNotificationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "commentOnMarker": {
+            "type": "boolean"
+          },
+          "addedToTrip": {
+            "type": "boolean"
+          },
+          "tripChangedByCollaborator": {
+            "type": "boolean"
+          },
+          "likesGrouped": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }

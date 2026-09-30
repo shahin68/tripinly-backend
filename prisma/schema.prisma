@@ -71,17 +71,20 @@ model User {
   consents      Consent[]
   devices       Device[]
 
-  ownedTrips     Trip[]        @relation("TripOwner")
-  memberships    TripMember[]  @relation("TripMemberUser")
-  membersAdded   TripMember[]  @relation("TripMemberAddedBy")
-  invitesCreated TripInvite[]
-  markersCreated Marker[]
-  photosUploaded Photo[]
-  comments       Comment[]
-  likes          Like[]
-  entitlements   Entitlement[]
-  blocksGiven    Block[]       @relation("Blocker")
-  blocksReceived Block[]       @relation("Blocked")
+  ownedTrips           Trip[]                @relation("TripOwner")
+  memberships          TripMember[]          @relation("TripMemberUser")
+  membersAdded         TripMember[]          @relation("TripMemberAddedBy")
+  invitesCreated       TripInvite[]
+  markersCreated       Marker[]
+  photosUploaded       Photo[]
+  comments             Comment[]
+  likes                Like[]
+  entitlements         Entitlement[]
+  notifications        Notification[]        @relation("NotificationRecipient")
+  notificationsCaused  Notification[]        @relation("NotificationActor")
+  notificationSettings NotificationSettings?
+  blocksGiven          Block[]               @relation("Blocker")
+  blocksReceived       Block[]               @relation("Blocked")
 
   @@map("users")
 }
@@ -204,15 +207,16 @@ model Trip {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  owner      User         @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  copiedFrom Trip?        @relation("TripCopies", fields: [copiedFromTripId], references: [id], onDelete: SetNull)
-  copies     Trip[]       @relation("TripCopies")
-  members    TripMember[]
-  days       TripDay[]
-  invites    TripInvite[]
-  markers    Marker[]
-  photos     Photo[]
-  comments   Comment[]
+  owner         User           @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  copiedFrom    Trip?          @relation("TripCopies", fields: [copiedFromTripId], references: [id], onDelete: SetNull)
+  copies        Trip[]         @relation("TripCopies")
+  members       TripMember[]
+  days          TripDay[]
+  invites       TripInvite[]
+  markers       Marker[]
+  photos        Photo[]
+  comments      Comment[]
+  notifications Notification[]
 
   @@index([ownerId])
   @@index([visibility, likeCount(sort: Desc)], map: "trips_explore_idx", where: raw("((visibility = 'public'::\"TripVisibility\") AND (\"hiddenAt\" IS NULL))"))
@@ -360,15 +364,16 @@ model Marker {
   createdAt          DateTime                              @default(now())
   updatedAt          DateTime                              @updatedAt
 
-  day        TripDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  place      Place     @relation(fields: [placeId], references: [id], onDelete: Restrict)
-  createdBy  User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  copiedFrom Marker?   @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
-  copies     Marker[]  @relation("MarkerCopies")
-  photos     Photo[]   @relation("MarkerPhotos")
-  coverPhoto Photo?    @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
-  comments   Comment[]
+  day           TripDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  trip          Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  place         Place          @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  copiedFrom    Marker?        @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
+  copies        Marker[]       @relation("MarkerCopies")
+  photos        Photo[]        @relation("MarkerPhotos")
+  coverPhoto    Photo?         @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+  comments      Comment[]
+  notifications Notification[]
 
   @@index([dayId, position])
   @@index([tripId])
@@ -534,4 +539,58 @@ model Entitlement {
 
   @@unique([userId, feature, source])
   @@map("entitlements")
+}
+
+enum NotificationType {
+  comment_on_marker
+  added_to_trip
+  trip_changed_by_collaborator
+  likes_grouped
+}
+
+/// In-app notifications (docs/knowledge/05-realtime-and-notifications.md).
+/// Batched and grouped types collect into one open row per groupKey until
+/// their summary push goes out (pushedAt set); a partial unique index in the
+/// migration keeps one open row per key.
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  recipientId String           @db.Uuid
+  type        NotificationType
+  /// The latest actor; null after that account is deleted.
+  actorId     String?          @db.Uuid
+  tripId      String?          @db.Uuid
+  markerId    String?          @db.Uuid
+  payload     Json             @default("{}")
+  groupKey    String?
+  count       Int              @default(1)
+  readAt      DateTime?
+  pushedAt    DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  recipient User    @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  trip      Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  marker    Marker? @relation(fields: [markerId], references: [id], onDelete: Cascade)
+
+  @@unique([groupKey], map: "notifications_open_group_key", where: raw("((\"groupKey\" IS NOT NULL) AND (\"pushedAt\" IS NULL))"))
+  @@index([recipientId, createdAt, id])
+  @@index([actorId])
+  @@index([tripId])
+  @@index([markerId])
+  @@map("notifications")
+}
+
+/// Per-type push switches. No row means everything is on.
+model NotificationSettings {
+  userId                    String   @id @db.Uuid
+  commentOnMarker           Boolean  @default(true)
+  addedToTrip               Boolean  @default(true)
+  tripChangedByCollaborator Boolean  @default(true)
+  likesGrouped              Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
 }
