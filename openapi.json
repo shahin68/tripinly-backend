@@ -511,6 +511,64 @@
         ]
       }
     },
+    "/v1/users/{username}": {
+      "get": {
+        "description": "Trips are paginated with cursor and limit. Unknown users and users with a block either way: 404.",
+        "operationId": "Users_profile",
+        "parameters": [
+          {
+            "name": "username",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "jonas.k",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A public profile with public trips",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/v1/users/{id}/block": {
       "post": {
         "description": "Mutual in effect. Also removes each user from the other’s trips as an editor. Idempotent.",
@@ -761,6 +819,44 @@
           }
         ],
         "summary": "Owner: delete the trip with everything in it",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/copy": {
+      "post": {
+        "description": "Copies title, dates, days and markers into a new trip I own (my default visibility). No photos, comments, likes or members. Own and private trips: 403 TRIP_NOT_COPYABLE.",
+        "operationId": "Trips_copy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a public trip to my trips",
         "tags": [
           "trips"
         ]
@@ -1399,6 +1495,54 @@
         ]
       }
     },
+    "/v1/markers/{id}/copy": {
+      "post": {
+        "description": "Markers of public trips that are not mine. Same name, location, time and place; no photos, comments or likes. Own and private trips: 403 TRIP_NOT_COPYABLE.",
+        "operationId": "Markers_copy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyMarkerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Copy a marker to one of my trips",
+        "tags": [
+          "markers"
+        ]
+      }
+    },
     "/v1/markers/{id}": {
       "get": {
         "operationId": "Markers_get",
@@ -1992,6 +2136,293 @@
         "summary": "Delete a photo",
         "tags": [
           "photos"
+        ]
+      }
+    },
+    "/v1/markers/{id}/comments": {
+      "get": {
+        "operationId": "Social_listComments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A marker's comments, oldest first",
+        "tags": [
+          "social"
+        ]
+      },
+      "post": {
+        "description": "Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute.",
+        "operationId": "Social_createComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comment on a marker",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/v1/comments/{id}": {
+      "delete": {
+        "description": "The author or the trip owner. Idempotent.",
+        "operationId": "Social_deleteComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a comment",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/v1/likes/{targetType}/{targetId}": {
+      "put": {
+        "description": "Idempotent. Returns the new like state and count.",
+        "operationId": "Social_like",
+        "parameters": [
+          {
+            "name": "targetType",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "trip",
+                "marker",
+                "photo",
+                "comment",
+                "place"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikeStateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Like a trip, marker, photo, comment or place",
+        "tags": [
+          "social"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent.",
+        "operationId": "Social_unlike",
+        "parameters": [
+          {
+            "name": "targetType",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "trip",
+                "marker",
+                "photo",
+                "comment",
+                "place"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikeStateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove my like",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/v1/explore/trips": {
+      "get": {
+        "description": "Ranked by likes and copies with recency decay. Only trips with at least one marker. Pass nextCursor to continue the same ranking.",
+        "operationId": "Explore_trips",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSummaryPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Public trips from other people, ranked",
+        "tags": [
+          "discovery"
         ]
       }
     }
@@ -2605,6 +3036,113 @@
           "items"
         ]
       },
+      "TripSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "owner": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "First cover photo in the trip (from stage 5)"
+          },
+          "dayCount": {
+            "type": "number"
+          },
+          "markerCount": {
+            "type": "number"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "copyCount": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "startDate",
+          "endDate",
+          "visibility",
+          "owner",
+          "role",
+          "coverThumbUrl",
+          "dayCount",
+          "markerCount",
+          "likeCount",
+          "likedByMe",
+          "copyCount",
+          "updatedAt"
+        ]
+      },
+      "ProfileDto": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "publicTripCount": {
+            "type": "number",
+            "description": "Public trips they own"
+          },
+          "trips": {
+            "description": "Their public trips, most recently changed first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripSummaryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as cursor for more trips"
+          }
+        },
+        "required": [
+          "user",
+          "publicTripCount",
+          "trips",
+          "nextCursor"
+        ]
+      },
       "BlockedUsersDto": {
         "type": "object",
         "properties": {
@@ -2976,79 +3514,6 @@
           "username"
         ]
       },
-      "TripSummaryDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": "string"
-          },
-          "startDate": {
-            "type": "string",
-            "nullable": true
-          },
-          "endDate": {
-            "type": "string",
-            "nullable": true
-          },
-          "visibility": {
-            "type": "string",
-            "enum": [
-              "public",
-              "private"
-            ]
-          },
-          "owner": {
-            "$ref": "#/components/schemas/UserSummaryDto"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "owner",
-              "editor",
-              "viewer"
-            ]
-          },
-          "coverThumbUrl": {
-            "type": "string",
-            "nullable": true,
-            "description": "First cover photo in the trip (from stage 5)"
-          },
-          "dayCount": {
-            "type": "number"
-          },
-          "markerCount": {
-            "type": "number"
-          },
-          "likeCount": {
-            "type": "number"
-          },
-          "copyCount": {
-            "type": "number"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "startDate",
-          "endDate",
-          "visibility",
-          "owner",
-          "role",
-          "coverThumbUrl",
-          "dayCount",
-          "markerCount",
-          "likeCount",
-          "copyCount",
-          "updatedAt"
-        ]
-      },
       "TripSummaryPageDto": {
         "type": "object",
         "properties": {
@@ -3130,11 +3595,10 @@
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Most-liked public photo here (from the photos stage on)"
+            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
           },
           "likedByMe": {
-            "type": "boolean",
-            "description": "From the social stage on; false until then"
+            "type": "boolean"
           }
         },
         "required": [
@@ -3344,11 +3808,10 @@
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Most-liked public photo here (from the photos stage on)"
+            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
           },
           "likedByMe": {
-            "type": "boolean",
-            "description": "From the social stage on; false until then"
+            "type": "boolean"
           },
           "distanceMeters": {
             "type": "number",
@@ -3482,11 +3945,10 @@
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Most-liked public photo here (from the photos stage on)"
+            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
           },
           "likedByMe": {
-            "type": "boolean",
-            "description": "From the social stage on; false until then"
+            "type": "boolean"
           },
           "source": {
             "type": "string",
@@ -3516,7 +3978,7 @@
             "$ref": "#/components/schemas/PlaceTagsDto"
           },
           "photoThumbUrls": {
-            "description": "A few public photo thumbnails (from the photos stage on; empty until then)",
+            "description": "Up to 10 photo thumbnails from public trips, most liked first",
             "type": "array",
             "items": {
               "type": "string"
@@ -3627,6 +4089,24 @@
             "type": "number",
             "minimum": 0,
             "description": "Insert position; appended when omitted"
+          }
+        },
+        "required": [
+          "dayId"
+        ]
+      },
+      "CopyMarkerDto": {
+        "type": "object",
+        "properties": {
+          "dayId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A day of a trip I own or edit"
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insert position in the day; appended when omitted"
           }
         },
         "required": [
@@ -3861,8 +4341,7 @@
             "type": "number"
           },
           "likedByMe": {
-            "type": "boolean",
-            "description": "From the social stage on; false until then"
+            "type": "boolean"
           },
           "uploader": {
             "nullable": true,
@@ -3954,6 +4433,112 @@
         },
         "required": [
           "photoId"
+        ]
+      },
+      "CommentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "markerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/UserSummaryDto"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "I wrote it, or I own the trip"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "markerId",
+          "body",
+          "author",
+          "likeCount",
+          "likedByMe",
+          "canDelete",
+          "createdAt"
+        ]
+      },
+      "CommentPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "CreateCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "LikeStateDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "marker",
+              "photo",
+              "comment",
+              "place"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "liked": {
+            "type": "boolean"
+          },
+          "likeCount": {
+            "type": "number",
+            "description": "The target's like count after the change (a place's popularity for places)"
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "liked",
+          "likeCount"
         ]
       }
     }

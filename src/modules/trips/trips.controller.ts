@@ -67,6 +67,20 @@ export class TripsController {
     return this.trips.get(user.id, id);
   }
 
+  @Post('trips/:id/copy')
+  @ApiOperation({
+    summary: 'Add a public trip to my trips',
+    description:
+      'Copies title, dates, days and markers into a new trip I own (my default visibility). No photos, comments, likes or members. Own and private trips: 403 TRIP_NOT_COPYABLE.',
+  })
+  @ApiCreatedResponse({ type: TripDto })
+  copy(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<TripDto> {
+    return this.trips.copy(user.id, id);
+  }
+
   @Patch('trips/:id')
   @ApiOperation({ summary: 'Owner: title, dates, visibility' })
   @ApiOkResponse({ type: TripDto })

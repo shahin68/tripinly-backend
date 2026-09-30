@@ -4,6 +4,7 @@ import { CoreModule } from './common/core.module';
 import { QueueModule } from './common/queue/queue.module';
 import { OsmImportWorkerModule } from './modules/osm-import/osm-import-worker.module';
 import { PhotosWorkerModule } from './modules/photos/photos-worker.module';
+import { SocialWorkerModule } from './modules/social/social-worker.module';
 
 /**
  * The worker process: BullMQ processors (thumbnails, push, email, deletion,
@@ -17,6 +18,7 @@ import { PhotosWorkerModule } from './modules/photos/photos-worker.module';
     QueueModule,
     OsmImportWorkerModule,
     PhotosWorkerModule,
+    SocialWorkerModule,
   ],
 })
 export class WorkerModule {}

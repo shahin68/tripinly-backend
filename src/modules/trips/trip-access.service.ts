@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { Prisma, Trip, TripRole } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
@@ -130,7 +131,11 @@ export class TripAccessService {
       copy: !isOwner && trip.visibility === 'public',
       leave: role === 'editor',
     };
-    if (!allowed[capability]) throw AppException.forbidden();
+    if (!allowed[capability]) {
+      throw capability === 'copy'
+        ? tripNotCopyable()
+        : AppException.forbidden();
+    }
   }
 
   private async isAdmin(userId: string): Promise<boolean> {
@@ -140,4 +145,9 @@ export class TripAccessService {
     });
     return user?.role === 'admin';
   }
+}
+
+/** Own trips and private trips can't be copied. */
+export function tripNotCopyable(): AppException {
+  return new AppException(ErrorCode.TRIP_NOT_COPYABLE, HttpStatus.FORBIDDEN);
 }

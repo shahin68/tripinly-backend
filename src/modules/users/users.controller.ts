@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -12,10 +12,13 @@ import {
 } from '../../common/auth/auth.decorators';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserSummaryDto } from './user-summary';
+import { PageQueryDto } from '../../common/pagination/pagination';
+import { ProfileDto } from './profile.dto';
 import {
   CheckUsernameQueryDto,
   SearchUsersQueryDto,
   UsernameAvailabilityDto,
+  UsernameParamDto,
 } from './users.dto';
 
 class UserSearchResultDto {
@@ -49,5 +52,21 @@ export class UsersController {
     @Query() query: SearchUsersQueryDto,
   ): Promise<UserSearchResultDto> {
     return { items: await this.users.search(user.id, query.q) };
+  }
+
+  // Keep after the fixed paths above: ':username' would match them otherwise.
+  @Get(':username')
+  @ApiOperation({
+    summary: 'A public profile with public trips',
+    description:
+      'Trips are paginated with cursor and limit. Unknown users and users with a block either way: 404.',
+  })
+  @ApiOkResponse({ type: ProfileDto })
+  profile(
+    @CurrentUser() user: AuthUser,
+    @Param() { username }: UsernameParamDto,
+    @Query() query: PageQueryDto,
+  ): Promise<ProfileDto> {
+    return this.users.profile(user.id, username, query.cursor, query.limit);
   }
 }

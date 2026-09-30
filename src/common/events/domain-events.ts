@@ -7,6 +7,8 @@ export const DomainEvents = {
   TRIP_CREATED: 'trip.created',
   TRIP_UPDATED: 'trip.updated',
   TRIP_DELETED: 'trip.deleted',
+  /** Someone copied a public trip; tripId is the source. For notifications, not the trip room. */
+  TRIP_COPIED: 'trip.copied',
   DAY_CREATED: 'day.created',
   DAY_DELETED: 'day.deleted',
   MARKER_CREATED: 'marker.created',
@@ -19,6 +21,10 @@ export const DomainEvents = {
   PHOTO_FAILED: 'photo.failed',
   PHOTO_DELETED: 'photo.deleted',
   PHOTOS_REORDERED: 'photos.reordered',
+  COMMENT_CREATED: 'comment.created',
+  COMMENT_DELETED: 'comment.deleted',
+  /** Any like or unlike; realtime throttles it per target (see 05-realtime). */
+  LIKE_COUNT_CHANGED: 'like.count_changed',
   MEMBER_ADDED: 'member.added',
   MEMBER_REMOVED: 'member.removed',
   USER_BLOCKED: 'user.blocked',

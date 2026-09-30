@@ -7,6 +7,8 @@ import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { PhotoJobsService } from '../photos/photos.queue';
+import { recomputePopularity } from '../places/popularity';
+import { likedAmong } from '../social/liked';
 import {
   PlaceMatchingService,
   type PlaceInput,
@@ -15,6 +17,7 @@ import { TripAccessService } from '../trips/trip-access.service';
 import { TripLimits } from '../trips/trip-limits';
 import { limitReached, lockTrip } from '../trips/trips.service';
 import {
+  type CopyMarkerDto,
   type CreateMarkerDto,
   MARKER_INCLUDE,
   type MarkerDto,
@@ -125,6 +128,8 @@ export class MarkersService {
       const current = await tx.marker.findUnique({ where: { id: markerId } });
       if (!current) throw AppException.notFound();
       const data: Prisma.MarkerUncheckedUpdateInput = {};
+      // The marker's likes count toward its place: moving it moves them.
+      let movedLikes: string[] = [];
 
       if (input.name !== undefined) data.name = input.name;
       if (input.time !== undefined) data.time = input.time;
@@ -141,6 +146,9 @@ export class MarkersService {
           userId,
         );
         data.placeId = place.id;
+        if (place.id !== current.placeId && current.likeCount > 0) {
+          movedLikes = [current.placeId, place.id];
+        }
         data.lat = input.location?.lat ?? place.lat;
         data.lng = input.location?.lng ?? place.lng;
       }
@@ -182,6 +190,7 @@ export class MarkersService {
         data,
         include: MARKER_INCLUDE,
       });
+      await recomputePopularity(tx, movedLikes);
       await touchTrip(tx, trip.id);
       return updated;
     });
@@ -214,6 +223,9 @@ export class MarkersService {
         select: { id: true },
       });
       await tx.marker.delete({ where: { id: markerId } });
+      if (marker.likeCount > 0) {
+        await recomputePopularity(tx, [marker.placeId]);
+      }
       await tx.marker.updateMany({
         where: { dayId: marker.dayId, position: { gt: marker.position } },
         data: { position: { decrement: 1 } },
@@ -231,6 +243,69 @@ export class MarkersService {
         trip.id,
       ),
     );
+  }
+
+  /**
+   * Copies a marker of a public trip (not my own) to a day of a trip I can
+   * edit: same name, location, time and place; no photos, comments or likes.
+   */
+  async copy(
+    userId: string,
+    markerId: string,
+    input: CopyMarkerDto,
+  ): Promise<MarkerDto> {
+    await this.access.assertForMarker(userId, markerId, 'copy');
+    const source = await this.prisma.marker.findUniqueOrThrow({
+      where: { id: markerId },
+    });
+    const { trip } = await this.access.assertForDay(
+      userId,
+      input.dayId,
+      'edit_content',
+    );
+
+    const marker = await this.prisma.$transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      await assertDayInTrip(tx, input.dayId, trip.id);
+      const count = await tx.marker.count({ where: { dayId: input.dayId } });
+      if (count >= TripLimits.MARKERS_PER_DAY) {
+        throw limitReached('markers', TripLimits.MARKERS_PER_DAY);
+      }
+      const position = Math.min(input.position ?? count, count);
+      await tx.marker.updateMany({
+        where: { dayId: input.dayId, position: { gte: position } },
+        data: { position: { increment: 1 } },
+      });
+      const created = await tx.marker.create({
+        data: {
+          dayId: input.dayId,
+          tripId: trip.id,
+          placeId: source.placeId,
+          name: source.name,
+          lat: source.lat,
+          lng: source.lng,
+          time: source.time,
+          position,
+          createdById: userId,
+          copiedFromMarkerId: source.id,
+        },
+        include: MARKER_INCLUDE,
+      });
+      await touchTrip(tx, trip.id);
+      return created;
+    });
+
+    const dto = toMarkerDto(marker, this.storage);
+    this.events.emit(
+      DomainEvents.MARKER_CREATED,
+      domainEvent(
+        DomainEvents.MARKER_CREATED,
+        userId,
+        { marker: dto },
+        trip.id,
+      ),
+    );
+    return dto;
   }
 
   /** Sets the order of a day's markers; the IDs must be exactly the day's (visible) markers. */
@@ -291,8 +366,11 @@ export class MarkersService {
     const people = [marker.createdById, marker.coverPhoto?.uploaderId].filter(
       (id): id is string => !!id,
     );
-    const hidden = await this.blocks.blockedAmong(userId, people);
-    return toMarkerDto(marker, this.storage, hidden);
+    const [hidden, liked] = await Promise.all([
+      this.blocks.blockedAmong(userId, people),
+      likedAmong(this.prisma, userId, { type: 'marker', ids: [marker.id] }),
+    ]);
+    return toMarkerDto(marker, this.storage, hidden, liked);
   }
 }
 

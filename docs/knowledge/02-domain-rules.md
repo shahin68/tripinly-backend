@@ -54,14 +54,20 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 ## Likes and popularity
 
-- One like per user per target (trip, marker, photo, comment). Liking twice is idempotent.
+- One like per user per target (trip, marker, photo, comment, place). Liking and unliking twice are idempotent. Anyone who can see the target can like it (members, or anyone for a public trip); photos only once ready. Content hidden by moderation or posted by someone with a block with me can't be liked (404).
+- A like doesn't count as a change to the trip (`updatedAt` stays), so it doesn't reorder My Trips.
+- Deleting a trip, marker, photo or comment deletes its likes (database triggers, including rows removed by cascade).
 - **Place popularity** = number of likes on **public** markers linked to that place (plus direct likes on the place from the place sheets). A place with popularity > 0 is a "Tripinly place"; OSM places with popularity 0 are background suggestions. Blocked relationships don't change global counts but blocked users' content is hidden from the viewer.
-- Explore ranks public trips by likes and copies, with recency decay.
+- A place's card image (`coverThumbUrl`) is the cover photo of its most liked marker in a public trip; place detail shows up to 10 photos from public trips, most liked first. Photos across a block are left out.
+- Counters (`likeCount`, `commentCount`, `popularity`) move in the same transaction as the like or comment; a nightly job rebuilds them from source rows.
+- Explore ranks public trips of other people by likes and copies, with recency decay: `(likes + 2 × copies) / (age in days + 2)^1.5`. Only trips with at least one marker are listed; owners with a block either way are left out.
 
 ## Comments
 
 - On markers only in v1. Plain text, 1–1000 chars. Flat list (no threads).
-- The comment author and the trip owner can delete a comment.
+- Members comment on any trip they're in; anyone can comment on a public trip they can see. Nobody can comment on a marker created by someone they have a block with (403), and comments from people with a block with me are left out of the list.
+- The comment author (even after leaving the trip) and the trip owner can delete a comment. Deleting removes it for good.
+- 30 new comments per minute per user.
 
 ## Copying ("Add to my trips")
 
@@ -69,8 +75,13 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - A copy is a **new, independent** trip (or marker) owned by the copier: new IDs, title, days, marker names, locations, times, order and place links.
 - A copy does **not** include photos, comments, likes, members or the original's visibility (it uses the copier's default visibility).
 - The copy stores `copiedFromTripId` / `copiedFromMarkerId`; when the original is deleted, these become `null`. The client shows "Copied from @handle" only while the source exists.
-- Copying a popular spot or marker into a trip creates a new marker on the chosen day, linked to the same place.
-- Each copy increments the source's `copyCount` (used for ranking and "Saved by N people").
+- Copying a popular spot or marker into a trip creates a new marker on the chosen day (of a trip I own or edit), linked to the same place, with the source's name, location and time. Hidden markers are not copied.
+- Each trip copy increments the source trip's `copyCount` (used for ranking and "Saved by N people"). Copying a trip counts toward my 200 owned trips.
+- Copying my own trip or a private trip (even as its editor) answers 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in answers 404.
+
+## Profiles
+
+- `GET /users/{username}` shows a user's public, visible trips. Unknown, not onboarded or suspended users, and users with a block either way, answer 404.
 
 ## Blocking and reporting
 

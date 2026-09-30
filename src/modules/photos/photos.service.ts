@@ -14,6 +14,7 @@ import {
   toMarkerDto,
 } from '../markers/markers.dto';
 import { BlocksService } from '../moderation/blocks.service';
+import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import { lockTrip } from '../trips/trips.service';
 import { photoKeys } from './photo-keys';
@@ -180,13 +181,19 @@ export class PhotosService {
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
       include: PHOTO_INCLUDE,
     });
-    const hidden = await this.blocks.blockedAmong(
-      userId,
-      photos.map((photo) => photo.uploaderId),
-    );
+    const [hidden, liked] = await Promise.all([
+      this.blocks.blockedAmong(
+        userId,
+        photos.map((photo) => photo.uploaderId),
+      ),
+      likedAmong(this.prisma, userId, {
+        type: 'photo',
+        ids: photos.map((photo) => photo.id),
+      }),
+    ]);
     return photos
       .filter((photo) => !hidden.has(photo.uploaderId))
-      .map((photo) => toPhotoDto(photo, this.storage, hidden));
+      .map((photo) => toPhotoDto(photo, this.storage, hidden, liked));
   }
 
   /** `photoIds` must be exactly the marker's processing and ready photos. */
@@ -271,13 +278,16 @@ export class PhotosService {
         trip.id,
       ),
     );
-    const hidden = await this.blocks.blockedAmong(
-      userId,
-      [marker.createdById, marker.coverPhoto?.uploaderId].filter(
-        (id): id is string => !!id,
+    const [hidden, liked] = await Promise.all([
+      this.blocks.blockedAmong(
+        userId,
+        [marker.createdById, marker.coverPhoto?.uploaderId].filter(
+          (id): id is string => !!id,
+        ),
       ),
-    );
-    return toMarkerDto(marker, this.storage, hidden);
+      likedAmong(this.prisma, userId, { type: 'marker', ids: [marker.id] }),
+    ]);
+    return toMarkerDto(marker, this.storage, hidden, liked);
   }
 
   /**

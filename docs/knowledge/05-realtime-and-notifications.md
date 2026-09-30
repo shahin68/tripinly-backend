@@ -26,9 +26,11 @@
 | `photo.deleted` | | photoId, markerId, new cover ID |
 | `marker.cover_changed` | Cover chosen, or set automatically by the first ready photo | markerId, photoId |
 | `photos.reordered` | Gallery reordered | markerId, ordered photo IDs |
-| `comment.created` / `comment.deleted` | | comment |
+| `comment.created` / `comment.deleted` | | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId |
 | `like.count_changed` | Any like on trip/marker/photo/comment | targetType, targetId, count (throttled to max 1 per target per 2 s) |
 | `member.added` / `member.removed` | | user summary |
+
+Domain events that don't go to a room as such: `trip.copied` (tripId = the source; data: copyId, ownerId) for a future notification, and `like.count_changed` for places (no trip).
 
 ### User room
 

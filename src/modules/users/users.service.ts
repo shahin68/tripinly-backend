@@ -2,11 +2,18 @@ import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import {
+  decodeCursor,
+  DEFAULT_PAGE_SIZE,
+  toPage,
+} from '../../common/pagination/pagination';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
+import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type User } from '../../generated/prisma/client';
 import { ConsentsService } from '../consents/consents.service';
 import { BlocksService } from '../moderation/blocks.service';
+import { toTripSummaries, tripSummaryInclude } from '../trips/trip.mapper';
 import { ageOn, MINIMUM_AGE, parseCalendarDate, toCalendarDate } from './age';
 import {
   isReservedUsername,
@@ -20,6 +27,7 @@ import {
   USER_SUMMARY_SELECT,
   type UserSummaryDto,
 } from './user-summary';
+import type { ProfileDto } from './profile.dto';
 import type { MeDto, UpdateMeDto, UsernameAvailabilityDto } from './users.dto';
 
 export const USER_SEARCH_LIMIT = 20;
@@ -34,6 +42,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly consents: ConsentsService,
     @Inject(REDIS) private readonly redis: Redis,
+    private readonly storage: StorageService,
   ) {}
 
   async getMe(userId: string): Promise<MeDto> {
@@ -169,6 +178,71 @@ export class UsersService {
       select: USER_SUMMARY_SELECT,
     });
     return users.map(toUserSummary);
+  }
+
+  /**
+   * A public profile: the user and their public, visible trips. Unknown,
+   * not onboarded, suspended, or with a block either way → NOT_FOUND.
+   */
+  async profile(
+    viewerId: string,
+    username: string,
+    cursor?: string,
+    limit = DEFAULT_PAGE_SIZE,
+  ): Promise<ProfileDto> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        username: normalizeUsername(username),
+        status: 'active',
+        onboardedAt: { not: null },
+        ...BlocksService.notBlockedWith(viewerId),
+      },
+      select: USER_SUMMARY_SELECT,
+    });
+    if (!user) throw AppException.notFound();
+
+    const where: Prisma.TripWhereInput = {
+      ownerId: user.id,
+      visibility: 'public',
+      hiddenAt: null,
+    };
+    const position = cursor ? decodeCursor(cursor) : undefined;
+    const [publicTripCount, rows] = await Promise.all([
+      this.prisma.trip.count({ where }),
+      this.prisma.trip.findMany({
+        where: {
+          ...where,
+          ...(position && {
+            OR: [
+              { updatedAt: { lt: new Date(position.at) } },
+              { updatedAt: new Date(position.at), id: { lt: position.id } },
+            ],
+          }),
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        include: tripSummaryInclude(viewerId),
+      }),
+    ]);
+    const dtos = await toTripSummaries(
+      this.prisma,
+      this.storage,
+      viewerId,
+      rows,
+    );
+    const byId = new Map(dtos.map((dto) => [dto.id, dto]));
+    const page = toPage(
+      rows,
+      limit,
+      (row) => ({ at: row.updatedAt.toISOString(), id: row.id }),
+      (row) => byId.get(row.id)!,
+    );
+    return {
+      user: toUserSummary(user),
+      publicTripCount,
+      trips: page.items,
+      nextCursor: page.nextCursor,
+    };
   }
 
   /** Sets onboardedAt once the profile is complete and required consents are given. */

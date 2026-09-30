@@ -57,7 +57,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 |---|---|---|
 | GET | `/users/check-username?username=` | `{ username (normalized), available, reason? (invalid\|taken) }`. Allowed during onboarding |
 | GET | `/users/search?q=` | Prefix search (2–50 chars) on username and display name; onboarded users only, never yourself or anyone with a block either way. `{ items: [user summary] }`, max 20 |
-| GET | `/users/{username}` | Public profile + public trips |
+| GET | `/users/{username}?cursor=&limit=` | Public profile: `{ user, publicTripCount, trips[] (trip summaries, most recently changed first), nextCursor }`. Unknown, or a block either way → 404 |
 | POST | `/users/{id}/block` | 204, idempotent. Also removes each user from the other's trips as an editor |
 | DELETE | `/users/{id}/block` | 204, idempotent |
 | GET | `/me/blocks` | Users I blocked, cursor paginated |
@@ -69,8 +69,8 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/trips/{id}` | Trip with days, markers (cover thumbnail URLs), members, `copiedFrom` summary |
 | PATCH | `/trips/{id}` | Owner: `title`, `visibility`, `startDate` (null removes both dates, days stay), `endDate` (resizes: adds empty days, removes trailing days only if empty, else 400 `fields.endDate = ["daysNotEmpty"]`) |
 | DELETE | `/trips/{id}` | Owner |
-| POST | `/trips/{id}/copy` | "Add to my trips". Public, not own. Returns the new trip |
-| GET | `/explore/trips` | Public trips from others, ranked |
+| POST | `/trips/{id}/copy` | "Add to my trips" → 201 with the new trip (title, dates, days, visible markers; my default visibility; `copiedFrom` set). Own or private trip → 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in → 404. Counts toward 200 owned trips |
+| GET | `/explore/trips?cursor=&limit=` | Public trips from others with at least one marker, ranked by `(likes + 2 × copies) / (age days + 2)^1.5`, newest on ties. Trip summaries; `nextCursor` continues the same ranking |
 
 ### Days
 | Method | Path | Notes |
@@ -98,7 +98,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/markers/{id}` | Marker with photos, like state, comment count |
 | PATCH | `/markers/{id}` | `name`, `time` (null clears), `placeId` or `location` (re-matches the place), `dayId` (another day of the same trip, else 400 `fields.dayId = ["notInTrip"]`), `position` |
 | DELETE | `/markers/{id}` | |
-| POST | `/markers/{id}/copy` | Body: target `dayId` in one of my trips |
+| POST | `/markers/{id}/copy` | Body: `dayId` (a day of a trip I own or edit), optional `position` → 201 with the new marker (same name, location, time, place; no photos, comments or likes). Marker of my own or a private trip → 403 `TRIP_NOT_COPYABLE` |
 
 ### Photos
 | Method | Path | Notes |
@@ -113,11 +113,11 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Comments and likes
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/markers/{id}/comments` | Paginated, oldest first |
-| POST | `/markers/{id}/comments` | |
-| DELETE | `/comments/{id}` | Author or trip owner |
-| PUT | `/likes/{targetType}/{targetId}` | `trip`, `marker`, `photo`, `comment`, `place` |
-| DELETE | `/likes/{targetType}/{targetId}` | |
+| GET | `/markers/{id}/comments?cursor=&limit=` | Oldest first. Comments from people with a block with me are left out |
+| POST | `/markers/{id}/comments` | Body: `body` (trimmed, 1–1000 chars) → 201 comment. Members, or anyone for a public trip; not on a marker created by someone I have a block with (403). 30/min per user |
+| DELETE | `/comments/{id}` | 204. The author (even after leaving the trip) or the trip owner; others 403 |
+| PUT | `/likes/{targetType}/{targetId}` | `trip`, `marker`, `photo` (ready only), `comment`, `place` → `{ targetType, targetId, liked, likeCount }` (a place's `likeCount` is its popularity). Idempotent. Not visible, hidden, or across a block → 404 |
+| DELETE | `/likes/{targetType}/{targetId}` | Same response with `liked: false`. Idempotent |
 
 ### Discovery
 | Method | Path | Notes |
@@ -126,7 +126,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/places/search?q=&lat=&lng=` | `{ items[], attribution }`: our places (`source: "place"`, with `id`) then Photon results (`source: "photon"`, no `id`; send name + location + `osmType`/`osmId` when adding the marker). `q` 2–100 chars; 60 requests/min per user |
 | GET | `/places/nearby?lat=&lng=&radiusKm=&cursor=&limit=` | Popular places around the user (radius 0.1–50 km, default 5), each with `distanceMeters`; the first page is topped up with OSM sights when fewer than 10 are in range. Location not stored |
 | GET | `/places/popular?bbox=…&excludeTripId=&limit=` | Tripinly places only in the visible area (bbox side ≤ 5°), excluding places already in the trip |
-| GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `photoThumbUrls` (from the photos stage), `attribution` |
+| GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `photoThumbUrls` (up to 10 from public trips, most liked first), `attribution` |
 | POST | `/places/{id}/add-to-trip` | Body: `dayId`, optional `time`, `position` → new marker (same rules as `POST /days/{id}/markers`) |
 
 ### Routing
@@ -171,8 +171,10 @@ Field names the client relies on (full schemas in OpenAPI):
 - **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]` → `{ user, role }` (owner first; people with a block with me are left out), `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: user summary }` or null), `days[]` → `{ id, position, date (startDate + position, or null), markers[] }`, `createdAt`, `updatedAt`.
 - **Marker**: `id`, `tripId`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary, or null after account deletion or across a block), `createdAt`, `updatedAt`.
 - **Photo**: `id`, `markerId`, `status` (`pending_upload`\|`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (null until ready; signed, valid at least 1 h and unchanged within the hour so images cache), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader` (null across a block), `createdAt`.
+- **Trip summary** (My Trips, Explore, profiles): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner`, `role` (`owner`\|`editor`\|`viewer`), `coverThumbUrl`, `dayCount`, `markerCount`, `likeCount`, `likedByMe`, `copyCount`, `updatedAt`.
+- **Comment**: `id`, `markerId`, `body`, `author` (user summary), `likeCount`, `likedByMe`, `canDelete` (I wrote it or own the trip), `createdAt`.
 - **User summary**: `id`, `username`, `displayName`.
-- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (null until the photos stage), `likedByMe` (false until the social stage). Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
+- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (cover photo of the most liked marker there in a public trip, or null), `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).
 
 ## Stable error codes (starter set)

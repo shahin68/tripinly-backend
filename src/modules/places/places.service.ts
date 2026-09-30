@@ -3,7 +3,10 @@ import type { Redis } from 'ioredis';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
+import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
+import { thumbUrl } from '../photos/photo-keys';
+import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import {
   assertBboxSpan,
@@ -46,6 +49,7 @@ const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
 const NEARBY_TOP_UP_BELOW = 10;
 const SEARCH_LIMIT = 10;
+const PLACE_PHOTO_LIMIT = 10;
 /** Sights that top up Nearby; cafés and bars are too many to be useful there. */
 const SIGHT_CATEGORIES: PlaceCategory[] = [
   'attraction',
@@ -82,10 +86,12 @@ export class PlacesService {
     private readonly access: TripAccessService,
     private readonly photon: PhotonClient,
     private readonly matching: PlaceMatchingService,
+    private readonly storage: StorageService,
     @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   async inView(
+    userId: string,
     query: InViewQueryDto,
     lang: string,
   ): Promise<InViewResponseDto> {
@@ -99,15 +105,21 @@ export class PlacesService {
       : undefined;
 
     const key = await this.inViewCacheKey(bbox, zoom, categories, limit, lang);
+    // The cache is shared by everyone; covers and likedByMe are per viewer.
     const cached = key ? await this.cacheGet<InViewResponseDto>(key) : null;
-    if (cached) return cached;
-
     const result =
-      zoom >= OSM_FILL_MIN_ZOOM
+      cached ??
+      (zoom >= OSM_FILL_MIN_ZOOM
         ? await this.inViewDetailed(bbox, categories, limit, lang)
-        : await this.inViewOverview(bbox, categories, limit, lang);
-    if (key) await this.cacheSet(key, result, IN_VIEW_CACHE_TTL_SECONDS);
-    return result;
+        : await this.inViewOverview(bbox, categories, limit, lang));
+    if (key && !cached) {
+      await this.cacheSet(key, result, IN_VIEW_CACHE_TTL_SECONDS);
+    }
+    return {
+      places: await this.personalize(userId, result.places),
+      clusters: result.clusters,
+      attribution: result.attribution,
+    };
   }
 
   async popular(
@@ -130,12 +142,19 @@ export class PlacesService {
       ORDER BY p.popularity DESC, p.id
       LIMIT ${query.limit ?? 20}`;
     return {
-      items: rows.map((row) => toPlaceItem(row, lang)),
+      items: await this.personalize(
+        userId,
+        rows.map((row) => toPlaceItem(row, lang)),
+      ),
       attribution: OSM_ATTRIBUTION,
     };
   }
 
-  async nearby(query: NearbyQueryDto, lang: string): Promise<NearbyPageDto> {
+  async nearby(
+    userId: string,
+    query: NearbyQueryDto,
+    lang: string,
+  ): Promise<NearbyPageDto> {
     const limit = query.limit ?? 20;
     const radius = (query.radiusKm ?? DEFAULT_RADIUS_KM) * 1000;
     const point = Prisma.sql`ST_SetSRID(ST_MakePoint(${query.lng}, ${query.lat}), 4326)::geography`;
@@ -187,7 +206,7 @@ export class PlacesService {
     }
 
     return {
-      items,
+      items: await this.personalize(userId, items),
       nextCursor: hasMore ? encodeScoreCursor(last.score, last.id) : null,
       attribution: OSM_ATTRIBUTION,
     };
@@ -246,8 +265,9 @@ export class PlacesService {
       throw AppException.notFound();
     }
     const tags = asStringRecord(place.tags);
+    const [item] = await this.personalize(userId, [toPlaceItem(place, lang)]);
     return {
-      ...toPlaceItem(place, lang),
+      ...item,
       source: place.source,
       isActive: place.isActive,
       osmType: place.osmType,
@@ -258,10 +278,59 @@ export class PlacesService {
         cuisine: tags.cuisine ?? null,
         wikidata: tags.wikidata ?? null,
       },
-      photoThumbUrls: [],
+      photoThumbUrls: await this.publicPhotoThumbs(userId, place.id),
       attribution:
         place.source === 'osm' || place.osmId ? OSM_ATTRIBUTION : null,
     };
+  }
+
+  /**
+   * Fills each place's cover (the cover photo of its most liked marker in a
+   * public trip, left out across blocks) and likedByMe for this viewer.
+   */
+  private async personalize<T extends PlaceItem>(
+    userId: string,
+    items: T[],
+  ): Promise<T[]> {
+    const ids = items.map((item) => item.id);
+    if (ids.length === 0) return items;
+    const [covers, liked] = await Promise.all([
+      this.prisma.$queryRaw<{ placeId: string; photoId: string }[]>`
+        SELECT DISTINCT ON (m."placeId") m."placeId" AS "placeId", m."coverPhotoId" AS "photoId"
+        FROM markers m
+        JOIN trips t ON t.id = m."tripId"
+        JOIN photos ph ON ph.id = m."coverPhotoId"
+        WHERE m."placeId" = ANY(${ids}::uuid[]) AND m."hiddenAt" IS NULL
+          AND t.visibility = 'public' AND t."hiddenAt" IS NULL AND ph."hiddenAt" IS NULL
+          AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
+          AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
+        ORDER BY m."placeId", m."likeCount" DESC, m."createdAt" DESC, m.id`,
+      likedAmong(this.prisma, userId, { type: 'place', ids }),
+    ]);
+    const coverOf = new Map(covers.map((row) => [row.placeId, row.photoId]));
+    return items.map((item) => ({
+      ...item,
+      coverThumbUrl: thumbUrl(this.storage, coverOf.get(item.id) ?? null),
+      likedByMe: liked.has(item.id),
+    }));
+  }
+
+  /** Up to 10 ready photos at the place from public trips, most liked first. */
+  private async publicPhotoThumbs(
+    userId: string,
+    placeId: string,
+  ): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT ph.id FROM photos ph
+      JOIN markers m ON m.id = ph."markerId"
+      JOIN trips t ON t.id = m."tripId"
+      WHERE m."placeId" = ${placeId}::uuid AND ph.status = 'ready' AND ph."hiddenAt" IS NULL
+        AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
+        AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
+        AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
+      ORDER BY ph."likeCount" DESC, ph."createdAt" DESC, ph.id
+      LIMIT ${PLACE_PHOTO_LIMIT}`;
+    return rows.flatMap((row) => thumbUrl(this.storage, row.id) ?? []);
   }
 
   /** Zoom ≥ 14: Tripinly places by popularity, then OSM places spread over the view. */
@@ -428,6 +497,14 @@ export class PlacesService {
       this.logger.warn(`In-view cache write failed: ${(error as Error).name}`);
     }
   }
+}
+
+/** No block between `userId` and the user in `column`, in either direction. */
+function notBlockedWith(userId: string, column: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`NOT EXISTS (
+    SELECT 1 FROM blocks b
+    WHERE (b."blockerId" = ${userId}::uuid AND b."blockedId" = ${column})
+       OR (b."blockedId" = ${userId}::uuid AND b."blockerId" = ${column}))`;
 }
 
 function inBbox(bbox: Bbox): Prisma.Sql {

@@ -81,7 +81,7 @@ export class PhotoDto {
   @ApiProperty()
   likeCount: number;
 
-  @ApiProperty({ description: 'From the social stage on; false until then' })
+  @ApiProperty()
   likedByMe: boolean;
 
   @ApiProperty({ type: UserSummaryDto, nullable: true })
@@ -147,6 +147,7 @@ export function toPhotoDto(
   photo: PhotoWithUploader,
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
+  likedIds: ReadonlySet<string> = new Set(),
 ): PhotoDto {
   const keys = photoKeys(photo.id);
   const ready = photo.status === 'ready';
@@ -160,7 +161,7 @@ export function toPhotoDto(
     height: photo.height,
     position: photo.position,
     likeCount: photo.likeCount,
-    likedByMe: false,
+    likedByMe: likedIds.has(photo.id),
     uploader: hiddenUserIds.has(photo.uploaderId)
       ? null
       : toUserSummary(photo.uploader),

@@ -6,7 +6,9 @@ import type {
   User,
 } from '../../generated/prisma/client';
 import { MARKER_INCLUDE, toMarkerDto } from '../markers/markers.dto';
+import { BlocksService } from '../moderation/blocks.service';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
+import { likedAmong } from '../social/liked';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
 import type { TripDto, TripSummaryDto } from './trips.dto';
 
@@ -48,13 +50,15 @@ export function dayDate(
 /**
  * `hiddenUserIds`: users with a block in either direction with the viewer.
  * They are left out of the member list and shown as no creator on markers,
- * and their cover photos aren't shown.
+ * and their cover photos aren't shown. `likedIds`: the trip and markers the
+ * viewer liked.
  */
 export function toTripDto(
   trip: TripWithDetails,
   myRole: TripRole | null,
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
+  likedIds: ReadonlySet<string> = new Set(),
 ): TripDto {
   return {
     id: trip.id,
@@ -71,7 +75,7 @@ export function toTripDto(
         role: member.role,
       })),
     likeCount: trip.likeCount,
-    likedByMe: false,
+    likedByMe: likedIds.has(trip.id),
     copyCount: trip.copyCount,
     copiedFrom: trip.copiedFrom
       ? {
@@ -84,7 +88,7 @@ export function toTripDto(
       position: day.position,
       date: dayDate(trip, day.position),
       markers: day.markers.map((marker) =>
-        toMarkerDto(marker, signer, hiddenUserIds),
+        toMarkerDto(marker, signer, hiddenUserIds, likedIds),
       ),
     })),
     createdAt: trip.createdAt.toISOString(),
@@ -114,6 +118,7 @@ export function toTripSummaryDto(
   role: TripRole | null,
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
+  likedIds: ReadonlySet<string> = new Set(),
 ): TripSummaryDto {
   const cover = trip.markers[0];
   const coverPhotoId =
@@ -132,7 +137,44 @@ export function toTripSummaryDto(
     dayCount: trip._count.days,
     markerCount: trip._count.markers,
     likeCount: trip.likeCount,
+    likedByMe: likedIds.has(trip.id),
     copyCount: trip.copyCount,
     updatedAt: trip.updatedAt.toISOString(),
   };
+}
+
+/** What every trip list (mine, Explore, profiles) loads per trip. */
+export function tripSummaryInclude(userId: string) {
+  return {
+    owner: { select: USER_SUMMARY_SELECT },
+    members: { where: { userId }, select: { role: true } },
+    _count: { select: { days: true, markers: true } },
+    markers: TRIP_COVER_MARKER,
+  } satisfies Prisma.TripInclude;
+}
+
+type SummaryRow = TripWithCounts & { members: { role: TripRole }[] };
+
+/** Summaries for one viewer: hides covers across blocks and fills likedByMe. */
+export async function toTripSummaries(
+  db: Pick<Prisma.TransactionClient, 'block' | 'like'>,
+  signer: UrlSigner,
+  userId: string,
+  rows: SummaryRow[],
+): Promise<TripSummaryDto[]> {
+  const [hidden, liked] = await Promise.all([
+    BlocksService.blockedAmong(
+      db,
+      userId,
+      rows.flatMap((row) =>
+        row.markers.flatMap((m) =>
+          m.coverPhoto ? [m.coverPhoto.uploaderId] : [],
+        ),
+      ),
+    ),
+    likedAmong(db, userId, { type: 'trip', ids: rows.map((row) => row.id) }),
+  ]);
+  return rows.map((row) =>
+    toTripSummaryDto(row, row.members[0]?.role ?? null, signer, hidden, liked),
+  );
 }
