@@ -11,6 +11,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type User } from '../../generated/prisma/client';
+import { EntitlementService } from '../billing/entitlement.service';
 import { ConsentsService } from '../consents/consents.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { toTripSummaries, tripSummaryInclude } from '../trips/trip.mapper';
@@ -43,6 +44,7 @@ export class UsersService {
     private readonly consents: ConsentsService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly storage: StorageService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async getMe(userId: string): Promise<MeDto> {
@@ -319,8 +321,7 @@ export class UsersService {
         missingProfileFields: missingFields,
         missingConsents,
       },
-      // Filled by EntitlementService in the billing stage.
-      entitlements: [],
+      entitlements: await this.entitlements.active(user.id),
     };
   }
 }

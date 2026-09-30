@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { GenericContainer } from 'testcontainers';
+import { ORS_STUB_KEY, ORS_STUB_URL } from '../utils/ors-stub';
 import { PHOTON_STUB_URL } from '../utils/photon-stub';
 
 const S3_KEY = process.env.TEST_S3_ACCESS_KEY ?? 'minioadmin';
@@ -93,6 +94,9 @@ export default async function globalSetup(): Promise<void> {
     APPLE_PRIVATE_KEY: 'unused-in-tests',
     // test/utils/photon-stub.ts listens here.
     PHOTON_BASE_URL: PHOTON_STUB_URL,
+    // test/utils/ors-stub.ts listens here.
+    ORS_BASE_URL: ORS_STUB_URL,
+    ORS_API_KEY: ORS_STUB_KEY,
     R2_ENDPOINT: s3Endpoint,
     R2_ACCESS_KEY_ID: S3_KEY,
     R2_SECRET_ACCESS_KEY: S3_SECRET,

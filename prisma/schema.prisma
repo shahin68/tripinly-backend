@@ -71,16 +71,17 @@ model User {
   consents      Consent[]
   devices       Device[]
 
-  ownedTrips     Trip[]       @relation("TripOwner")
-  memberships    TripMember[] @relation("TripMemberUser")
-  membersAdded   TripMember[] @relation("TripMemberAddedBy")
+  ownedTrips     Trip[]        @relation("TripOwner")
+  memberships    TripMember[]  @relation("TripMemberUser")
+  membersAdded   TripMember[]  @relation("TripMemberAddedBy")
   invitesCreated TripInvite[]
   markersCreated Marker[]
   photosUploaded Photo[]
   comments       Comment[]
   likes          Like[]
-  blocksGiven    Block[]      @relation("Blocker")
-  blocksReceived Block[]      @relation("Blocked")
+  entitlements   Entitlement[]
+  blocksGiven    Block[]       @relation("Blocker")
+  blocksReceived Block[]       @relation("Blocked")
 
   @@map("users")
 }
@@ -510,4 +511,27 @@ model Like {
   @@unique([userId, targetType, targetId])
   @@index([targetType, targetId])
   @@map("likes")
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+/// A paid feature a user has (premium-feature skill). Written by the billing
+/// webhook later; until then by the grant script for testing.
+model Entitlement {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  /// Feature key, e.g. best_route_realtime.
+  feature     String
+  /// Who granted it: revenuecat, or manual (grant script).
+  source      String
+  /// Null never expires (lifetime purchases, manual grants).
+  expiresAt   DateTime?
+  externalRef String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature, source])
+  @@map("entitlements")
 }

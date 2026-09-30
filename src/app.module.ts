@@ -9,6 +9,7 @@ import { QueueModule } from './common/queue/queue.module';
 import { ThrottlingModule } from './common/throttling/throttling.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { ConsentsModule } from './modules/consents/consents.module';
 import { HealthModule } from './modules/health/health.module';
 import { InvitesModule } from './modules/invites/invites.module';
@@ -17,6 +18,7 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { PhotosModule } from './modules/photos/photos.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { PlacesModule } from './modules/places/places.module';
+import { RoutingModule } from './modules/routing/routing.module';
 import { SocialModule } from './modules/social/social.module';
 import { TripsModule } from './modules/trips/trips.module';
 import { UsersModule } from './modules/users/users.module';
@@ -28,6 +30,7 @@ import { UsersModule } from './modules/users/users.module';
     ThrottlingModule,
     QueueModule,
     HealthModule,
+    BillingModule,
     AuthModule,
     ConsentsModule,
     UsersModule,
@@ -39,6 +42,7 @@ import { UsersModule } from './modules/users/users.module';
     PhotosModule,
     SocialModule,
     DiscoveryModule,
+    RoutingModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

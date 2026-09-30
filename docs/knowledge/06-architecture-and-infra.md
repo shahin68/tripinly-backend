@@ -11,6 +11,8 @@
 
 External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import).
 
+Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> best_route_realtime [days]` (0 days revokes).
+
 Nightly counter rebuild: BullMQ queue `social`, job `recount` at 03:40 UTC in the worker (like and comment counters, place popularity).
 
 OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
@@ -62,7 +64,8 @@ Adding anything else: state the reason.
 | `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
 | `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |
-| `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice |
+| `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. Without a key, routes are straight lines (`degraded`) |
+| `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |
 | `OSM_IMPORT_REGIONS` | Geofabrik extract paths. Default `europe/austria,europe/hungary` |
 | `OSM_IMPORT_ENABLED` | `true` on the worker to schedule imports and queue the initial load of never-imported regions. Default `false` (an import downloads hundreds of MB) |

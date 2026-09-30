@@ -83,7 +83,7 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 **notifications** — recipient → users, `type`, `actorId` (nullable), `tripId`, `markerId`, `payload` (json), `groupKey` (for grouped likes), `count`, `readAt`.
 
-**entitlements** — user → users, `feature` (`best_route_realtime`), `source` (store/provider), `expiresAt`, `externalRef`.
+**entitlements** — user → users (`CASCADE`), `feature` (`best_route_realtime`), `source` (`revenuecat`, or `manual` from `npm run entitlement:grant`), `expiresAt` (null = never), `externalRef`. Unique (`userId`, `feature`, `source`). Active = no `expiresAt` or one in the future.
 
 ## Deletion behaviour (FK summary)
 

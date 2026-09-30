@@ -25,7 +25,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "openapi": "node dist/scripts/export-openapi.js",
     "db:seed": "prisma db execute --file prisma/seed.sql",
-    "osm:import": "node dist/scripts/osm-import.js"
+    "osm:import": "node dist/scripts/osm-import.js",
+    "entitlement:grant": "node dist/scripts/grant-entitlement.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1143.0",

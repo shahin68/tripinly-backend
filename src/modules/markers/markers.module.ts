@@ -10,5 +10,6 @@ import { MarkersService } from './markers.service';
   imports: [TripsModule, PlacesModule, ModerationModule, PhotoJobsModule],
   controllers: [MarkersController],
   providers: [MarkersService],
+  exports: [MarkersService],
 })
 export class MarkersModule {}

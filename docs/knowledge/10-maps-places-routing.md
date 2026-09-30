@@ -95,14 +95,17 @@ Returns:
 - Exclude places already in the day/trip.
 - Order by `positionAlongRoute`.
 
-**Caching:** route responses cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days; `alongTheWay` recomputed (cheap) or cached 10 min. Invalidate a day's cached route on marker add/move/reorder/delete.
+**Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
 
 **Free vs premium:**
 - Showing a route line for a day, and along-the-way places: **free for everyone** (ORS cost is low). If ORS quota becomes a problem, fall back to straight segments between markers for free users and tell the product owner.
 - **Best route (reorder a day):** free = straight-line ordering (no provider call); premium = ORS matrix (`/v2/matrix/{profile}`, durations) + our ordering (nearest neighbour + 2-opt, first marker fixed) + `savedMinutes`.
 - Limits: ≤ 25 markers per optimization, ≤ 50 waypoints per day route.
+- Anyone who can see the trip may ask for a proposal; saving it (`apply=true`) needs owner or editor.
 
-**Resilience:** ORS timeouts (5 s) and 429s → return `ROUTING_UNAVAILABLE` (503) for route requests; the optimize endpoint falls back to straight-line with `mode: "straight_line"` and `degraded: true`.
+**Resilience:** ORS timeouts (5 s), 429s and 5xx (retried once) → `ROUTING_UNAVAILABLE` (503) for route requests; the optimize endpoint falls back to straight-line with `mode: "straight_line"` and `degraded: true`.
+
+**Quota:** ORS calls are counted per UTC day in Redis (`ORS_DIRECTIONS_DAILY_QUOTA`, default 2000; `ORS_MATRIX_DAILY_QUOTA`, default 500, the free plan). A warning is logged at 80%; past 100% (or with no `ORS_API_KEY`) route requests return straight segments between the points with `degraded: true` and times from typical speeds (5, 15, 40 km/h), and optimize falls back to straight line. Report quota exhaustion to the product owner.
 
 ## Nearby (unchanged idea, new data)
 
