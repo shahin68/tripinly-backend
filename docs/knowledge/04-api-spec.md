@@ -31,7 +31,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 
 Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`, `refreshToken`, `refreshTokenExpiresAt`, `onboardingRequired`. Google body: `idToken`. A provider that isn't configured answers 503 `SERVICE_UNAVAILABLE` with `details.provider`; an invalid provider token answers 401 `UNAUTHENTICATED` with `details.reason = invalid_identity_token`.
 
-**Onboarding gate:** until the profile (username, displayName, birthDate) and the current Terms and Privacy consents are complete, only `GET/PATCH /me`, `GET/POST /me/consents`, `PUT/DELETE /me/devices/{fcmToken}` and `GET /users/check-username` work; everything else answers 403 `ONBOARDING_INCOMPLETE`. When a new document version requires re-consent, the same routes stay open and the rest answer 403 `CONSENT_REQUIRED`.
+**Onboarding gate:** until the profile (username, displayName, birthDate) and the current Terms and Privacy consents are complete, only `GET/PATCH /me`, `GET/POST /me/consents`, `PUT/DELETE /me/devices/{fcmToken}`, `GET /users/check-username`, `DELETE /me` and `GET/POST /me/export` work; everything else answers 403 `ONBOARDING_INCOMPLETE`. When a new document version requires re-consent, the same routes stay open and the rest answer 403 `CONSENT_REQUIRED`.
 
 ### Legal and consent
 | Method | Path | Notes |
@@ -49,8 +49,9 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/me/trips` | Owned + collaborating, most recently changed first (marker and day edits count), cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount` |
 | PUT | `/me/devices/{fcmToken}` | Register/refresh push device. Body: `platform` (`android`\|`ios`), `locale` |
 | DELETE | `/me/devices/{fcmToken}` | |
-| POST | `/me/export` | Starts GDPR export job; email when ready |
-| DELETE | `/me` | Starts account deletion (see `account-deletion` skill) |
+| POST | `/me/export` | Starts the GDPR export → 202 **DataExport**; emails a download link valid 7 days when ready. One at a time (a pending export is returned again, 202) and one per 24 h (429 `RATE_LIMITED`, `details.retryAfterSeconds`, `Retry-After`). 503 `SERVICE_UNAVAILABLE` while storage isn't configured |
+| GET | `/me/export` | Latest **DataExport** (404 when none): `id`, `status` (`pending`\|`ready`\|`failed`\|`expired`), `createdAt`, `readyAt`, `expiresAt`, `bytes`, `downloadUrl` (signed, only while ready, valid until `expiresAt`; never log it) |
+| DELETE | `/me` | Starts account deletion (see `account-deletion` skill) → 202 `{ "status": "deleting" }`. Needs a Google/Apple sign-in in the last 10 minutes, else 403 `REAUTH_REQUIRED` (sign in again, then retry). Signs out everywhere at once: tokens stop working and sockets close. Everything else runs in the background; a confirmation email follows |
 
 ### Users
 | Method | Path | Notes |
@@ -157,9 +158,9 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Moderation
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/reports` | Target type, ID, reason, details |
-| GET | `/admin/reports` | Admin only, filter by status |
-| PATCH | `/admin/reports/{id}` | Dismiss, hide content, suspend user |
+| POST | `/reports` | Body: `targetType` (`user`\|`trip`\|`marker`\|`photo`\|`comment`), `targetId`, `reason` (`spam`\|`harassment`\|`nudity`\|`violence`\|`hate`\|`other`), optional `details` (≤ 1000) → 201 **Report** `{ id, targetType, targetId, reason, status, createdAt }`. An open report by the same user on the same target answers 200 with it. The target must be visible to the caller (404 otherwise); a user can be reported even across a block. 20 per day (429 `RATE_LIMITED`) |
+| GET | `/admin/reports?status=&cursor=&limit=` | Admin only (403 `FORBIDDEN` otherwise). `status` defaults to `open`; oldest first. Item: the report plus `details`, `action`, `reviewedAt`, `reporter` (`{ id, username }` or null), `openReportCount` (open reports on the same target), `target` `{ exists, owner { id, username } \| null, text (title, name, comment body or display name), thumbUrl (photos), tripId, hidden }` |
+| PATCH | `/admin/reports/{id}` | Admin only. Body `{ action: dismiss\|hide_content\|suspend_user\|delete_content, note? }` → the updated report. Resolves every open report on the same target and writes the audit log. `hide_content` / `delete_content` need a content target (400 `VALIDATION_FAILED` for a user); `suspend_user` suspends the reported user or the content's author (403 for an admin) |
 
 ### Ops
 | Method | Path | Notes |
@@ -183,6 +184,6 @@ Field names the client relies on (full schemas in OpenAPI):
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`\|`optimizeMarkers`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`\|`optimizeMarkers`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED` (403: suspended; also on refresh), `REAUTH_REQUIRED` (403: `DELETE /me` without a sign-in in the last 10 minutes), `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.

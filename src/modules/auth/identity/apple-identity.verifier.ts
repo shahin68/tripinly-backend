@@ -20,6 +20,7 @@ import type { VerifiedIdentity } from './verified-identity';
 
 export const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_TOKEN_URL = 'https://appleid.apple.com/auth/token';
+const APPLE_REVOKE_URL = 'https://appleid.apple.com/auth/revoke';
 const HTTP_TIMEOUT_MS = 5_000;
 
 /** Lets tests supply a local key set instead of Apple's JWKS endpoint. */
@@ -124,6 +125,43 @@ export class AppleIdentityVerifier {
         `Apple authorization code exchange failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return null;
+    }
+  }
+
+  /**
+   * Revokes the user's Apple session (account deletion). Returns whether Apple
+   * accepted it; failures are logged without the token and not thrown, since
+   * the account is deleted either way.
+   */
+  async revoke(refreshToken: string): Promise<boolean> {
+    if (!this.apple) {
+      this.logger.warn(
+        'Apple revocation skipped: Sign in with Apple is not configured',
+      );
+      return false;
+    }
+    try {
+      const response = await fetch(APPLE_REVOKE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          token: refreshToken,
+          token_type_hint: 'refresh_token',
+          client_id: this.apple.bundleId,
+          client_secret: await this.clientSecret(this.apple),
+        }),
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        throw new Error(`Apple revoke endpoint returned ${response.status}`);
+      }
+      this.logger.log('Revoked an Apple session');
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Apple revocation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
     }
   }
 

@@ -101,6 +101,10 @@ export class PhotoProcessingService {
     });
 
     if (!result) {
+      // Processed twice at once (a retried or stalled job): the other run won.
+      if (await this.prisma.photo.count({ where: { id: photoId } })) {
+        return 'skipped';
+      }
       // Deleted while we worked; its file cleanup may already have run.
       await this.storage.deletePrefix(photoPrefix(photoId));
       return 'deleted';

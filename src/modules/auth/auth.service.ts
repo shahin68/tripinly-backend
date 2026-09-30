@@ -94,6 +94,7 @@ export class AuthService {
       sub: user.id,
       role: user.role,
       onb: user.onboardedAt !== null,
+      authTime: rotated.authenticatedAt,
     });
     return {
       accessToken: access.token,
@@ -175,6 +176,7 @@ export class AuthService {
         sub: user.id,
         role: user.role,
         onb: user.onboardedAt !== null,
+        authTime: new Date(),
       }),
       this.refreshTokens.issue(user.id),
     ]);

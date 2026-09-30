@@ -21,6 +21,8 @@ export const AllowDuringOnboarding = () =>
 export interface AuthUser {
   id: string;
   role: 'user' | 'admin';
+  /** When the user last signed in with Google or Apple. */
+  authTime: Date;
 }
 
 export type AuthenticatedRequest = Request & { user?: AuthUser };

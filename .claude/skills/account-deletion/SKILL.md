@@ -22,11 +22,11 @@ The rules are product decisions in `docs/knowledge/02-domain-rules.md` → "Acco
 | 3 | Content in others' trips | Delete the user's photos (fix covers: next photo or null) and comments. Markers they created stay with `createdById = null`. Remove their `trip_members` rows. Emit realtime events so open trips update. |
 | 4 | Likes | Delete all likes by the user; collect affected targets and places. |
 | 5 | Recompute | Counters on affected trips/markers/photos/comments and `places.popularity` for affected places. |
-| 6 | Account rows | Blocks (both directions), notifications (to and from), entitlements, invites created, devices, refresh tokens, auth identities. Reports filed keep `reporterId = null`; reports **about** the user are closed. |
+| 6 | Account rows | Blocks (both directions), notifications (to and from; grouped ones shared with others drop the user instead), entitlements, invites created, devices, refresh tokens, auth identities, data exports. Reports filed keep `reporterId = null`; reports **about** the user or their deleted content are closed (`target_deleted`). |
 | 7 | Apple revocation | If an Apple identity exists, call Apple's token revocation endpoint with the stored refresh token. Log success/failure without the token. |
 | 8 | Consent proof | Replace consent rows with the minimal retained record defined in `07-security-and-gdpr.md` (keyed user-ID hash, document, version, locale, timestamps), purged after `CONSENT_PROOF_RETENTION_YEARS`. Also delete the RevenueCat customer (`DELETE /v1/subscribers/{app_user_id}` with `REVENUECAT_API_KEY`). |
 | 9 | User row | Hold the username in `username_holds` for 30 days, then delete the user row. |
-| 10 | Storage | Enqueue `storage.delete` for every collected key (batched `DeleteObjects`, retried). |
+| 10 | Storage | Enqueue photo file deletion for every collected photo (batched, retried) and delete `exports/{userId}/`. |
 | 11 | Email | Send `account_deletion_confirmed` to the captured address, then discard it from job state. |
 
 Steps 2–6 run in transactions per batch (e.g. 100 trips) so a huge account doesn't hold one giant transaction. Storage deletion happens only after the rows are gone.
@@ -39,7 +39,7 @@ Steps 2–6 run in transactions per batch (e.g. 100 trips) so a huge account doe
 ## Data export (`POST /me/export`)
 
 - One export at a time per user; rate limit 1 per 24 h.
-- Worker builds a ZIP: `profile.json`, `consents.json`, `trips.json` (owned and member trips with days and markers), `comments.json`, `likes.json`, `notifications.json`, `photos/` (originals the user uploaded, EXIF already stripped), `README.txt` (localized explanation).
+- Worker builds a ZIP: `profile.json`, `consents.json`, `trips.json` (owned and member trips with days and markers), `comments.json`, `likes.json`, `notifications.json`, `blocks.json` (people the user blocked), `reports.json` (reports the user filed), `photos/` (originals the user uploaded, EXIF already stripped), `README.txt` (localized explanation, `i18n/*/export.json`).
 - Upload to `exports/{userId}/{exportId}.zip`, email a signed link valid 7 days, delete the object after 7 days.
 
 ## When you add a table or storage path

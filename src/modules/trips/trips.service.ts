@@ -224,6 +224,14 @@ export class TripsService {
 
   async delete(userId: string, tripId: string): Promise<void> {
     await this.access.assert(userId, tripId, 'manage');
+    await this.remove(userId, tripId);
+  }
+
+  /**
+   * Deletes a trip without an access check: for callers that already decided
+   * (the owner above, moderation, account deletion). Idempotent.
+   */
+  async remove(actorId: string, tripId: string): Promise<void> {
     const members = await this.prisma.tripMember.findMany({
       where: { tripId },
       select: { userId: true },
@@ -236,16 +244,18 @@ export class TripsService {
         select: { id: true },
       });
       const placeIds = await likedPlaceIds(tx, { tripId });
-      await tx.trip.delete({ where: { id: tripId } });
+      const { count } = await tx.trip.deleteMany({ where: { id: tripId } });
+      if (count === 0) return null;
       await recomputePopularity(tx, placeIds);
       return photos.map((photo) => photo.id);
     });
+    if (!photoIds) return;
     await this.photoJobs.deleteFiles(photoIds);
     this.events.emit(
       DomainEvents.TRIP_DELETED,
       domainEvent(
         DomainEvents.TRIP_DELETED,
-        userId,
+        actorId,
         { memberIds: members.map((m) => m.userId) },
         tripId,
       ),

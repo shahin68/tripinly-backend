@@ -48,6 +48,8 @@ export class ExploreService {
         FROM trips t
         WHERE t.visibility = 'public' AND t."hiddenAt" IS NULL
           AND t."ownerId" <> ${userId}::uuid
+          -- Suspended (or deleting) owners' trips leave discovery.
+          AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)
           AND NOT EXISTS (
             SELECT 1 FROM blocks b

@@ -5,10 +5,12 @@
 - **Google:** verify the ID token signature, `iss`, `exp` and that `aud` is one of `GOOGLE_CLIENT_IDS`. Identity key = `sub`.
 - **Apple:** verify the identity token against Apple's JWKS (`iss = https://appleid.apple.com`, `aud = APPLE_BUNDLE_ID`). Identity key = `sub`. Exchange the authorization code for an Apple refresh token and store it **encrypted**; it's needed to revoke the Apple session when the account is deleted (Apple requires this).
 - Apple may only share the email on first sign-in and may give a private relay address; never rely on email as the identity key.
-- **Access token:** JWT, 15 minutes, claims `sub`, `role`, `onb` (onboarded), `iat`, `exp`, `jti`.
+- **Access token:** JWT, 15 minutes, claims `sub`, `role`, `onb` (onboarded), `auth_time` (when the user last signed in with Google/Apple; a refresh keeps it), `iat`, `exp`, `jti`.
+- **Recent sign-in:** `DELETE /me` needs `auth_time` within the last 10 minutes, else 403 `REAUTH_REQUIRED` (the client signs in again, then retries).
 - **Refresh token:** random 256-bit value, stored as a hash, 60 days, **rotated on every refresh**. Tokens share a `familyId`; presenting an already-rotated token revokes the whole family (`REFRESH_TOKEN_REUSED`) and the user must sign in again.
 - Suspended users: refresh fails with `ACCOUNT_SUSPENDED`; open sockets are disconnected.
-- Admin endpoints require `role = admin` checked by a guard **and** audited (who did what, when).
+- **Ending live sessions:** suspension and account deletion revoke every refresh token and mark the user in Redis (`auth:revoked:{userId}`) for one access-token lifetime, so still-valid access tokens are refused at once (`ACCOUNT_SUSPENDED`, or `UNAUTHENTICATED` after deletion). If Redis is down the check fails open and the account status and revoked refresh tokens end access within 15 minutes.
+- Admin endpoints require `role = admin` checked by a guard (against the database, not the token claim) **and** audited in `admin_audit_logs` (who did what, when, why).
 
 ## Authorization
 
@@ -35,15 +37,17 @@
 | Trips, markers, comments, likes | Core feature | Until deleted |
 | Consent records | Proof of consent (GDPR Art. 7(1); kept under Art. 17(3)(e) for defending legal claims) | After deletion keep only a minimal record: keyed hash of the user ID, document type, version, locale, granted/withdrawn timestamps. Kept for `CONSENT_PROOF_RETENTION_YEARS` (default **5**, the Hungarian general limitation period), then purged by a job. The value is configuration so legal counsel can change it without code changes. |
 | Device tokens, locale | Push | Until logout, token invalid (removed when FCM reports it unregistered), or deletion |
-| In-app notifications, notification settings | Activity list, push preferences | Until account deletion (received ones deleted; ones caused by the user keep the row with the actor removed); deleted with the trip, marker or comment they are about |
-| Email address in email jobs | Sending one transactional email | Only while the job runs; removed from Redis when it finishes or fails, never logged |
+| In-app notifications, notification settings | Activity list, push preferences | Until account deletion (received ones and ones the user caused are deleted; grouped ones shared with others drop the user); deleted with the trip, marker or comment they are about |
+| Data export ZIPs | Access / portability | 7 days in R2, then deleted by the hourly sweep |
+| Reports filed, admin audit log | Moderation, accountability | Reports stay without the reporter after their deletion; audit entries stay without the admin after theirs |
+| Email address in email jobs | Sending one transactional email | Only while the job runs; removed from Redis when it finishes or fails, never logged. The account deletion job holds the address from its start until the confirmation is queued |
 | Current location (Nearby) | Query only | **Not stored, not logged** |
 | IP addresses in logs | Security | Short log retention (e.g. 14 days) |
 
 ## GDPR rights
 
-- **Access / portability:** `POST /me/export` builds a ZIP (JSON of profile, consents, trips, days, markers, comments, likes, notifications + original photos the user uploaded), stores it in R2, emails a signed link valid 7 days, then deletes the ZIP.
-- **Erasure:** `DELETE /me` — see `02-domain-rules.md` and the `account-deletion` skill. Complete within 30 days (aim: minutes).
+- **Access / portability:** `POST /me/export` builds a ZIP (`profile.json` with sign-in methods, devices without tokens, paid features and settings; `consents.json`; `trips.json` with days and markers; `comments.json`; `likes.json`; `notifications.json`; `blocks.json` (people the user blocked); `reports.json` (reports the user filed); `photos/` originals the user uploaded, already without EXIF; a localized `README.txt`), stores it in R2, emails a signed link valid 7 days, then deletes the ZIP. One at a time, one per 24 hours. `GET /me/export` returns the latest with a fresh link while it lasts.
+- **Erasure:** `DELETE /me` — see `02-domain-rules.md` and the `account-deletion` skill. Complete within 30 days (aim: minutes). A failed deletion job is retried every hour until it finishes. Deleting and exporting stay open while a consent is owed.
 - **Rectification:** profile editing.
 - **Withdraw consent:** withdrawing a required consent means the user must delete the account or stop using the app; the API blocks use with `CONSENT_REQUIRED`.
 - **Children:** under-16 sign-ups are rejected and nothing about them is stored.

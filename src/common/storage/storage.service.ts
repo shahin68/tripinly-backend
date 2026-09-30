@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { HttpStatus, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { createReadStream } from 'node:fs';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../config/env';
 import { AppException } from '../errors/app.exception';
@@ -26,6 +27,7 @@ const REGION = 'auto';
 const HOUR_MS = 60 * 60 * 1000;
 /** Upload URLs are short-lived (photo-pipeline skill). */
 export const UPLOAD_URL_TTL_SECONDS = 10 * 60;
+const MAX_PRESIGN_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * The private photo bucket (Cloudflare R2, VersityGW locally). Nothing here is
@@ -119,6 +121,27 @@ export class StorageService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * GET URL valid for exactly `expiresInSeconds` from now (at most 7 days, the
+   * SigV4 limit). For one-off links such as data exports.
+   */
+  signedGetUrlFor(key: string, expiresInSeconds: number): string | null {
+    if (!this.config) return null;
+    return presignGetUrl({
+      endpoint: this.config.endpoint,
+      region: REGION,
+      bucket: this.config.bucket,
+      key,
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      signingDate: new Date(),
+      expiresInSeconds: Math.max(
+        1,
+        Math.min(Math.floor(expiresInSeconds), MAX_PRESIGN_SECONDS),
+      ),
+    });
+  }
+
   /** Size and type of an object, or null when it doesn't exist. */
   async head(
     key: string,
@@ -159,6 +182,25 @@ export class StorageService implements OnModuleDestroy {
         Bucket: config.bucket,
         Key: key,
         Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
+  /** Streams a local file up in one PUT (up to 5 GB). */
+  async putFile(
+    key: string,
+    path: string,
+    bytes: number,
+    contentType: string,
+  ): Promise<void> {
+    const { client, config } = this.require();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
+        Body: createReadStream(path),
+        ContentLength: bytes,
         ContentType: contentType,
       }),
     );

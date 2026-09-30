@@ -1,0 +1,3 @@
+{
+  "readme": "Your Tripinly data\n\nThis archive holds a copy of the data connected to your Tripinly account, created on {createdAt} (UTC).\n\nprofile.json: your profile, sign-in methods, settings, devices and paid features.\nconsents.json: the terms and privacy notices you accepted or withdrew, with dates.\ntrips.json: the trips you own or edit, with their days and places.\ncomments.json: the comments you wrote.\nlikes.json: what you liked.\nnotifications.json: the notifications you received.\nblocks.json: the people you blocked.\nreports.json: the reports you filed.\nphotos/: the photos you uploaded, without location or camera data.\n\nDates and times are in UTC (ISO 8601). Ids let you match entries across files."
+}

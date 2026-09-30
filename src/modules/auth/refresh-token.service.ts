@@ -14,6 +14,8 @@ export interface IssuedRefreshToken {
 
 export interface RotatedRefreshToken extends IssuedRefreshToken {
   userId: string;
+  /** When the user last actually signed in; carried along every rotation. */
+  authenticatedAt: Date;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,6 +51,7 @@ export class RefreshTokenService {
         familyId: randomUUID(),
         expiresAt,
         deviceLabel,
+        authenticatedAt: new Date(),
       },
     });
     return { token, expiresAt };
@@ -65,6 +68,17 @@ export class RefreshTokenService {
         HttpStatus.UNAUTHORIZED,
       );
     }
+    // Suspension and deletion revoke every token; say why rather than "reused".
+    if (current.user.status === 'suspended') {
+      await this.revokeFamily(current.familyId);
+      throw new AppException(ErrorCode.ACCOUNT_SUSPENDED, HttpStatus.FORBIDDEN);
+    }
+    if (current.user.status !== 'active') {
+      throw new AppException(
+        ErrorCode.UNAUTHENTICATED,
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
     if (current.revokedAt) {
       await this.revokeFamily(current.familyId, 'reuse of a rotated token');
       throw new AppException(
@@ -73,16 +87,6 @@ export class RefreshTokenService {
       );
     }
     if (current.expiresAt <= new Date()) {
-      throw new AppException(
-        ErrorCode.UNAUTHENTICATED,
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-    if (current.user.status === 'suspended') {
-      await this.revokeFamily(current.familyId);
-      throw new AppException(ErrorCode.ACCOUNT_SUSPENDED, HttpStatus.FORBIDDEN);
-    }
-    if (current.user.status !== 'active') {
       throw new AppException(
         ErrorCode.UNAUTHENTICATED,
         HttpStatus.UNAUTHORIZED,
@@ -105,6 +109,7 @@ export class RefreshTokenService {
           familyId: current.familyId,
           expiresAt,
           deviceLabel: current.deviceLabel,
+          authenticatedAt: current.authenticatedAt,
         },
       });
       await tx.refreshToken.update({
@@ -121,7 +126,12 @@ export class RefreshTokenService {
         HttpStatus.UNAUTHORIZED,
       );
     }
-    return { token, expiresAt, userId: current.userId };
+    return {
+      token,
+      expiresAt,
+      userId: current.userId,
+      authenticatedAt: current.authenticatedAt,
+    };
   }
 
   /**
@@ -136,6 +146,14 @@ export class RefreshTokenService {
     if (!current) return null;
     await this.revokeFamily(current.familyId);
     return current.userId;
+  }
+
+  /** Revokes every refresh token the user holds (suspension, deletion). */
+  async revokeAll(userId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 
   private async revokeFamily(familyId: string, reason?: string): Promise<void> {

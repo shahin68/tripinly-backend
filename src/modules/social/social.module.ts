@@ -11,5 +11,6 @@ import { SocialController } from './social.controller';
   imports: [TripsModule, PlacesModule, ModerationModule],
   controllers: [SocialController],
   providers: [CommentsService, LikesService],
+  exports: [CommentsService],
 })
 export class SocialModule {}

@@ -14,6 +14,8 @@ export interface AccessTokenClaims {
   role: 'user' | 'admin';
   /** Onboarded at the time of issue. */
   onb: boolean;
+  /** When the user last signed in with Google or Apple (not a refresh). */
+  authTime: Date;
 }
 
 export interface VerifiedAccessToken extends AccessTokenClaims {
@@ -41,7 +43,11 @@ export class AccessTokenService {
   async issue(claims: AccessTokenClaims): Promise<IssuedAccessToken> {
     const issuedAt = Math.floor(Date.now() / 1000);
     const expiresAt = issuedAt + this.ttlSeconds;
-    const token = await new SignJWT({ role: claims.role, onb: claims.onb })
+    const token = await new SignJWT({
+      role: claims.role,
+      onb: claims.onb,
+      auth_time: Math.floor(claims.authTime.getTime() / 1000),
+    })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(claims.sub)
       .setIssuer(ISSUER)
@@ -75,6 +81,11 @@ export class AccessTokenService {
         sub: payload.sub,
         role: payload.role,
         onb: payload.onb,
+        // Tokens from before auth_time existed count as an old sign-in.
+        authTime: new Date(
+          (typeof payload.auth_time === 'number' ? payload.auth_time : 0) *
+            1000,
+        ),
         expiresAt: new Date(payload.exp * 1000),
       };
     } catch (error) {

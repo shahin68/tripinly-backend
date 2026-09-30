@@ -14,7 +14,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 
 **auth_identities** — user → users, `provider` (`google` | `apple` | `dev`; `dev` only exists where `DEV_AUTH_ENABLED`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
 
-**refresh_tokens** — user → users, `tokenHash`, `familyId`, `expiresAt`, `revokedAt`, `replacedById`, `deviceLabel`.
+**refresh_tokens** — user → users, `tokenHash`, `familyId`, `expiresAt`, `revokedAt`, `replacedById`, `deviceLabel`, `authenticatedAt` (the Google/Apple sign-in that started the family, copied on every rotation; account deletion needs one in the last 10 minutes).
 
 **consents** — user → users, `documentType` (`terms` | `privacy` | `marketing`), `version`, `locale`, `grantedAt`, `withdrawnAt`.
 
@@ -77,7 +77,15 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 **blocks** — `blockerId`, `blockedId`. Unique pair. Queries check both directions.
 
-**reports** — `reporterId` (nullable after reporter deletion), `targetType` (`user` | `trip` | `marker` | `photo` | `comment`), `targetId`, `reason` (`spam` | `harassment` | `nudity` | `violence` | `hate` | `other`), `details`, `status` (`open` | `actioned` | `dismissed`), `reviewedById`, `reviewedAt`, `action`.
+**reports** — `reporterId` (nullable after reporter deletion), `targetType` (`user` | `trip` | `marker` | `photo` | `comment`), `targetId`, `reason` (`spam` | `harassment` | `nudity` | `violence` | `hate` | `other`), `details`, `status` (`open` | `actioned` | `dismissed`), `reviewedById` (`SET NULL`), `reviewedAt`, `action` (`dismiss` | `hide_content` | `suspend_user` | `delete_content` | `target_deleted`, the last when the target or its author was deleted). A partial unique index allows one open report per (`reporterId`, `targetType`, `targetId`).
+
+**admin_audit_logs** — `adminId` (`SET NULL`), `action`, `targetType`, `targetId` (for `suspend_user` the user, even when the report was about their content), `reportId`, `note`, `createdAt`. Written for every admin action.
+
+## Account
+
+**data_exports** — user → users (`CASCADE`), `status` (`pending` | `ready` | `failed` | `expired`), `bytes`, `readyAt`, `expiresAt` (7 days after ready; the hourly sweep deletes the file and marks it `expired`). The file is `exports/{userId}/{id}.zip`. A partial unique index allows one `pending` export per user.
+
+**consent_proofs** — the minimal record kept after account deletion (`07-security-and-gdpr.md`): `subjectHash` (HMAC-SHA256 of the deleted user id with `ENCRYPTION_KEY`), `documentType`, `version`, `locale`, `grantedAt`, `withdrawnAt`, `retainUntil` (deletion + `CONSENT_PROOF_RETENTION_YEARS`; a daily job purges rows past it). No link to any user row.
 
 ## Notifications and billing
 
@@ -99,10 +107,13 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 | likes given | delete, recompute counts |
 | copies others made (`copiedFrom…`) | keep, link set null |
 | reports filed | keep report, `reporterId = null` |
-| notifications (received), notification settings, devices, tokens, identities, blocks, entitlements | delete |
-| notifications others received about this user | keep, `actorId = null` (shown as "Someone") |
+| reports about the user or their deleted content | closed (`dismissed`, action `target_deleted`) |
+| notifications (received), notification settings, devices, tokens, identities, blocks, entitlements, invites created, data exports | delete |
+| notifications others received that this user caused | delete; a grouped one (likes, collaborator changes) shared with other people drops the user from its list and passes to the next person |
+| consents | replaced by `consent_proofs` rows |
+| username | held in `username_holds` for 30 days |
 
-Storage-object deletion runs as a job after the database transaction commits.
+Storage-object deletion runs as a job after the database transaction commits. Account deletion runs as the resumable `account` / `delete` job (`account-deletion` skill); `actorId` on notifications is still `SET NULL` as a backstop.
 
 ## Indexes worth remembering
 

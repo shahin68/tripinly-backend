@@ -83,6 +83,10 @@ model User {
   notifications        Notification[]        @relation("NotificationRecipient")
   notificationsCaused  Notification[]        @relation("NotificationActor")
   notificationSettings NotificationSettings?
+  reportsFiled         Report[]              @relation("ReportReporter")
+  reportsReviewed      Report[]              @relation("ReportReviewer")
+  adminActions         AdminAuditLog[]
+  dataExports          DataExport[]
   blocksGiven          Block[]               @relation("Blocker")
   blocksReceived       Block[]               @relation("Blocked")
 
@@ -109,16 +113,19 @@ model AuthIdentity {
 }
 
 model RefreshToken {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
   /// SHA-256 of the token; the token itself is never stored.
-  tokenHash    String    @unique
-  familyId     String    @db.Uuid
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  replacedById String?   @db.Uuid
-  deviceLabel  String?
-  createdAt    DateTime  @default(now())
+  tokenHash       String    @unique
+  familyId        String    @db.Uuid
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  replacedById    String?   @db.Uuid
+  deviceLabel     String?
+  /// When the user signed in with Google/Apple; carried across rotations.
+  /// Sensitive actions (account deletion) need a recent one.
+  authenticatedAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -593,4 +600,128 @@ model NotificationSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_settings")
+}
+
+// ─── Moderation ─────────────────────────────────────────────────────────────
+
+enum ReportTargetType {
+  user
+  trip
+  marker
+  photo
+  comment
+}
+
+enum ReportReason {
+  spam
+  harassment
+  nudity
+  violence
+  hate
+  other
+}
+
+enum ReportStatus {
+  open
+  actioned
+  dismissed
+}
+
+enum ModerationAction {
+  dismiss
+  hide_content
+  suspend_user
+  delete_content
+  /// Closed because the target or its author was deleted.
+  target_deleted
+}
+
+model Report {
+  id           String            @id @default(uuid()) @db.Uuid
+  /// Null once the reporter deletes their account.
+  reporterId   String?           @db.Uuid
+  targetType   ReportTargetType
+  targetId     String            @db.Uuid
+  reason       ReportReason
+  details      String?
+  status       ReportStatus      @default(open)
+  action       ModerationAction?
+  reviewedById String?           @db.Uuid
+  reviewedAt   DateTime?
+  createdAt    DateTime          @default(now())
+
+  reporter   User? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  reviewedBy User? @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  /// One open report per reporter and target (a repeat answers 200).
+  @@unique([reporterId, targetType, targetId], map: "reports_one_open_per_reporter", where: raw("(status = 'open'::\"ReportStatus\")"))
+  @@index([status, createdAt, id])
+  @@index([targetType, targetId, status])
+  @@index([reporterId, createdAt])
+  @@map("reports")
+}
+
+/// Every admin action (security doc: admin endpoints are audited).
+model AdminAuditLog {
+  id         String           @id @default(uuid()) @db.Uuid
+  adminId    String?          @db.Uuid
+  action     ModerationAction
+  targetType ReportTargetType
+  targetId   String           @db.Uuid
+  reportId   String?          @db.Uuid
+  note       String?
+  createdAt  DateTime         @default(now())
+
+  admin User? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
+}
+
+// ─── Account ────────────────────────────────────────────────────────────────
+
+enum DataExportStatus {
+  pending
+  ready
+  failed
+  expired
+}
+
+/// GDPR exports (POST /me/export). The ZIP lives at exports/{userId}/{id}.zip until expiresAt.
+model DataExport {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  status    DataExportStatus @default(pending)
+  bytes     BigInt?
+  readyAt   DateTime?
+  expiresAt DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// One export at a time per user.
+  @@unique([userId], map: "data_exports_one_pending", where: raw("(status = 'pending'::\"DataExportStatus\")"))
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("data_exports")
+}
+
+/// The minimal consent record kept after account deletion (07-security-and-gdpr.md),
+/// purged after CONSENT_PROOF_RETENTION_YEARS. No link to any user row.
+model ConsentProof {
+  id           String              @id @default(uuid()) @db.Uuid
+  /// HMAC-SHA256 of the deleted user's id with ENCRYPTION_KEY.
+  subjectHash  String
+  documentType ConsentDocumentType
+  version      String
+  locale       String
+  grantedAt    DateTime?
+  withdrawnAt  DateTime?
+  retainUntil  DateTime
+  createdAt    DateTime            @default(now())
+
+  @@index([subjectHash])
+  @@index([retainUntil])
+  @@map("consent_proofs")
 }

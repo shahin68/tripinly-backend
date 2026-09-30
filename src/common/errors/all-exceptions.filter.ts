@@ -55,6 +55,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details,
       },
     };
+    const retryAfter = details.retryAfterSeconds;
+    if (typeof retryAfter === 'number' && !response.getHeader('Retry-After')) {
+      response.setHeader('Retry-After', String(Math.ceil(retryAfter)));
+    }
     response.status(status).json(body);
   }
 

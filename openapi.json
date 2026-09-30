@@ -304,6 +304,32 @@
         "tags": [
           "me"
         ]
+      },
+      "delete": {
+        "description": "Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; sign in again, then retry). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.",
+        "operationId": "Account_delete",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete my account",
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/me/consents": {
@@ -2776,6 +2802,225 @@
           "notifications"
         ]
       }
+    },
+    "/v1/me/export": {
+      "post": {
+        "description": "Starts a ZIP export and emails a download link valid 7 days when ready. One at a time (a pending export is returned again) and one per 24 hours (429 RATE_LIMITED with details.retryAfterSeconds).",
+        "operationId": "Account_requestExport",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export my data",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "With a download link while ready. 404 when there is none.",
+        "operationId": "Account_latestExport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My latest export",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/reports": {
+      "post": {
+        "description": "You must be able to see the target (404 otherwise). One open report per target: repeating it answers 200 with the existing report. Up to 20 reports a day.",
+        "operationId": "Reports_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already reported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a user, trip, marker, photo or comment",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/v1/admin/reports": {
+      "get": {
+        "description": "Oldest first, with a snapshot of the target and how many open reports it has.",
+        "operationId": "Reports_list",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "open",
+              "type": "string",
+              "enum": [
+                "open",
+                "actioned",
+                "dismissed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReportsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reports to review (admins)",
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/v1/admin/reports/{id}": {
+      "patch": {
+        "description": "Resolves every open report on the same target and writes the audit log.",
+        "operationId": "Reports_review",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Act on a report (admins)",
+        "tags": [
+          "moderation"
+        ]
+      }
     }
   },
   "info": {
@@ -5238,6 +5483,368 @@
             "type": "boolean"
           }
         }
+      },
+      "AccountDeletionDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "deleting"
+            ],
+            "example": "deleting"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "DataExportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed",
+              "expired"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readyAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "The file and its link are deleted at this time."
+          },
+          "bytes": {
+            "type": "number",
+            "nullable": true,
+            "description": "ZIP size."
+          },
+          "downloadUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed ZIP download link while ready, valid until expiresAt. Never log it."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "createdAt",
+          "readyAt",
+          "expiresAt",
+          "bytes",
+          "downloadUrl"
+        ]
+      },
+      "CreateReportDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "user",
+              "trip",
+              "marker",
+              "photo",
+              "comment"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "nudity",
+              "violence",
+              "hate",
+              "other"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "reason"
+        ]
+      },
+      "ReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "user",
+              "trip",
+              "marker",
+              "photo",
+              "comment"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "nudity",
+              "violence",
+              "hate",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "actioned",
+              "dismissed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "reason",
+          "status",
+          "createdAt"
+        ]
+      },
+      "ReportUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ]
+      },
+      "ReportTargetDto": {
+        "type": "object",
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "description": "False once the target was deleted."
+          },
+          "owner": {
+            "nullable": true,
+            "description": "The reported user, or the owner/author of the content.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportUserDto"
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Trip title, marker name, comment body or display name. Photos: null."
+          },
+          "thumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Photo thumbnail URL."
+          },
+          "tripId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Hidden by moderation, or the user is suspended."
+          }
+        },
+        "required": [
+          "exists",
+          "owner",
+          "text",
+          "thumbUrl",
+          "tripId",
+          "hidden"
+        ]
+      },
+      "AdminReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "user",
+              "trip",
+              "marker",
+              "photo",
+              "comment"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "nudity",
+              "violence",
+              "hate",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "actioned",
+              "dismissed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "dismiss",
+              "hide_content",
+              "suspend_user",
+              "delete_content",
+              "target_deleted"
+            ],
+            "nullable": true
+          },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reporter": {
+            "nullable": true,
+            "description": "Null once the reporter deleted their account.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportUserDto"
+              }
+            ]
+          },
+          "openReportCount": {
+            "type": "number",
+            "description": "Open reports on the same target, this one included."
+          },
+          "target": {
+            "$ref": "#/components/schemas/ReportTargetDto"
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "reason",
+          "status",
+          "createdAt",
+          "details",
+          "action",
+          "reviewedAt",
+          "reporter",
+          "openReportCount",
+          "target"
+        ]
+      },
+      "AdminReportsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminReportDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ReviewReportDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "dismiss",
+              "hide_content",
+              "suspend_user",
+              "delete_content"
+            ],
+            "description": "hide_content and delete_content need a trip, marker, photo or comment; suspend_user suspends the reported user or the author of the reported content."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Kept in the audit log."
+          }
+        },
+        "required": [
+          "action"
+        ]
       }
     }
   }

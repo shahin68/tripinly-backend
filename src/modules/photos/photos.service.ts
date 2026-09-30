@@ -299,6 +299,26 @@ export class PhotosService {
     if (photo.uploaderId !== userId) {
       await this.access.assert(userId, photo.tripId, 'edit_content');
     }
+    await this.remove(userId, photo);
+  }
+
+  /**
+   * Deletes a photo without an access check (moderation, account deletion,
+   * and delete above). The cover passes to the next ready, visible photo.
+   * Returns false when it was already gone.
+   */
+  async remove(
+    actorId: string,
+    target: string | { id: string; markerId: string; tripId: string },
+  ): Promise<boolean> {
+    const photo =
+      typeof target === 'string'
+        ? await this.prisma.photo.findUnique({
+            where: { id: target },
+            select: { id: true, markerId: true, tripId: true },
+          })
+        : target;
+    if (!photo) return false;
 
     const coverPhotoId = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, photo.tripId);
@@ -306,7 +326,8 @@ export class PhotosService {
         where: { id: photo.markerId },
         select: { coverPhotoId: true },
       });
-      await tx.photo.delete({ where: { id: photo.id } });
+      const { count } = await tx.photo.deleteMany({ where: { id: photo.id } });
+      if (count === 0) return undefined;
       if (marker.coverPhotoId !== photo.id) return marker.coverPhotoId;
       const next = await tx.photo.findFirst({
         where: { markerId: photo.markerId, status: 'ready', hiddenAt: null },
@@ -320,16 +341,18 @@ export class PhotosService {
       return next?.id ?? null;
     });
 
+    if (coverPhotoId === undefined) return false;
     await this.jobs.deleteFiles([photo.id]);
     this.events.emit(
       DomainEvents.PHOTO_DELETED,
       domainEvent(
         DomainEvents.PHOTO_DELETED,
-        userId,
+        actorId,
         { photoId: photo.id, markerId: photo.markerId, coverPhotoId },
         photo.tripId,
       ),
     );
+    return true;
   }
 
   private async findPhoto(photoId: string): Promise<PhotoWithUploader> {

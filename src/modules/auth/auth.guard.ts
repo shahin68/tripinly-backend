@@ -15,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConsentsService } from '../consents/consents.service';
 import { AccessTokenService } from './access-token.service';
+import { SessionRevocationService } from './session-revocation.service';
 
 /**
  * Global guard: every route needs a valid access token unless marked @Public.
@@ -28,6 +29,7 @@ export class AuthGuard implements CanActivate {
     private readonly accessTokens: AccessTokenService,
     private readonly consents: ConsentsService,
     private readonly prisma: PrismaService,
+    private readonly revocations: SessionRevocationService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,7 +47,21 @@ export class AuthGuard implements CanActivate {
       );
     }
     const claims = await this.accessTokens.verify(token);
-    request.user = { id: claims.sub, role: claims.role };
+    const revoked = await this.revocations.reason(claims.sub);
+    if (revoked === ErrorCode.ACCOUNT_SUSPENDED) {
+      throw new AppException(ErrorCode.ACCOUNT_SUSPENDED, HttpStatus.FORBIDDEN);
+    }
+    if (revoked) {
+      throw new AppException(
+        ErrorCode.UNAUTHENTICATED,
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    request.user = {
+      id: claims.sub,
+      role: claims.role,
+      authTime: claims.authTime,
+    };
 
     if (
       this.reflector.getAllAndOverride<boolean>(

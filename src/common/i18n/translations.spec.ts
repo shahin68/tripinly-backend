@@ -25,7 +25,7 @@ function keyPaths(value: unknown, prefix = ''): string[] {
   );
 }
 
-describe.each(['push', 'email'])('%s translations', (file) => {
+describe.each(['push', 'email', 'export'])('%s translations', (file) => {
   const read = (lang: string) =>
     JSON.parse(readFileSync(join(I18N_PATH, lang, `${file}.json`), 'utf8'));
   const english = keyPaths(read('en')).sort();
