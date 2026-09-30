@@ -122,12 +122,12 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Discovery
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/places/in-view?bbox=minLng,minLat,maxLng,maxLat&zoom=&categories=&limit=` | Places for the visible map area: Tripinly places first, OSM places when zoomed in, clusters when zoomed out |
-| GET | `/places/search?q=&lat=&lng=` | Our places + Photon addresses/cities merged |
-| GET | `/places/nearby?lat=&lng=&radiusKm=` | Popular places around the user; location not stored |
-| GET | `/places/popular?bbox=…&excludeTripId=` | Tripinly places only in the visible area, excluding places already in the trip |
-| GET | `/places/{id}` | Place with popularity and a few public photos |
-| POST | `/places/{id}/add-to-trip` | Body: `dayId` → new marker |
+| GET | `/places/in-view?bbox=minLng,minLat,maxLng,maxLat&zoom=&categories=&limit=` | Places for the visible map area: `{ places[], clusters[], attribution }`. Tripinly places first, OSM places from zoom 14, clusters below zoom 14 when there are more than `limit` (10–200, default 100). A bbox too large for the zoom → 400 `BBOX_TOO_LARGE` |
+| GET | `/places/search?q=&lat=&lng=` | `{ items[], attribution }`: our places (`source: "place"`, with `id`) then Photon results (`source: "photon"`, no `id`; send name + location + `osmType`/`osmId` when adding the marker). `q` 2–100 chars; 60 requests/min per user |
+| GET | `/places/nearby?lat=&lng=&radiusKm=&cursor=&limit=` | Popular places around the user (radius 0.1–50 km, default 5), each with `distanceMeters`; the first page is topped up with OSM sights when fewer than 10 are in range. Location not stored |
+| GET | `/places/popular?bbox=…&excludeTripId=&limit=` | Tripinly places only in the visible area (bbox side ≤ 5°), excluding places already in the trip |
+| GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `photoThumbUrls` (from the photos stage), `attribution` |
+| POST | `/places/{id}/add-to-trip` | Body: `dayId`, optional `time`, `position` → new marker (same rules as `POST /days/{id}/markers`) |
 
 ### Routing
 | Method | Path | Notes |
@@ -172,11 +172,11 @@ Field names the client relies on (full schemas in OpenAPI):
 - **Marker**: `id`, `tripId`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary, or null after account deletion or across a block), `createdAt`, `updatedAt`.
 - **Photo**: `id`, `markerId`, `status` (`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (signed, expire after ~1 h), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader`.
 - **User summary**: `id`, `username`, `displayName`.
-- **Place** (in-view/search/along-the-way): see `10-maps-places-routing.md`.
+- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (null until the photos stage), `likedByMe` (false until the social stage). Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE`, `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED`, `REAUTH_REQUIRED`, `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.

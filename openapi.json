@@ -996,6 +996,312 @@
         ]
       }
     },
+    "/v1/places/in-view": {
+      "get": {
+        "description": "Tripinly places first; from zoom 14 also OSM places spread over the view; below zoom 14 Tripinly places only, clustered when there are more than `limit`. A bbox too large for the zoom returns BBOX_TOO_LARGE.",
+        "operationId": "Places_inView",
+        "parameters": [
+          {
+            "name": "bbox",
+            "required": true,
+            "in": "query",
+            "description": "minLng,minLat,maxLng,maxLat of the visible map area",
+            "schema": {
+              "example": "16.35,48.19,16.39,48.22",
+              "type": "string"
+            }
+          },
+          {
+            "name": "zoom",
+            "required": true,
+            "in": "query",
+            "description": "Map zoom level (fractions allowed)",
+            "schema": {
+              "minimum": 0,
+              "maximum": 22,
+              "example": 15,
+              "type": "number"
+            }
+          },
+          {
+            "name": "categories",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other",
+            "schema": {
+              "example": "cafe,attraction",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 10,
+              "maximum": 200,
+              "default": 100,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InViewResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Places for the visible map area",
+        "tags": [
+          "places"
+        ]
+      }
+    },
+    "/v1/places/search": {
+      "get": {
+        "description": "Our places (by name, in every language OSM has) merged with Photon results. Debounce on the client (at least 300 ms and 2 characters). lat/lng only rank results and are not stored.",
+        "operationId": "Places_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 100,
+              "example": "stephansdom",
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "description": "With lng: ranks results near this point. Not stored.",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search places, addresses and cities",
+        "tags": [
+          "places"
+        ]
+      }
+    },
+    "/v1/places/nearby": {
+      "get": {
+        "description": "Ranked by popularity and distance; topped up with OSM sights when fewer than 10 are in range. The location is used for this query only.",
+        "operationId": "Places_nearby",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusKm",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0.1,
+              "maximum": 50,
+              "default": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearbyPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Popular places around a point",
+        "tags": [
+          "places"
+        ]
+      }
+    },
+    "/v1/places/popular": {
+      "get": {
+        "description": "Tripinly places only, by popularity. excludeTripId leaves out places already in that trip.",
+        "operationId": "Places_popular",
+        "parameters": [
+          {
+            "name": "bbox",
+            "required": true,
+            "in": "query",
+            "description": "minLng,minLat,maxLng,maxLat of the visible map area",
+            "schema": {
+              "example": "16.35,48.19,16.39,48.22",
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeTripId",
+            "required": false,
+            "in": "query",
+            "description": "Leave out places already in this trip (you must be able to view it)",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PopularResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Popular spots in the visible area",
+        "tags": [
+          "places"
+        ]
+      }
+    },
+    "/v1/places/{id}": {
+      "get": {
+        "operationId": "Places_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A place",
+        "tags": [
+          "places"
+        ]
+      }
+    },
     "/v1/days/{id}/markers": {
       "post": {
         "description": "Send placeId (a place from our results) or name + location (custom pin, or a Photon result with osmType/osmId). Google place IDs are rejected.",
@@ -1041,6 +1347,55 @@
         "summary": "Add a marker to a day",
         "tags": [
           "markers"
+        ]
+      }
+    },
+    "/v1/places/{id}/add-to-trip": {
+      "post": {
+        "description": "Same as adding a marker with placeId (editor or owner of the trip).",
+        "operationId": "Markers_addPlace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddToTripDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a place to a trip day",
+        "tags": [
+          "markers",
+          "places"
         ]
       }
     },
@@ -2481,6 +2836,463 @@
           "photoCount"
         ]
       },
+      "PlaceItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Localized from OSM name:<lang> when available"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other"
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "isTripinly": {
+            "type": "boolean",
+            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+          },
+          "likeCount": {
+            "type": "number",
+            "description": "Popularity: likes on public markers here + place likes"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Most-liked public photo here (from the photos stage on)"
+          },
+          "likedByMe": {
+            "type": "boolean",
+            "description": "From the social stage on; false until then"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "location",
+          "isTripinly",
+          "likeCount",
+          "coverThumbUrl",
+          "likedByMe"
+        ]
+      },
+      "PlaceClusterDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Tripinly places in this cluster"
+          },
+          "location": {
+            "description": "Centre of the clustered places",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "count",
+          "location"
+        ]
+      },
+      "InViewResponseDto": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "description": "Tripinly places first (by popularity), then OSM places from zoom 14",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceItemDto"
+            }
+          },
+          "clusters": {
+            "description": "Below zoom 14, when there are more Tripinly places than `limit`; else empty",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceClusterDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "places",
+          "clusters",
+          "attribution"
+        ]
+      },
+      "SearchResultDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "place",
+              "photon"
+            ],
+            "description": "place: one of our places (send placeId). photon: an address, street or city (send name + location + osmType/osmId)."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Our place id; null for photon"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other"
+            ],
+            "nullable": true,
+            "description": "null for photon"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "isTripinly": {
+            "type": "boolean"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "example": "city",
+            "description": "Photon type: house, street, locality, district, city, county, state, country, other"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "example": "Stephansplatz 1, Wien, Austria",
+            "description": "Photon: street, city and country for telling results apart"
+          },
+          "osmType": {
+            "type": "string",
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
+            "nullable": true
+          },
+          "osmId": {
+            "type": "string",
+            "nullable": true,
+            "example": "240109189"
+          }
+        },
+        "required": [
+          "source",
+          "id",
+          "name",
+          "category",
+          "location",
+          "isTripinly",
+          "likeCount",
+          "type",
+          "address",
+          "osmType",
+          "osmId"
+        ]
+      },
+      "SearchResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Our places first, then Photon results we do not already have",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "attribution"
+        ]
+      },
+      "NearbyPlaceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Localized from OSM name:<lang> when available"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other"
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "isTripinly": {
+            "type": "boolean",
+            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+          },
+          "likeCount": {
+            "type": "number",
+            "description": "Popularity: likes on public markers here + place likes"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Most-liked public photo here (from the photos stage on)"
+          },
+          "likedByMe": {
+            "type": "boolean",
+            "description": "From the social stage on; false until then"
+          },
+          "distanceMeters": {
+            "type": "number",
+            "description": "From the query point, in metres"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "location",
+          "isTripinly",
+          "likeCount",
+          "coverThumbUrl",
+          "likedByMe",
+          "distanceMeters"
+        ]
+      },
+      "NearbyPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Tripinly places by popularity and distance. When fewer than 10 are in range, the first page is topped up with OSM sights by distance.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlaceDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "attribution"
+        ]
+      },
+      "PopularResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceItemDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "attribution"
+        ]
+      },
+      "PlaceTagsDto": {
+        "type": "object",
+        "properties": {
+          "website": {
+            "type": "string",
+            "nullable": true
+          },
+          "openingHours": {
+            "type": "string",
+            "nullable": true,
+            "example": "Mo-Su 08:00-21:00",
+            "description": "OSM opening_hours syntax"
+          },
+          "cuisine": {
+            "type": "string",
+            "nullable": true,
+            "example": "austrian"
+          },
+          "wikidata": {
+            "type": "string",
+            "nullable": true,
+            "example": "Q167679"
+          }
+        },
+        "required": [
+          "website",
+          "openingHours",
+          "cuisine",
+          "wikidata"
+        ]
+      },
+      "PlaceDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Localized from OSM name:<lang> when available"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other"
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "isTripinly": {
+            "type": "boolean",
+            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+          },
+          "likeCount": {
+            "type": "number",
+            "description": "Popularity: likes on public markers here + place likes"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Most-liked public photo here (from the photos stage on)"
+          },
+          "likedByMe": {
+            "type": "boolean",
+            "description": "From the social stage on; false until then"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "osm",
+              "user"
+            ]
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "false when OSM no longer has it; existing markers keep it"
+          },
+          "osmType": {
+            "type": "string",
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
+            "nullable": true
+          },
+          "osmId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "$ref": "#/components/schemas/PlaceTagsDto"
+          },
+          "photoThumbUrls": {
+            "description": "A few public photo thumbnails (from the photos stage on; empty until then)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "nullable": true,
+            "example": "© OpenStreetMap contributors",
+            "description": "Set for OSM-derived places"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "location",
+          "isTripinly",
+          "likeCount",
+          "coverThumbUrl",
+          "likedByMe",
+          "source",
+          "isActive",
+          "osmType",
+          "osmId",
+          "tags",
+          "photoThumbUrls",
+          "attribution"
+        ]
+      },
       "CreateMarkerDto": {
         "type": "object",
         "properties": {
@@ -2544,6 +3356,28 @@
             "description": "Insert position in the day; appended when omitted"
           }
         }
+      },
+      "AddToTripDto": {
+        "type": "object",
+        "properties": {
+          "dayId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "time": {
+            "type": "string",
+            "example": "14:30",
+            "description": "Local time HH:mm"
+          },
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Insert position; appended when omitted"
+          }
+        },
+        "required": [
+          "dayId"
+        ]
       },
       "UpdateMarkerDto": {
         "type": "object",

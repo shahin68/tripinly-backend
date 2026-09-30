@@ -41,14 +41,16 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Places and markers
 
 **places**
-- `name`, `normalizedName`, `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `lat`, `lng`, `location geography(Point)` (generated)
-- `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) (nulls don't collide). A `user` place created from a Photon result carries the OSM ids, so the import later recognises it.
-- `tags` (json subset: website, opening_hours, cuisine, wikidata), `isActive`, `importedAt`
+- `name`, `normalizedName`, `searchText` (normalized name plus every `name:<lang>` variant, for search), `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `lat`, `lng`, `location geography(Point)` (generated)
+- `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) (nulls don't collide). A `user` place created from a Photon result carries the OSM ids, so the import later recognises it (and leaves it alone).
+- `osmRegion` (Geofabrik region of the last import that saw it; used to deactivate what a region no longer has)
+- `tags` (json subset: website, opening_hours, cuisine, wikidata), `isActive`, `importedAt` (last time an import inserted or changed the row)
 - `popularity` (int, denormalized: likes on public markers + direct place likes)
-- GiST index on `location`; index on `popularity desc`; partial GiST index on `location WHERE popularity > 0`; GIN trigram index on `normalizedName` (extension `pg_trgm`); index on `category`.
+- GiST index on `location`; index on `popularity desc`; partial GiST index on `location WHERE popularity > 0`; GIN trigram indexes on `normalizedName` and `searchText` (extension `pg_trgm`); indexes on `category` and `osmRegion`.
+- **Listing rule:** only `osm` places and places with `popularity > 0` appear in in-view, search, nearby and popular. Any other `user` place (a custom pin, possibly from a private trip) is visible only to people who can see a marker at it, including through `GET /places/{id}` and when picked by `placeId`.
 - **No Google data** in this table (see `10-maps-places-routing.md`).
 
-**osm_import_runs** — `region`, `sourceFile`, `sourceTimestamp`, `startedAt`, `finishedAt`, `inserted`, `updated`, `deactivated`, `status`.
+**osm_import_runs** — `region`, `status` (`running` | `succeeded` | `degraded` = deactivation skipped because the extract shrank > 20% | `failed`), `extractAt` (the extract's Last-Modified), `seen`, `inserted`, `updated`, `deactivated`, `error` (short operator message), `startedAt`, `finishedAt`.
 
 **markers**
 - day → trip_days, `tripId` (denormalized for access checks), place → places (`RESTRICT`: places with markers are never deleted)

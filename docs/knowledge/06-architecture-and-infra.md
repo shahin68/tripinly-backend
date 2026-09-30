@@ -11,7 +11,7 @@
 
 External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import).
 
-OSM import tooling: `osmium` (osmium-tool) in the worker image for filtering `.osm.pbf` extracts; loaded with `COPY` into a staging table, then upserted into `places`.
+OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
 
 ## Repository layout
 
@@ -60,8 +60,12 @@ Adding anything else: state the reason.
 | `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice |
-| `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted) |
-| `OSM_IMPORT_REGIONS` | Geofabrik extract paths, e.g. `europe/austria,europe/hungary` |
+| `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |
+| `OSM_IMPORT_REGIONS` | Geofabrik extract paths. Default `europe/austria,europe/hungary` |
+| `OSM_IMPORT_ENABLED` | `true` on the worker to schedule imports and queue the initial load of never-imported regions. Default `false` (an import downloads hundreds of MB) |
+| `OSM_IMPORT_CRON` | Monthly refresh schedule, UTC. Default `0 3 2 * *` |
+| `GEOFABRIK_BASE_URL` | Default `https://download.geofabrik.de` |
+| `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup, customer deletion) and the webhook's shared Authorization value |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |
 

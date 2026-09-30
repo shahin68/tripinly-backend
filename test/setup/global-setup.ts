@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { GenericContainer } from 'testcontainers';
+import { PHOTON_STUB_URL } from '../utils/photon-stub';
 
 /**
  * Starts PostGIS and Redis with Testcontainers and applies migrations.
@@ -47,6 +48,8 @@ export default async function globalSetup(): Promise<void> {
     APPLE_TEAM_ID: 'TESTTEAM01',
     APPLE_KEY_ID: 'TESTKEY001',
     APPLE_PRIVATE_KEY: 'unused-in-tests',
+    // test/utils/photon-stub.ts listens here.
+    PHOTON_BASE_URL: PHOTON_STUB_URL,
   });
 
   execFileSync('npx', ['prisma', 'migrate', 'deploy'], {

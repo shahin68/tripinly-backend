@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Import test fixture near Vienna: named and unnamed POIs, a closed-way museum
+     (L-shaped), a multipolygon park and an open historic way. Osmium needs
+     nodes, then ways, then relations, each sorted by id. -->
+<osm version="0.6" generator="tripinly-fixture">
+  <node id="1" version="1" lat="48.2085" lon="16.3731">
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Café Central"/>
+    <tag k="name:de" v="Café Central"/>
+    <tag k="name:hu" v="Central kávéház"/>
+    <tag k="name:etymology" v="ignored"/>
+    <tag k="website" v="https://example.com"/>
+    <tag k="opening_hours" v="Mo-Su 08:00-21:00"/>
+    <tag k="phone" v="+43 1 000"/>
+  </node>
+  <node id="2" version="1" lat="48.2090" lon="16.3740">
+    <tag k="amenity" v="cafe"/>
+  </node>
+  <node id="3" version="1" lat="48.2100" lon="16.3750">
+    <tag k="shop" v="bakery"/>
+    <tag k="name" v="Bakery"/>
+  </node>
+  <node id="4" version="1" lat="48.2086" lon="16.3733">
+    <tag k="amenity" v="place_of_worship"/>
+    <tag k="name" v="Small Chapel"/>
+  </node>
+  <node id="5" version="1" lat="48.2084" lon="16.3730">
+    <tag k="amenity" v="place_of_worship"/>
+    <tag k="name" v="Stephansdom"/>
+    <tag k="wikidata" v="Q167679"/>
+  </node>
+  <node id="6" version="1" lat="48.2080" lon="16.3720">
+    <tag k="amenity" v="restaurant"/>
+    <tag k="historic" v="building"/>
+    <tag k="cuisine" v="austrian"/>
+    <tag k="name" v="Griechenbeisl"/>
+  </node>
+  <node id="100" version="1" lat="48.2000" lon="16.3600"/>
+  <node id="101" version="1" lat="48.2000" lon="16.3640"/>
+  <node id="102" version="1" lat="48.2010" lon="16.3640"/>
+  <node id="103" version="1" lat="48.2010" lon="16.3610"/>
+  <node id="104" version="1" lat="48.2040" lon="16.3610"/>
+  <node id="105" version="1" lat="48.2040" lon="16.3600"/>
+  <node id="200" version="1" lat="48.2200" lon="16.3900"/>
+  <node id="201" version="1" lat="48.2200" lon="16.4000"/>
+  <node id="202" version="1" lat="48.2300" lon="16.4000"/>
+  <node id="203" version="1" lat="48.2300" lon="16.3900"/>
+  <node id="300" version="1" lat="48.2100" lon="16.3600"/>
+  <node id="301" version="1" lat="48.2110" lon="16.3610"/>
+  <node id="302" version="1" lat="48.2120" lon="16.3620"/>
+  <way id="10" version="1">
+    <nd ref="100"/><nd ref="101"/><nd ref="102"/><nd ref="103"/><nd ref="104"/><nd ref="105"/><nd ref="100"/>
+    <tag k="tourism" v="museum"/>
+    <tag k="name" v="Kunsthistorisches Museum"/>
+    <tag k="name:en" v="Museum of Art History"/>
+  </way>
+  <way id="20" version="1">
+    <nd ref="200"/><nd ref="201"/><nd ref="202"/><nd ref="203"/><nd ref="200"/>
+  </way>
+  <way id="40" version="1">
+    <nd ref="300"/><nd ref="301"/><nd ref="302"/>
+    <tag k="historic" v="citywalls"/>
+    <tag k="name" v="Stadtmauer"/>
+  </way>
+  <relation id="30" version="1">
+    <member type="way" ref="20" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="leisure" v="park"/>
+    <tag k="name" v="Augarten"/>
+  </relation>
+</osm>

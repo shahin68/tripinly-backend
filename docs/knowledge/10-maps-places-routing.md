@@ -47,17 +47,23 @@ Stored per place: `name`, `names` (json of `name:<lang>` for localization), `cat
 
 1. **Tripinly places first**: places with `popularity > 0` (from public markers/likes), ranked by popularity, with a flag `isTripinly: true`, `likeCount`, optional cover thumbnail from the most-liked public photo.
 2. **Fill with OSM places** (`popularity = 0`) up to `limit`, only when `zoom >= 14`; spread them over the bbox (grid-bucket the bbox into e.g. 6×6 cells and take the top items per cell by a category priority: attraction/museum/historic before cafe/restaurant/bar).
-3. At `zoom < 14`, return only Tripinly places, pre-clustered server-side when there are more than `limit` (`{ cluster: true, count, location }` items).
-4. Reject oversized bboxes relative to zoom (`VALIDATION_FAILED`).
+3. At `zoom < 14`, return only Tripinly places, pre-clustered server-side when there are more than `limit`: a grid of up to 8×8 cells, a cell with one place returns the place, others a cluster `{ count, location }` (centre of its places).
+4. Reject oversized bboxes relative to zoom: a side longer than `2880 / 2^floor(zoom)` degrees (about eight tiles; 0.18° at zoom 14) → 400 `BBOX_TOO_LARGE` with `details.maxSpanDegrees`.
 5. Filters: categories, blocked owners' content excluded from Tripinly popularity previews, hidden content excluded.
-6. Cache results per (rounded bbox tile, zoom, categories) in Redis for 60 s.
+6. Cache results per (bbox widened to a quarter-tile grid, zoom, categories, limit, language) in Redis for 60 s. The key carries a version bumped by every OSM import.
+
+Response: `{ "places": [ … ], "clusters": [ { "count": 37, "location": { … } } ], "attribution": "© OpenStreetMap contributors" }`. Places and clusters are separate arrays (instead of one mixed list) so the generated Kotlin client gets plain types.
+
+**Which places are listed:** OSM places and places with `popularity > 0`. Other user places (custom pins, maybe from private trips) never appear in in-view, search, nearby or popular; they are visible only to people who can see a marker at them.
 
 The old `/places/popular` endpoint becomes a thin variant of this (Tripinly places only, excluding a trip's own places).
 
 ## Search — `GET /places/search?q=&lat=&lng=`
 
 - Query our `places` (pg_trgm similarity on `name`/`names`, category-aware, biased by distance to `lat/lng` if given) **and** Photon (`/api?q=&lat=&lon=&lang=`) in parallel.
-- Merge: our places first (they have IDs and popularity); Photon results returned as `{ source: "photon", name, location, type, osmType, osmId }` without an ID.
+- Our places match on `searchText` (normalized name + all `name:<lang>` variants) with trigram word similarity, plus a small popularity boost and a proximity boost when `lat/lng` are given; 10 results.
+- Photon: `limit=8`, 2 s timeout, `lang` only for en/de/fr (Photon has no other languages; Hungarian gets local names). Failure or timeout → our places only.
+- Merge: our places first (`source: "place"`, with IDs and popularity); Photon results returned as `{ source: "photon", id: null, name, location, type, address, osmType, osmId }`, dropping those whose OSM ids are already in our results. `address` is street, city and country, for telling results apart.
 - If the user picks a Photon result, the client sends its name + location (+ osm ids) when creating the marker; the backend matches or creates the place.
 - Lat/lng used only for ranking; not stored or logged.
 - Rate limit per user. Debounce is the client's job (≥ 300 ms, ≥ 2 chars).
@@ -100,4 +106,8 @@ Returns:
 
 ## Nearby (unchanged idea, new data)
 
-`GET /places/nearby` ranks Tripinly places by popularity and distance; if there are fewer than 10 within the radius, fill with OSM attractions/museums/historic nearby. Location not stored or logged.
+`GET /places/nearby` ranks Tripinly places by `popularity / (1 + km)^1.2`, cursor-paginated; if the first page ends with fewer than 10, it is filled up to `limit` with OSM attractions, museums, historic sites and landmarks by distance. Location not stored or logged (query strings are stripped from request logs).
+
+## Popular spots
+
+`GET /places/popular?bbox=&excludeTripId=` lists Tripinly places in the bbox by popularity (bbox side ≤ 5°, no zoom), leaving out places already used in `excludeTripId`, which the caller must be able to view.
