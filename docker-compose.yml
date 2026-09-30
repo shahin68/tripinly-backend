@@ -1,4 +1,4 @@
-# Local development stack. `docker compose up -d db redis minio` for dependencies
+# Local development stack. `docker compose up -d db redis s3` for dependencies
 # while running the app with `npm run start:dev`, or `docker compose up` for everything.
 services:
   db:
@@ -29,17 +29,19 @@ services:
       retries: 10
 
   # S3-compatible stand-in for Cloudflare R2 (used from the photos stage on).
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ':9001'
+  # With the posix backend a bucket is a directory, so the photo bucket is created here.
+  s3:
+    image: versity/versitygw:v1.8.0
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - mkdir -p /data/tripinly-photos && exec versitygw --region auto posix /data
     environment:
-      MINIO_ROOT_USER: tripinly
-      MINIO_ROOT_PASSWORD: tripinly-secret
+      ROOT_ACCESS_KEY: tripinly
+      ROOT_SECRET_KEY: tripinly-secret
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '7070:7070'
     volumes:
-      - minio-data:/data
+      - s3-data:/data
 
   migrate:
     build: .
@@ -52,6 +54,12 @@ services:
       # Local-only values; never reuse them anywhere else.
       JWT_ACCESS_SECRET: local-compose-access-token-secret-32chars
       ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE=
+      # Upload and image URLs are signed for this host, so the app must reach it too
+      # (e.g. http://10.0.2.2:7070 from the Android emulator; change both together).
+      R2_ENDPOINT: http://s3:7070
+      R2_ACCESS_KEY_ID: tripinly
+      R2_SECRET_ACCESS_KEY: tripinly-secret
+      R2_BUCKET: tripinly-photos
     depends_on:
       db:
         condition: service_healthy
@@ -84,4 +92,4 @@ services:
 
 volumes:
   db-data:
-  minio-data:
+  s3-data:

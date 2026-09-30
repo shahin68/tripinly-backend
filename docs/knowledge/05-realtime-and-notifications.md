@@ -24,7 +24,8 @@
 | `photo.processing` | Upload confirmed | photo stub |
 | `photo.ready` / `photo.failed` | Thumbnail job finished | photo with URLs |
 | `photo.deleted` | | photoId, markerId, new cover ID |
-| `marker.cover_changed` | | markerId, photoId |
+| `marker.cover_changed` | Cover chosen, or set automatically by the first ready photo | markerId, photoId |
+| `photos.reordered` | Gallery reordered | markerId, ordered photo IDs |
 | `comment.created` / `comment.deleted` | | comment |
 | `like.count_changed` | Any like on trip/marker/photo/comment | targetType, targetId, count (throttled to max 1 per target per 2 s) |
 | `member.added` / `member.removed` | | user summary |

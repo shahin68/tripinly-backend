@@ -3,8 +3,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
+import { PhotoJobsService } from '../photos/photos.queue';
 import {
   PlaceMatchingService,
   type PlaceInput,
@@ -35,6 +37,8 @@ export class MarkersService {
     private readonly places: PlaceMatchingService,
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
+    private readonly photoJobs: PhotoJobsService,
   ) {}
 
   async create(
@@ -80,7 +84,7 @@ export class MarkersService {
       return created;
     });
 
-    const dto = toMarkerDto(marker);
+    const dto = toMarkerDto(marker, this.storage);
     this.events.emit(
       DomainEvents.MARKER_CREATED,
       domainEvent(
@@ -201,18 +205,23 @@ export class MarkersService {
       markerId,
       'edit_content',
     );
-    const dayId = await this.prisma.$transaction(async (tx) => {
+    const { dayId, photoIds } = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
       const marker = await tx.marker.findUnique({ where: { id: markerId } });
       if (!marker) throw AppException.notFound();
+      const photos = await tx.photo.findMany({
+        where: { markerId },
+        select: { id: true },
+      });
       await tx.marker.delete({ where: { id: markerId } });
       await tx.marker.updateMany({
         where: { dayId: marker.dayId, position: { gt: marker.position } },
         data: { position: { decrement: 1 } },
       });
       await touchTrip(tx, trip.id);
-      return marker.dayId;
+      return { dayId: marker.dayId, photoIds: photos.map((p) => p.id) };
     });
+    await this.photoJobs.deleteFiles(photoIds);
     this.events.emit(
       DomainEvents.MARKER_DELETED,
       domainEvent(
@@ -279,13 +288,11 @@ export class MarkersService {
     userId: string,
     marker: MarkerWithCreator,
   ): Promise<MarkerDto> {
-    if (
-      marker.createdById &&
-      (await this.blocks.isBlockedEither(userId, marker.createdById))
-    ) {
-      return toMarkerDto({ ...marker, createdBy: null });
-    }
-    return toMarkerDto(marker);
+    const people = [marker.createdById, marker.coverPhoto?.uploaderId].filter(
+      (id): id is string => !!id,
+    );
+    const hidden = await this.blocks.blockedAmong(userId, people);
+    return toMarkerDto(marker, this.storage, hidden);
   }
 }
 

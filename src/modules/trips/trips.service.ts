@@ -16,8 +16,10 @@ import {
   toPage,
 } from '../../common/pagination/pagination';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma, Trip } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
+import { PhotoJobsService } from '../photos/photos.queue';
 import { normalizeUsername } from '../users/username';
 import { USER_SUMMARY_SELECT } from '../users/user-summary';
 import { TripAccessService } from './trip-access.service';
@@ -27,6 +29,7 @@ import {
   TRIP_DETAIL_INCLUDE,
   toTripDto,
   toTripSummaryDto,
+  TRIP_COVER_MARKER,
   type TripWithDetails,
 } from './trip.mapper';
 import type {
@@ -67,6 +70,8 @@ export class TripsService {
     private readonly access: TripAccessService,
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
+    private readonly photoJobs: PhotoJobsService,
   ) {}
 
   async create(userId: string, input: CreateTripDto): Promise<TripDto> {
@@ -135,11 +140,14 @@ export class TripsService {
     const people = [
       ...trip.members.map((member) => member.userId),
       ...trip.days.flatMap((day) =>
-        day.markers.map((marker) => marker.createdById ?? ''),
+        day.markers.flatMap((marker) => [
+          marker.createdById ?? '',
+          marker.coverPhoto?.uploaderId ?? '',
+        ]),
       ),
     ].filter(Boolean);
     const hidden = await this.blocks.blockedAmong(userId, people);
-    return toTripDto(trip, role, hidden);
+    return toTripDto(trip, role, this.storage, hidden);
   }
 
   async update(
@@ -204,7 +212,17 @@ export class TripsService {
       where: { tripId },
       select: { userId: true },
     });
-    await this.prisma.trip.delete({ where: { id: tripId } });
+    const photoIds = await this.prisma.$transaction(async (tx) => {
+      // The lock keeps uploads from starting while the photo list is read.
+      await lockTrip(tx, tripId);
+      const photos = await tx.photo.findMany({
+        where: { tripId },
+        select: { id: true },
+      });
+      await tx.trip.delete({ where: { id: tripId } });
+      return photos.map((photo) => photo.id);
+    });
+    await this.photoJobs.deleteFiles(photoIds);
     this.events.emit(
       DomainEvents.TRIP_DELETED,
       domainEvent(
@@ -242,22 +260,40 @@ export class TripsService {
         owner: { select: USER_SUMMARY_SELECT },
         members: { where: { userId }, select: { role: true } },
         _count: { select: { days: true, markers: true } },
+        markers: TRIP_COVER_MARKER,
       },
     });
+    const hidden = await this.blocks.blockedAmong(
+      userId,
+      rows
+        .flatMap((row) =>
+          row.markers.map((m) => m.coverPhoto?.uploaderId ?? ''),
+        )
+        .filter(Boolean),
+    );
     return toPage(
       rows,
       limit,
       (row) => ({ at: row.updatedAt.toISOString(), id: row.id }),
-      (row) => toTripSummaryDto(row, row.members[0]?.role ?? null),
+      (row) =>
+        toTripSummaryDto(
+          row,
+          row.members[0]?.role ?? null,
+          this.storage,
+          hidden,
+        ),
     );
   }
 
   async stats(userId: string): Promise<MeStatsDto> {
-    const [tripCount, markerCount] = await Promise.all([
+    const [tripCount, markerCount, photoCount] = await Promise.all([
       this.prisma.tripMember.count({ where: { userId } }),
       this.prisma.marker.count({ where: { createdById: userId } }),
+      this.prisma.photo.count({
+        where: { uploaderId: userId, status: 'ready' },
+      }),
     ]);
-    return { tripCount, markerCount, photoCount: 0 };
+    return { tripCount, markerCount, photoCount };
   }
 
   async addDay(userId: string, tripId: string): Promise<TripDayDto> {
@@ -301,12 +337,18 @@ export class TripsService {
       dayId,
       'edit_content',
     );
+    const photoIds: string[] = [];
     await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
       const day = await tx.tripDay.findUnique({ where: { id: dayId } });
       if (!day) throw AppException.notFound();
       const count = await tx.tripDay.count({ where: { tripId: trip.id } });
       if (count <= 1) throw AppException.validation({ id: ['lastDay'] });
+      const photos = await tx.photo.findMany({
+        where: { marker: { dayId } },
+        select: { id: true },
+      });
+      photoIds.push(...photos.map((photo) => photo.id));
       await tx.tripDay.delete({ where: { id: dayId } });
       await shiftDaysUp(tx, trip.id, day.position);
       const current = await tx.trip.findUniqueOrThrow({
@@ -322,6 +364,7 @@ export class TripsService {
         },
       });
     });
+    await this.photoJobs.deleteFiles(photoIds);
     this.events.emit(
       DomainEvents.DAY_DELETED,
       domainEvent(DomainEvents.DAY_DELETED, userId, { dayId }, trip.id),

@@ -19,7 +19,8 @@
 ## Input and uploads
 
 - DTO validation with whitelist + forbid unknown properties.
-- Uploads go directly to R2 via pre-signed PUT URLs limited to the declared content type and max size; the object key is generated server-side.
+- Uploads go directly to R2 via pre-signed PUT URLs (10 minutes) that sign the declared content type and length; the object key is generated server-side (`photos/{photoId}/original`). `complete` re-checks the stored size.
+- The worker refuses files whose bytes aren't the declared type and images over 50 megapixels (decompression bombs).
 - On `complete`, the worker downloads the original, checks the real MIME type (magic bytes), strips EXIF (including GPS), generates thumbnail (e.g. 256 px) and display (e.g. 1600 px) versions in WebP/JPEG, then marks the photo `ready`.
 - Rate limit comments, likes, uploads, search, auth and report endpoints.
 

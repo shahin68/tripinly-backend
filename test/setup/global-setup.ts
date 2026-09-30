@@ -1,7 +1,30 @@
 import { execFileSync } from 'node:child_process';
+import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { GenericContainer } from 'testcontainers';
 import { PHOTON_STUB_URL } from '../utils/photon-stub';
+
+const S3_KEY = process.env.TEST_S3_ACCESS_KEY ?? 'minioadmin';
+const S3_SECRET = process.env.TEST_S3_SECRET_KEY ?? 'minioadmin';
+const TEST_BUCKET = 'tripinly-test';
+
+async function createBucket(endpoint: string): Promise<void> {
+  const client = new S3Client({
+    region: 'auto',
+    endpoint,
+    forcePathStyle: true,
+    credentials: { accessKeyId: S3_KEY, secretAccessKey: S3_SECRET },
+  });
+  try {
+    await client.send(new CreateBucketCommand({ Bucket: TEST_BUCKET }));
+  } catch (error) {
+    const name = (error as { name?: string }).name;
+    if (name !== 'BucketAlreadyOwnedByYou' && name !== 'BucketAlreadyExists')
+      throw error;
+  } finally {
+    client.destroy();
+  }
+}
 
 /**
  * Starts PostGIS and Redis with Testcontainers and applies migrations.
@@ -31,6 +54,26 @@ export default async function globalSetup(): Promise<void> {
     redisUrl = `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`;
   }
 
+  // S3-compatible storage for photos: TEST_S3_ENDPOINT (CI, or a local
+  // VersityGW / moto server), else a VersityGW container. VersityGW checks
+  // signatures like R2, with region "auto".
+  let s3Endpoint = process.env.TEST_S3_ENDPOINT;
+  if (!s3Endpoint) {
+    const s3 = await new GenericContainer('versity/versitygw:v1.8.0')
+      .withEnvironment({
+        ROOT_ACCESS_KEY: S3_KEY,
+        ROOT_SECRET_KEY: S3_SECRET,
+        VGW_REGION: 'auto',
+        VGW_BACKEND: 'posix',
+        VGW_BACKEND_ARG: '/tmp/vgw',
+      })
+      .withExposedPorts(7070)
+      .start();
+    containers.push(s3);
+    s3Endpoint = `http://${s3.getHost()}:${s3.getMappedPort(7070)}`;
+  }
+  await createBucket(s3Endpoint);
+
   Object.assign(process.env, {
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
@@ -50,6 +93,10 @@ export default async function globalSetup(): Promise<void> {
     APPLE_PRIVATE_KEY: 'unused-in-tests',
     // test/utils/photon-stub.ts listens here.
     PHOTON_BASE_URL: PHOTON_STUB_URL,
+    R2_ENDPOINT: s3Endpoint,
+    R2_ACCESS_KEY_ID: S3_KEY,
+    R2_SECRET_ACCESS_KEY: S3_SECRET,
+    R2_BUCKET: TEST_BUCKET,
   });
 
   execFileSync('npx', ['prisma', 'migrate', 'deploy'], {

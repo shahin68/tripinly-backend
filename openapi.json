@@ -1740,6 +1740,260 @@
           "invites"
         ]
       }
+    },
+    "/v1/markers/{id}/photos/upload-url": {
+      "post": {
+        "description": "Creates the photo (pending_upload) and returns a pre-signed PUT URL valid 10 minutes. PUT the file with the given headers, then call POST /photos/{id}/complete. JPEG, PNG or WebP (convert HEIC to JPEG first), at most 15 MB, 30 photos per marker. 503 while storage is not configured.",
+        "operationId": "Photos_uploadUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadUrlRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a photo upload",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/photos/{id}/complete": {
+      "post": {
+        "description": "The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is.",
+        "operationId": "Photos_complete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm an upload",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/markers/{id}/photos": {
+      "get": {
+        "operationId": "Photos_gallery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A marker's photos in gallery order",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/markers/{id}/photo-order": {
+      "put": {
+        "operationId": "Photos_reorder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhotoOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reorder the gallery",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/markers/{id}/cover": {
+      "put": {
+        "operationId": "Photos_cover",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Choose the marker's cover photo (its map pin thumbnail)",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/photos/{id}": {
+      "delete": {
+        "description": "The uploader, the trip owner or an editor. A deleted cover passes to the next photo.",
+        "operationId": "Photos_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a photo",
+        "tags": [
+          "photos"
+        ]
+      }
     }
   },
   "info": {
@@ -3535,6 +3789,171 @@
           "endDate",
           "expiresAt",
           "alreadyMember"
+        ]
+      },
+      "UploadUrlRequestDto": {
+        "type": "object",
+        "properties": {
+          "mimeType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "description": "Other types → 415 UNSUPPORTED_MEDIA_TYPE"
+          },
+          "bytes": {
+            "type": "number",
+            "example": 2400000,
+            "description": "Size of the file to upload. Over 15728640 bytes → 413 UPLOAD_TOO_LARGE"
+          }
+        },
+        "required": [
+          "mimeType",
+          "bytes"
+        ]
+      },
+      "PhotoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "markerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_upload",
+              "processing",
+              "ready",
+              "failed"
+            ],
+            "description": "Only ready photos are shown to viewers; editors also see processing and failed ones"
+          },
+          "thumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "256 px square, signed, valid ≥ 1 h; null until ready"
+          },
+          "displayUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "≤ 1600 px long edge, signed, valid ≥ 1 h; null until ready"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "position": {
+            "type": "number",
+            "description": "Gallery order, 0-based"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "likedByMe": {
+            "type": "boolean",
+            "description": "From the social stage on; false until then"
+          },
+          "uploader": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "markerId",
+          "status",
+          "thumbUrl",
+          "displayUrl",
+          "width",
+          "height",
+          "position",
+          "likeCount",
+          "likedByMe",
+          "uploader",
+          "createdAt"
+        ]
+      },
+      "UploadUrlResponseDto": {
+        "type": "object",
+        "properties": {
+          "photo": {
+            "description": "The new photo, status pending_upload",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PhotoDto"
+              }
+            ]
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "PUT the file here with exactly the headers below"
+          },
+          "uploadHeaders": {
+            "type": "object",
+            "example": {
+              "Content-Type": "image/jpeg",
+              "Content-Length": "2400000"
+            },
+            "description": "Send these headers with the PUT"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "The upload URL stops working after this (10 minutes)"
+          }
+        },
+        "required": [
+          "photo",
+          "uploadUrl",
+          "uploadHeaders",
+          "expiresAt"
+        ]
+      },
+      "PhotoOrderDto": {
+        "type": "object",
+        "properties": {
+          "photoIds": {
+            "description": "Exactly the marker's processing and ready photos, in the new order",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "photoIds"
+        ]
+      },
+      "CoverDto": {
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A ready photo of this marker"
+          }
+        },
+        "required": [
+          "photoId"
         ]
       }
     }

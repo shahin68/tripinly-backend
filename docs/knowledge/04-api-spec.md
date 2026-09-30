@@ -103,12 +103,12 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Photos
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/markers/{id}/photos/upload-url` | Body: mime type, size. Returns photo ID + pre-signed PUT URL |
-| POST | `/photos/{id}/complete` | Client confirms upload → processing job |
-| GET | `/markers/{id}/photos` | Ordered gallery |
-| PUT | `/markers/{id}/photo-order` | |
-| PUT | `/markers/{id}/cover` | Body: `photoId` |
-| DELETE | `/photos/{id}` | Uploader, trip owner or editor |
+| POST | `/markers/{id}/photos/upload-url` | Body: `mimeType` (`image/jpeg`\|`image/png`\|`image/webp`, else 415 `UNSUPPORTED_MEDIA_TYPE`), `bytes` (≤ 15 MB, else 413 `UPLOAD_TOO_LARGE`). Editors and owner; 30 photos per marker (422 `PHOTO_LIMIT_REACHED`); 60/min per user. Returns `{ photo, uploadUrl, uploadHeaders, expiresAt }`: PUT the file to `uploadUrl` within 10 minutes with exactly `uploadHeaders` (`Content-Type`, `Content-Length`). 503 `SERVICE_UNAVAILABLE` while storage isn't configured |
+| POST | `/photos/{id}/complete` | The uploader confirms → 202 with the photo (`processing`); `photo.ready` follows. Not uploaded yet or a different size → 400 (`upload: notUploaded \| sizeMismatch`). Repeating it returns the photo as is |
+| GET | `/markers/{id}/photos` | Gallery in order (not paginated; ≤ 30). Viewers get ready photos; members also processing and failed ones |
+| PUT | `/markers/{id}/photo-order` | Body: `photoIds`, exactly the marker's processing and ready photos (400 `photoIds: mustMatchMarkerPhotos`). Returns the gallery |
+| PUT | `/markers/{id}/cover` | Body: `photoId` (a ready photo of this marker, else 400 `photoId: notFound \| notReady`). Returns the marker. The first ready photo becomes the cover automatically |
+| DELETE | `/photos/{id}` | Uploader (even after leaving the trip), trip owner or editor. A deleted cover passes to the next ready photo |
 
 ### Comments and likes
 | Method | Path | Notes |
@@ -170,7 +170,7 @@ Field names the client relies on (full schemas in OpenAPI):
 
 - **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]` → `{ user, role }` (owner first; people with a block with me are left out), `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: user summary }` or null), `days[]` → `{ id, position, date (startDate + position, or null), markers[] }`, `createdAt`, `updatedAt`.
 - **Marker**: `id`, `tripId`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary, or null after account deletion or across a block), `createdAt`, `updatedAt`.
-- **Photo**: `id`, `markerId`, `status` (`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (signed, expire after ~1 h), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader`.
+- **Photo**: `id`, `markerId`, `status` (`pending_upload`\|`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (null until ready; signed, valid at least 1 h and unchanged within the hour so images cache), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader` (null across a block), `createdAt`.
 - **User summary**: `id`, `username`, `displayName`.
 - **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (null until the photos stage), `likedByMe` (false until the social stage). Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).

@@ -5,6 +5,7 @@ import { i18nModule } from './i18n/i18n.config';
 import { loggerModule } from './logging/logger.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { StorageModule } from './storage/storage.module';
 
 /** Infrastructure shared by the api and worker processes. */
 @Module({
@@ -18,6 +19,7 @@ import { RedisModule } from './redis/redis.module';
     i18nModule,
     PrismaModule,
     RedisModule,
+    StorageModule,
   ],
 })
 export class CoreModule {}
