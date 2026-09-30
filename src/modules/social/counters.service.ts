@@ -11,6 +11,27 @@ const LIKE_COUNTED = [
   ['comments', 'comment'],
 ] as const;
 
+type Tx = Pick<Prisma.TransactionClient, '$executeRaw'>;
+
+/**
+ * Recounts likeCount for specific targets from the likes table (after a
+ * bulk like removal such as account deletion).
+ */
+export async function recountLikes(
+  tx: Tx,
+  type: (typeof LIKE_COUNTED)[number][1],
+  ids: string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  const table = LIKE_COUNTED.find(([, t]) => t === type)![0];
+  await tx.$executeRaw`
+    UPDATE ${Prisma.raw(table)} x SET "likeCount" = (
+      SELECT count(*)::int FROM likes l
+      WHERE l."targetType" = ${type}::"LikeTargetType" AND l."targetId" = x.id
+    )
+    WHERE x.id = ANY(${ids}::uuid[])`;
+}
+
 /**
  * Rebuilds the denormalized counters (likeCount, commentCount, place
  * popularity) from their source rows. Requests keep them current; this

@@ -302,6 +302,7 @@ export class PlacesService {
         JOIN photos ph ON ph.id = m."coverPhotoId"
         WHERE m."placeId" = ANY(${ids}::uuid[]) AND m."hiddenAt" IS NULL
           AND t.visibility = 'public' AND t."hiddenAt" IS NULL AND ph."hiddenAt" IS NULL
+          AND ${ownerActive(Prisma.sql`t."ownerId"`)}
           AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
           AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
         ORDER BY m."placeId", m."likeCount" DESC, m."createdAt" DESC, m.id`,
@@ -326,6 +327,7 @@ export class PlacesService {
       JOIN trips t ON t.id = m."tripId"
       WHERE m."placeId" = ${placeId}::uuid AND ph.status = 'ready' AND ph."hiddenAt" IS NULL
         AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
+        AND ${ownerActive(Prisma.sql`t."ownerId"`)}
         AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
         AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
       ORDER BY ph."likeCount" DESC, ph."createdAt" DESC, ph.id
@@ -586,4 +588,9 @@ function decodeScoreCursor(cursor: string): { score: number; id: string } {
     // fall through
   }
   throw AppException.validation({ cursor: ['invalidCursor'] });
+}
+
+/** Suspended (or deleting) users' public content leaves discovery. */
+function ownerActive(ownerId: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`EXISTS (SELECT 1 FROM users u WHERE u.id = ${ownerId} AND u.status = 'active')`;
 }

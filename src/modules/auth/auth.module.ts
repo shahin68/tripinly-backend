@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { AppleIdentityVerifier } from './identity/apple-identity.verifier';
 import { GoogleIdentityVerifier } from './identity/google-identity.verifier';
 import { RefreshTokenService } from './refresh-token.service';
+import { SessionRevocationService } from './session-revocation.service';
 
 @Module({
   imports: [ConsentsModule, UsersModule],
@@ -18,8 +19,15 @@ import { RefreshTokenService } from './refresh-token.service';
     RefreshTokenService,
     GoogleIdentityVerifier,
     AppleIdentityVerifier,
+    SessionRevocationService,
     AuthGuard,
   ],
-  exports: [AccessTokenService, AuthGuard],
+  exports: [
+    AccessTokenService,
+    AuthGuard,
+    RefreshTokenService,
+    SessionRevocationService,
+    AppleIdentityVerifier,
+  ],
 })
 export class AuthModule {}

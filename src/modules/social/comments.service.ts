@@ -150,6 +150,26 @@ export class CommentsService {
       );
       if (role !== 'owner') throw AppException.forbidden();
     }
+    await this.remove(userId, { id: commentId, ...comment });
+  }
+
+  /**
+   * Deletes a comment without an access check (moderation, account deletion,
+   * and delete above). Returns false when it was already gone.
+   */
+  async remove(
+    actorId: string,
+    target: string | { id: string; markerId: string; tripId: string },
+  ): Promise<boolean> {
+    const comment =
+      typeof target === 'string'
+        ? await this.prisma.comment.findUnique({
+            where: { id: target },
+            select: { id: true, markerId: true, tripId: true },
+          })
+        : target;
+    if (!comment) return false;
+    const commentId = comment.id;
 
     const deleted = await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.comment.deleteMany({
@@ -162,16 +182,17 @@ export class CommentsService {
       }
       return count > 0;
     });
-    if (!deleted) return;
+    if (!deleted) return false;
     this.events.emit(
       DomainEvents.COMMENT_DELETED,
       domainEvent(
         DomainEvents.COMMENT_DELETED,
-        userId,
+        actorId,
         { commentId, markerId: comment.markerId },
         comment.tripId,
       ),
     );
+    return true;
   }
 }
 

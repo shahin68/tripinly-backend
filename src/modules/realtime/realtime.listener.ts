@@ -175,6 +175,30 @@ export class RealtimeListener implements OnModuleDestroy {
     });
   }
 
+  /**
+   * Suspension or deletion: their live sockets close at once. A suspended
+   * user is told first so the app can explain why.
+   */
+  @OnEvent(DomainEvents.ACCOUNT_CLOSED)
+  onAccountClosed(
+    event: DomainEvent<{ userId: string; reason: 'suspended' | 'deleted' }>,
+  ): Promise<void> {
+    return this.safely(event, () => {
+      const { userId, reason } = event.data;
+      if (reason === 'suspended') {
+        this.publisher.toUser(userId, {
+          event: UserEvents.ACCOUNT_SUSPENDED,
+          tripId: null,
+          actorId: null,
+          at: event.at,
+          data: {},
+        });
+      }
+      this.publisher.disconnectUser(userId);
+      return Promise.resolve();
+    });
+  }
+
   private toTrip(event: DomainEvent<unknown>, data: unknown): Promise<void> {
     return this.publisher.toTrip({
       event: event.event,

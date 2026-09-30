@@ -214,10 +214,34 @@ export class MarkersService {
       markerId,
       'edit_content',
     );
-    const { dayId, photoIds } = await this.prisma.$transaction(async (tx) => {
+    if (!(await this.remove(userId, markerId, trip.id))) {
+      throw AppException.notFound();
+    }
+  }
+
+  /**
+   * Deletes a marker without an access check (moderation, and delete above).
+   * Returns false when it was already gone.
+   */
+  async remove(
+    actorId: string,
+    markerId: string,
+    tripId?: string,
+  ): Promise<boolean> {
+    const tripOf =
+      tripId ??
+      (
+        await this.prisma.marker.findUnique({
+          where: { id: markerId },
+          select: { tripId: true },
+        })
+      )?.tripId;
+    if (!tripOf) return false;
+    const trip = { id: tripOf };
+    const result = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
       const marker = await tx.marker.findUnique({ where: { id: markerId } });
-      if (!marker) throw AppException.notFound();
+      if (!marker) return null;
       const photos = await tx.photo.findMany({
         where: { markerId },
         select: { id: true },
@@ -233,16 +257,18 @@ export class MarkersService {
       await touchTrip(tx, trip.id);
       return { dayId: marker.dayId, photoIds: photos.map((p) => p.id) };
     });
-    await this.photoJobs.deleteFiles(photoIds);
+    if (!result) return false;
+    await this.photoJobs.deleteFiles(result.photoIds);
     this.events.emit(
       DomainEvents.MARKER_DELETED,
       domainEvent(
         DomainEvents.MARKER_DELETED,
-        userId,
-        { markerId, dayId },
+        actorId,
+        { markerId, dayId: result.dayId },
         trip.id,
       ),
     );
+    return true;
   }
 
   /**

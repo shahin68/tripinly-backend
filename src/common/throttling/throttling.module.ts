@@ -14,6 +14,8 @@ export const AUTH_RATE_LIMIT = { limit: 20, ttl: MINUTE_MS };
 export const UPLOAD_RATE_LIMIT = { limit: 60, ttl: MINUTE_MS };
 /** New comments, per user. */
 export const COMMENT_RATE_LIMIT = { limit: 30, ttl: MINUTE_MS };
+/** New reports, per user (moderation skill). */
+export const REPORT_RATE_LIMIT = { limit: 20, ttl: 24 * 60 * MINUTE_MS };
 /** Place search, per user: it also calls Photon, whose public instance asks for fair use. */
 export const SEARCH_RATE_LIMIT = { limit: 60, ttl: MINUTE_MS };
 
