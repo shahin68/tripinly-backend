@@ -54,20 +54,23 @@ export default async function globalSetup(): Promise<void> {
     redisUrl = `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`;
   }
 
-  // S3-compatible storage for photos: TEST_S3_ENDPOINT (CI MinIO, or a local
-  // MinIO / moto server), else a MinIO container.
+  // S3-compatible storage for photos: TEST_S3_ENDPOINT (CI, or a local
+  // VersityGW / moto server), else a VersityGW container. VersityGW checks
+  // signatures like R2, with region "auto".
   let s3Endpoint = process.env.TEST_S3_ENDPOINT;
   if (!s3Endpoint) {
-    const minio = await new GenericContainer('minio/minio:latest')
-      .withCommand(['server', '/data'])
+    const s3 = await new GenericContainer('versity/versitygw:v1.8.0')
       .withEnvironment({
-        MINIO_ROOT_USER: S3_KEY,
-        MINIO_ROOT_PASSWORD: S3_SECRET,
+        ROOT_ACCESS_KEY: S3_KEY,
+        ROOT_SECRET_KEY: S3_SECRET,
+        VGW_REGION: 'auto',
+        VGW_BACKEND: 'posix',
+        VGW_BACKEND_ARG: '/tmp/vgw',
       })
-      .withExposedPorts(9000)
+      .withExposedPorts(7070)
       .start();
-    containers.push(minio);
-    s3Endpoint = `http://${minio.getHost()}:${minio.getMappedPort(9000)}`;
+    containers.push(s3);
+    s3Endpoint = `http://${s3.getHost()}:${s3.getMappedPort(7070)}`;
   }
   await createBucket(s3Endpoint);
 

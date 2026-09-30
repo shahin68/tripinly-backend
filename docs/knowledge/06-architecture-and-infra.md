@@ -54,7 +54,7 @@ Adding anything else: state the reason.
 | `GOOGLE_CLIENT_IDS` | Comma-separated accepted audiences (iOS + Android + web client IDs). Unset = Google sign-in answers 503 |
 | `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple sign-in verification and token revocation. All four or none; unset = Apple sign-in answers 503. The `.p8` key may use literal `\n` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Private photo bucket (R2 API token with Object Read & Write on that bucket). Key, secret and bucket together or not at all; unset = photo endpoints answer 503. No public bucket URL: clients get signed URLs |
-| `R2_ENDPOINT` | Overrides `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, e.g. MinIO locally (`http://localhost:9000`). Signed URLs use this host, so clients must reach it |
+| `R2_ENDPOINT` | Overrides `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, e.g. the local VersityGW S3 stand-in (`http://localhost:7070`). Signed URLs use this host, so clients must reach it |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email |
 | `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
@@ -74,7 +74,7 @@ All validated at startup (`src/common/config/env.ts`); the app refuses to boot i
 
 ## Environments
 
-- **local:** docker-compose with `postgis/postgis:16-*` and Redis; MinIO for S3; FCM and email mocked.
+- **local:** docker-compose with `postgis/postgis:16-*` and Redis; VersityGW as the S3 stand-in (MinIO no longer publishes images); FCM and email mocked.
 - **staging** and **production:** separate Railway environments with separate databases, buckets and Firebase projects.
 
 ## Operational basics

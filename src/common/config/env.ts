@@ -59,10 +59,10 @@ export const envSchema = z
         'must be a URL such as https://tripinly.app',
       )
       .default('tripinly://app'),
-    // Photo storage: Cloudflare R2 (any S3-compatible store; MinIO locally).
+    // Photo storage: Cloudflare R2 (any S3-compatible store; VersityGW locally).
     // Photo endpoints answer 503 while unset.
     R2_ACCOUNT_ID: optionalString,
-    /** Overrides the endpoint derived from R2_ACCOUNT_ID, e.g. http://localhost:9000 for MinIO. */
+    /** Overrides the endpoint derived from R2_ACCOUNT_ID, e.g. http://localhost:7070 for the local VersityGW. */
     R2_ENDPOINT: z
       .string()
       .trim()

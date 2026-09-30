@@ -36,7 +36,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       TEST_DATABASE_URL: postgresql://tripinly:tripinly@localhost:5432/tripinly_test
       TEST_REDIS_URL: redis://localhost:6379
-      TEST_S3_ENDPOINT: http://localhost:9000
+      TEST_S3_ENDPOINT: http://localhost:7070
       # Test-only values; real secrets live in Railway.
       JWT_ACCESS_SECRET: ci-only-access-token-secret-at-least-32-chars
       ENCRYPTION_KEY: Y2ktb25seS1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcyE=
@@ -64,13 +64,14 @@ jobs:
         run: |
           npx prisma migrate deploy
           npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
-      - name: Start MinIO (photo storage for integration tests)
-        # Service containers can't pass the `server` command, so start it here.
+      - name: Start S3 stand-in (photo storage for integration tests)
+        # VersityGW validates SigV4 like R2 does. MinIO no longer publishes images.
         run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
-          for i in $(seq 1 30); do curl -sf http://localhost:9000/minio/health/live && break; sleep 1; done
+          docker run -d --name s3 -p 7070:7070 \
+            -e ROOT_ACCESS_KEY=minioadmin -e ROOT_SECRET_KEY=minioadmin \
+            -e VGW_REGION=auto -e VGW_BACKEND=posix -e VGW_BACKEND_ARG=/tmp/vgw \
+            versity/versitygw:v1.8.0
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:7070 && break; sleep 1; done
       - name: Integration tests
         run: npm run test:integration
       - name: OpenAPI spec is up to date
