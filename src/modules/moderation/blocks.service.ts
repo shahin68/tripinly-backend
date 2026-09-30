@@ -43,10 +43,19 @@ export class BlocksService {
   }
 
   /** Which of `userIds` have a block with `userId` in either direction. */
-  async blockedAmong(userId: string, userIds: string[]): Promise<Set<string>> {
+  blockedAmong(userId: string, userIds: string[]): Promise<Set<string>> {
+    return BlocksService.blockedAmong(this.prisma, userId, userIds);
+  }
+
+  /** `blockedAmong` for callers without the service (or inside a transaction). */
+  static async blockedAmong(
+    db: { block: Prisma.TransactionClient['block'] },
+    userId: string,
+    userIds: string[],
+  ): Promise<Set<string>> {
     const others = [...new Set(userIds)].filter((id) => id !== userId);
     if (others.length === 0) return new Set();
-    const rows = await this.prisma.block.findMany({
+    const rows = await db.block.findMany({
       where: {
         OR: [
           { blockerId: userId, blockedId: { in: others } },

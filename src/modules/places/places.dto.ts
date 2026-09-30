@@ -193,11 +193,12 @@ export class PlaceItemDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'Most-liked public photo here (from the photos stage on)',
+    description:
+      'Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h',
   })
   coverThumbUrl: string | null;
 
-  @ApiProperty({ description: 'From the social stage on; false until then' })
+  @ApiProperty()
   likedByMe: boolean;
 }
 
@@ -380,7 +381,7 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   @ApiProperty({
     type: [String],
     description:
-      'A few public photo thumbnails (from the photos stage on; empty until then)',
+      'Up to 10 photo thumbnails from public trips, most liked first',
   })
   photoThumbUrls: string[];
 

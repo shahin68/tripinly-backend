@@ -20,16 +20,17 @@ import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma, Trip } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { PhotoJobsService } from '../photos/photos.queue';
+import { recomputePopularity } from '../places/popularity';
+import { likedAmong } from '../social/liked';
 import { normalizeUsername } from '../users/username';
-import { USER_SUMMARY_SELECT } from '../users/user-summary';
 import { TripAccessService } from './trip-access.service';
 import { TripLimits } from './trip-limits';
 import {
   dayDate,
   TRIP_DETAIL_INCLUDE,
   toTripDto,
-  toTripSummaryDto,
-  TRIP_COVER_MARKER,
+  toTripSummaries,
+  tripSummaryInclude,
   type TripWithDetails,
 } from './trip.mapper';
 import type {
@@ -146,8 +147,19 @@ export class TripsService {
         ]),
       ),
     ].filter(Boolean);
-    const hidden = await this.blocks.blockedAmong(userId, people);
-    return toTripDto(trip, role, this.storage, hidden);
+    const [hidden, liked] = await Promise.all([
+      this.blocks.blockedAmong(userId, people),
+      likedAmong(
+        this.prisma,
+        userId,
+        { type: 'trip', ids: [trip.id] },
+        {
+          type: 'marker',
+          ids: trip.days.flatMap((day) => day.markers.map((m) => m.id)),
+        },
+      ),
+    ]);
+    return toTripDto(trip, role, this.storage, hidden, liked);
   }
 
   async update(
@@ -195,6 +207,10 @@ export class TripsService {
           data: { ...data, updatedAt: new Date() },
         });
       }
+      // Likes on a trip's markers count toward place popularity only while it is public.
+      if (changed.visibility) {
+        await recomputePopularity(tx, await likedPlaceIds(tx, { tripId }));
+      }
     });
 
     if (Object.keys(changed).length > 0) {
@@ -219,7 +235,9 @@ export class TripsService {
         where: { tripId },
         select: { id: true },
       });
+      const placeIds = await likedPlaceIds(tx, { tripId });
       await tx.trip.delete({ where: { id: tripId } });
+      await recomputePopularity(tx, placeIds);
       return photos.map((photo) => photo.id);
     });
     await this.photoJobs.deleteFiles(photoIds);
@@ -232,6 +250,98 @@ export class TripsService {
         tripId,
       ),
     );
+  }
+
+  /**
+   * "Add to my trips": a new, independent trip owned by the caller with the
+   * source's title, dates, days and visible markers (names, locations, times,
+   * order, places). No photos, comments, likes or members; the caller's
+   * default visibility.
+   */
+  async copy(userId: string, tripId: string): Promise<TripDto> {
+    await this.access.assert(userId, tripId, 'copy');
+    const source = await this.prisma.trip.findUniqueOrThrow({
+      where: { id: tripId },
+      include: {
+        days: {
+          orderBy: { position: 'asc' },
+          include: {
+            markers: {
+              where: { hiddenAt: null },
+              orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            },
+          },
+        },
+      },
+    });
+    const copier = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { defaultTripVisibility: true },
+    });
+
+    const copyId = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      const owned = await tx.trip.count({ where: { ownerId: userId } });
+      if (owned >= TripLimits.TRIPS_PER_USER) {
+        throw limitReached('trips', TripLimits.TRIPS_PER_USER);
+      }
+      const trip = await tx.trip.create({
+        data: {
+          ownerId: userId,
+          title: source.title,
+          startDate: source.startDate,
+          endDate: source.endDate,
+          visibility: copier.defaultTripVisibility,
+          copiedFromTripId: source.id,
+          members: { create: { userId, role: 'owner', addedById: userId } },
+          days: {
+            create: source.days.map((day) => ({ position: day.position })),
+          },
+        },
+        include: { days: { select: { id: true, position: true } } },
+      });
+      const dayIds = new Map(trip.days.map((day) => [day.position, day.id]));
+      await tx.marker.createMany({
+        data: source.days.flatMap((day) =>
+          day.markers.map((marker, position) => ({
+            dayId: dayIds.get(day.position)!,
+            tripId: trip.id,
+            placeId: marker.placeId,
+            name: marker.name,
+            lat: marker.lat,
+            lng: marker.lng,
+            time: marker.time,
+            position,
+            createdById: userId,
+          })),
+        ),
+      });
+      await tx.trip.update({
+        where: { id: source.id },
+        data: { copyCount: { increment: 1 } },
+      });
+      return trip.id;
+    });
+
+    this.events.emit(
+      DomainEvents.TRIP_CREATED,
+      domainEvent(
+        DomainEvents.TRIP_CREATED,
+        userId,
+        { memberIds: [], copiedFromTripId: source.id },
+        copyId,
+      ),
+    );
+    this.events.emit(
+      DomainEvents.TRIP_COPIED,
+      domainEvent(
+        DomainEvents.TRIP_COPIED,
+        userId,
+        { copyId, ownerId: source.ownerId },
+        source.id,
+      ),
+    );
+    return this.get(userId, copyId);
   }
 
   /** Trips I own or collaborate on, most recently changed first. */
@@ -256,32 +366,15 @@ export class TripsService {
       },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
-      include: {
-        owner: { select: USER_SUMMARY_SELECT },
-        members: { where: { userId }, select: { role: true } },
-        _count: { select: { days: true, markers: true } },
-        markers: TRIP_COVER_MARKER,
-      },
+      include: tripSummaryInclude(userId),
     });
-    const hidden = await this.blocks.blockedAmong(
-      userId,
-      rows
-        .flatMap((row) =>
-          row.markers.map((m) => m.coverPhoto?.uploaderId ?? ''),
-        )
-        .filter(Boolean),
-    );
+    const dtos = await toTripSummaries(this.prisma, this.storage, userId, rows);
+    const byId = new Map(dtos.map((dto) => [dto.id, dto]));
     return toPage(
       rows,
       limit,
       (row) => ({ at: row.updatedAt.toISOString(), id: row.id }),
-      (row) =>
-        toTripSummaryDto(
-          row,
-          row.members[0]?.role ?? null,
-          this.storage,
-          hidden,
-        ),
+      (row) => byId.get(row.id)!,
     );
   }
 
@@ -349,7 +442,9 @@ export class TripsService {
         select: { id: true },
       });
       photoIds.push(...photos.map((photo) => photo.id));
+      const placeIds = await likedPlaceIds(tx, { dayId });
       await tx.tripDay.delete({ where: { id: dayId } });
+      await recomputePopularity(tx, placeIds);
       await shiftDaysUp(tx, trip.id, day.position);
       const current = await tx.trip.findUniqueOrThrow({
         where: { id: trip.id },
@@ -525,6 +620,19 @@ async function shiftDaysUp(
   await tx.$executeRaw`
     UPDATE trip_days SET position = -position - 2
     WHERE "tripId" = ${tripId}::uuid AND position < 0`;
+}
+
+/** Places of markers with likes: the ones whose popularity a change to these markers can move. */
+export async function likedPlaceIds(
+  tx: Tx,
+  where: Prisma.MarkerWhereInput,
+): Promise<string[]> {
+  const markers = await tx.marker.findMany({
+    where: { ...where, likeCount: { gt: 0 } },
+    select: { placeId: true },
+    distinct: ['placeId'],
+  });
+  return markers.map((marker) => marker.placeId);
 }
 
 function sameDate(a: Date | null, b: Date | null): boolean {

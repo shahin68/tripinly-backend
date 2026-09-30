@@ -183,6 +183,25 @@ export class UpdateMarkerDto {
   position?: number;
 }
 
+export class CopyMarkerDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'A day of a trip I own or edit',
+  })
+  @IsUUID()
+  dayId: string;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    description: 'Insert position in the day; appended when omitted',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  position?: number;
+}
+
 export class MarkerOrderDto {
   @ApiProperty({
     type: [String],
@@ -270,12 +289,14 @@ export type MarkerWithCreator = Prisma.MarkerGetPayload<{
 
 /**
  * `hiddenUserIds`: people with a block with the viewer. They show as no
- * creator, and a cover photo they uploaded isn't shown.
+ * creator, and a cover photo they uploaded isn't shown. `likedIds`: targets
+ * the viewer liked (see `likedAmong`).
  */
 export function toMarkerDto(
   marker: MarkerWithCreator,
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
+  likedIds: ReadonlySet<string> = new Set(),
 ): MarkerDto {
   const creatorHidden =
     marker.createdById !== null && hiddenUserIds.has(marker.createdById);
@@ -295,9 +316,8 @@ export function toMarkerDto(
     coverPhotoId,
     coverThumbUrl: thumbUrl(signer, coverPhotoId),
     photoCount: marker._count.photos,
-    // Likes and comments arrive in stage 6.
     likeCount: marker.likeCount,
-    likedByMe: false,
+    likedByMe: likedIds.has(marker.id),
     commentCount: marker.commentCount,
     createdBy:
       marker.createdBy && !creatorHidden

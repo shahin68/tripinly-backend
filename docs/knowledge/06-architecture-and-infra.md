@@ -11,6 +11,8 @@
 
 External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import).
 
+Nightly counter rebuild: BullMQ queue `social`, job `recount` at 03:40 UTC in the worker (like and comment counters, place popularity).
+
 OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
 
 ## Repository layout

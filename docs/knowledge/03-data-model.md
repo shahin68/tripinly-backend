@@ -69,9 +69,11 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 
 ## Social
 
-**comments** — marker → markers, author → users, `body`, `likeCount`, `hiddenAt`, `deletedAt`.
+**comments** — marker → markers (`CASCADE`), `tripId` (denormalized, `CASCADE`), author → users (`CASCADE`), `body` (1–1000 chars), `likeCount`, `hiddenAt`. Deleting a comment removes the row. Index (`markerId`, `createdAt`, `id`) for the oldest-first list.
 
-**likes** — user → users, `targetType` (`trip` | `marker` | `photo` | `comment` | `place`), `targetId`. Unique (`userId`, `targetType`, `targetId`). Index (`targetType`, `targetId`).
+**likes** — user → users (`CASCADE`), `targetType` (`trip` | `marker` | `photo` | `comment` | `place`), `targetId` (no foreign key). Unique (`userId`, `targetType`, `targetId`). Index (`targetType`, `targetId`). `AFTER DELETE` triggers on trips, markers, photos, comments and places delete the target's likes, so cascades never leave likes behind.
+
+Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount`; `places.popularity`) are updated in the request transaction with the target row locked, and rebuilt nightly from source rows by the worker (`social` queue, `recount` job).
 
 **blocks** — `blockerId`, `blockedId`. Unique pair. Queries check both directions.
 

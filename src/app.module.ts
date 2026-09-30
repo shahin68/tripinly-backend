@@ -15,7 +15,9 @@ import { InvitesModule } from './modules/invites/invites.module';
 import { MarkersModule } from './modules/markers/markers.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PhotosModule } from './modules/photos/photos.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { PlacesModule } from './modules/places/places.module';
+import { SocialModule } from './modules/social/social.module';
 import { TripsModule } from './modules/trips/trips.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -35,6 +37,8 @@ import { UsersModule } from './modules/users/users.module';
     MarkersModule,
     InvitesModule,
     PhotosModule,
+    SocialModule,
+    DiscoveryModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

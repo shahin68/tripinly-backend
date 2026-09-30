@@ -232,6 +232,9 @@ export class TripSummaryDto {
   likeCount: number;
 
   @ApiProperty()
+  likedByMe: boolean;
+
+  @ApiProperty()
   copyCount: number;
 
   @ApiProperty()

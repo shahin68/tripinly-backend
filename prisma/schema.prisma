@@ -77,6 +77,8 @@ model User {
   invitesCreated TripInvite[]
   markersCreated Marker[]
   photosUploaded Photo[]
+  comments       Comment[]
+  likes          Like[]
   blocksGiven    Block[]      @relation("Blocker")
   blocksReceived Block[]      @relation("Blocked")
 
@@ -209,6 +211,7 @@ model Trip {
   invites    TripInvite[]
   markers    Marker[]
   photos     Photo[]
+  comments   Comment[]
 
   @@index([ownerId])
   @@index([visibility, likeCount(sort: Desc)], map: "trips_explore_idx", where: raw("((visibility = 'public'::\"TripVisibility\") AND (\"hiddenAt\" IS NULL))"))
@@ -356,14 +359,15 @@ model Marker {
   createdAt          DateTime                              @default(now())
   updatedAt          DateTime                              @updatedAt
 
-  day        TripDay  @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  place      Place    @relation(fields: [placeId], references: [id], onDelete: Restrict)
-  createdBy  User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  copiedFrom Marker?  @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
-  copies     Marker[] @relation("MarkerCopies")
-  photos     Photo[]  @relation("MarkerPhotos")
-  coverPhoto Photo?   @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+  day        TripDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  place      Place     @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  createdBy  User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  copiedFrom Marker?   @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
+  copies     Marker[]  @relation("MarkerCopies")
+  photos     Photo[]   @relation("MarkerPhotos")
+  coverPhoto Photo?    @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+  comments   Comment[]
 
   @@index([dayId, position])
   @@index([tripId])
@@ -457,4 +461,53 @@ model Photo {
   @@index([uploaderId])
   @@index([status, updatedAt])
   @@map("photos")
+}
+
+// ─── Social ──────────────────────────────────────────────────────────────────
+
+/// Comments on markers (flat list, plain text).
+model Comment {
+  id        String    @id @default(uuid()) @db.Uuid
+  markerId  String    @db.Uuid
+  /// Denormalized from the marker for access checks.
+  tripId    String    @db.Uuid
+  authorId  String    @db.Uuid
+  body      String
+  likeCount Int       @default(0)
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  marker Marker @relation(fields: [markerId], references: [id], onDelete: Cascade)
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([markerId, createdAt, id])
+  @@index([tripId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+enum LikeTargetType {
+  trip
+  marker
+  photo
+  comment
+  place
+}
+
+/// One like per user and target. Likes on a deleted trip, marker, photo or
+/// comment are removed by database triggers (see the social migration).
+model Like {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  targetType LikeTargetType
+  targetId   String         @db.Uuid
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@map("likes")
 }

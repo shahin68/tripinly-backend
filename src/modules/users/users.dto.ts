@@ -169,3 +169,10 @@ export class SearchUsersQueryDto {
   @Length(2, 50)
   q: string;
 }
+
+export class UsernameParamDto {
+  @ApiProperty({ example: 'jonas.k' })
+  @IsString()
+  @Length(1, 60)
+  username: string;
+}

@@ -22,6 +22,7 @@ import {
 import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import {
+  CopyMarkerDto,
   CreateMarkerDto,
   MarkerDto,
   MarkerOrderDto,
@@ -77,6 +78,21 @@ export class MarkersController {
       time: body.time,
       position: body.position,
     });
+  }
+
+  @Post('markers/:id/copy')
+  @ApiOperation({
+    summary: 'Copy a marker to one of my trips',
+    description:
+      'Markers of public trips that are not mine. Same name, location, time and place; no photos, comments or likes. Own and private trips: 403 TRIP_NOT_COPYABLE.',
+  })
+  @ApiCreatedResponse({ type: MarkerDto })
+  copy(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+    @Body() body: CopyMarkerDto,
+  ): Promise<MarkerDto> {
+    return this.markers.copy(user.id, id, body);
   }
 
   @Get('markers/:id')

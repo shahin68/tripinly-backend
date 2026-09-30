@@ -37,10 +37,11 @@ export class PlacesController {
   })
   @ApiOkResponse({ type: InViewResponseDto })
   inView(
+    @CurrentUser() user: AuthUser,
     @Query() query: InViewQueryDto,
     @I18nLang() lang: string,
   ): Promise<InViewResponseDto> {
-    return this.places.inView(query, lang);
+    return this.places.inView(user.id, query, lang);
   }
 
   @Get('search')
@@ -66,10 +67,11 @@ export class PlacesController {
   })
   @ApiOkResponse({ type: NearbyPageDto })
   nearby(
+    @CurrentUser() user: AuthUser,
     @Query() query: NearbyQueryDto,
     @I18nLang() lang: string,
   ): Promise<NearbyPageDto> {
-    return this.places.nearby(query, lang);
+    return this.places.nearby(user.id, query, lang);
   }
 
   @Get('popular')
