@@ -6,6 +6,7 @@ import type {
   User,
 } from '../../generated/prisma/client';
 import { MARKER_INCLUDE, toMarkerDto } from '../markers/markers.dto';
+import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
 import type { TripDto, TripSummaryDto } from './trips.dto';
 
@@ -46,11 +47,13 @@ export function dayDate(
 
 /**
  * `hiddenUserIds`: users with a block in either direction with the viewer.
- * They are left out of the member list and shown as no creator on markers.
+ * They are left out of the member list and shown as no creator on markers,
+ * and their cover photos aren't shown.
  */
 export function toTripDto(
   trip: TripWithDetails,
   myRole: TripRole | null,
+  signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
 ): TripDto {
   return {
@@ -81,11 +84,7 @@ export function toTripDto(
       position: day.position,
       date: dayDate(trip, day.position),
       markers: day.markers.map((marker) =>
-        toMarkerDto(
-          marker.createdById && hiddenUserIds.has(marker.createdById)
-            ? { ...marker, createdBy: null }
-            : marker,
-        ),
+        toMarkerDto(marker, signer, hiddenUserIds),
       ),
     })),
     createdAt: trip.createdAt.toISOString(),
@@ -93,15 +92,34 @@ export function toTripDto(
   };
 }
 
+/** The first marker (by day, then position) that has a cover: the trip's card image. */
+export const TRIP_COVER_MARKER = {
+  where: { hiddenAt: null, coverPhotoId: { not: null } },
+  orderBy: [{ day: { position: 'asc' } }, { position: 'asc' }],
+  take: 1,
+  select: { coverPhotoId: true, coverPhoto: { select: { uploaderId: true } } },
+} satisfies Prisma.Trip$markersArgs;
+
 export type TripWithCounts = Trip & {
   owner: Summary;
   _count: { days: number; markers: number };
+  markers: {
+    coverPhotoId: string | null;
+    coverPhoto: { uploaderId: string } | null;
+  }[];
 };
 
 export function toTripSummaryDto(
   trip: TripWithCounts,
   role: TripRole | null,
+  signer: UrlSigner,
+  hiddenUserIds: ReadonlySet<string> = new Set(),
 ): TripSummaryDto {
+  const cover = trip.markers[0];
+  const coverPhotoId =
+    cover?.coverPhoto && !hiddenUserIds.has(cover.coverPhoto.uploaderId)
+      ? cover.coverPhotoId
+      : null;
   return {
     id: trip.id,
     title: trip.title,
@@ -110,7 +128,7 @@ export function toTripSummaryDto(
     visibility: trip.visibility,
     owner: toUserSummary(trip.owner),
     role: role ?? 'viewer',
-    coverThumbUrl: null,
+    coverThumbUrl: thumbUrl(signer, coverPhotoId),
     dayCount: trip._count.days,
     markerCount: trip._count.markers,
     likeCount: trip.likeCount,

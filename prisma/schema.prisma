@@ -76,6 +76,7 @@ model User {
   membersAdded   TripMember[] @relation("TripMemberAddedBy")
   invitesCreated TripInvite[]
   markersCreated Marker[]
+  photosUploaded Photo[]
   blocksGiven    Block[]      @relation("Blocker")
   blocksReceived Block[]      @relation("Blocked")
 
@@ -207,6 +208,7 @@ model Trip {
   days       TripDay[]
   invites    TripInvite[]
   markers    Marker[]
+  photos     Photo[]
 
   @@index([ownerId])
   @@index([visibility, likeCount(sort: Desc)], map: "trips_explore_idx", where: raw("((visibility = 'public'::\"TripVisibility\") AND (\"hiddenAt\" IS NULL))"))
@@ -346,6 +348,8 @@ model Marker {
   position           Int
   createdById        String?                               @db.Uuid
   copiedFromMarkerId String?                               @db.Uuid
+  /// A ready photo of this marker; the map pin's thumbnail.
+  coverPhotoId       String?                               @unique @db.Uuid
   likeCount          Int                                   @default(0)
   commentCount       Int                                   @default(0)
   hiddenAt           DateTime?
@@ -358,6 +362,8 @@ model Marker {
   createdBy  User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   copiedFrom Marker?  @relation("MarkerCopies", fields: [copiedFromMarkerId], references: [id], onDelete: SetNull)
   copies     Marker[] @relation("MarkerCopies")
+  photos     Photo[]  @relation("MarkerPhotos")
+  coverPhoto Photo?   @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
 
   @@index([dayId, position])
   @@index([tripId])
@@ -410,4 +416,45 @@ model OsmImportRun {
 
   @@index([region, startedAt(sort: Desc)])
   @@map("osm_import_runs")
+}
+
+enum PhotoStatus {
+  pending_upload
+  processing
+  ready
+  failed
+}
+
+/// Storage keys derive from the id: photos/{id}/original, thumb.webp, display.webp.
+model Photo {
+  id         String      @id @default(uuid()) @db.Uuid
+  markerId   String      @db.Uuid
+  /// Denormalized from the marker for access checks and cleanup.
+  tripId     String      @db.Uuid
+  /// Restrict: account deletion removes a user's photos (and their files) first.
+  uploaderId String      @db.Uuid
+  status     PhotoStatus @default(pending_upload)
+  /// Declared at upload: image/jpeg, image/png or image/webp.
+  mimeType   String
+  /// Declared size of the original upload.
+  bytes      Int
+  width      Int?
+  height     Int?
+  /// 0-based gallery order within the marker.
+  position   Int
+  likeCount  Int         @default(0)
+  hiddenAt   DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  marker   Marker  @relation("MarkerPhotos", fields: [markerId], references: [id], onDelete: Cascade)
+  trip     Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  coverOf  Marker? @relation("MarkerCover")
+
+  @@index([markerId, position])
+  @@index([tripId])
+  @@index([uploaderId])
+  @@index([status, updatedAt])
+  @@map("photos")
 }

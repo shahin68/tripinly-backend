@@ -10,6 +10,8 @@ const MINUTE_MS = 60_000;
 export const DEFAULT_RATE_LIMIT = { limit: 120, ttl: MINUTE_MS };
 /** Sign-in, refresh and logout: per IP. */
 export const AUTH_RATE_LIMIT = { limit: 20, ttl: MINUTE_MS };
+/** Photo upload URLs, per user. */
+export const UPLOAD_RATE_LIMIT = { limit: 60, ttl: MINUTE_MS };
 /** Place search, per user: it also calls Photon, whose public instance asks for fair use. */
 export const SEARCH_RATE_LIMIT = { limit: 60, ttl: MINUTE_MS };
 

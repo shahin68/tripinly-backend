@@ -48,7 +48,9 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - Markers belong to a trip day, have a name, a location (lat/lng), optional time, and a position for ordering.
 - Each marker is linked to a **place**. The client sends either a `placeId` (a place from our in-view/search/along-the-way results) or a name + location (custom pin, or a Photon address/city result with optional OSM ids). Matching for the latter: OSM ids → existing place; else an existing place within ~30 m with a normalized-equal name; else create a `user` place. **Google place IDs are never accepted.**
 - A marker can have **many photos** in an order. One of them can be the **cover**; the cover is the thumbnail in the map pin. If the cover is deleted, the next photo in order becomes the cover; no photos → no cover.
-- Limits (defaults, configurable): 30 photos per marker, 15 MB per original, JPEG/PNG/HEIC/WebP.
+- Limits (defaults, configurable): 30 photos per marker, 15 MB per original, JPEG/PNG/WebP. The app converts HEIC (iPhone) photos to JPEG before uploading; the server cannot decode HEIC.
+- Viewers see ready photos only; trip members also see photos still processing or failed. Photos uploaded by someone with a block with the viewer are left out, and a cover they uploaded is not shown.
+- An uploader can delete their photo even after leaving the trip.
 
 ## Likes and popularity
 

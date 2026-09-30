@@ -18,7 +18,8 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import type { Marker, User } from '../../generated/prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
+import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { toUserSummary, UserSummaryDto } from '../users/user-summary';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -255,15 +256,33 @@ export class MarkerDto {
   updatedAt: string;
 }
 
-export type MarkerWithCreator = Marker & {
-  createdBy: Pick<User, 'id' | 'username' | 'displayName'> | null;
-};
-
 export const MARKER_INCLUDE = {
   createdBy: { select: { id: true, username: true, displayName: true } },
-} as const;
+  coverPhoto: { select: { uploaderId: true } },
+  _count: {
+    select: { photos: { where: { status: 'ready', hiddenAt: null } } },
+  },
+} satisfies Prisma.MarkerInclude;
 
-export function toMarkerDto(marker: MarkerWithCreator): MarkerDto {
+export type MarkerWithCreator = Prisma.MarkerGetPayload<{
+  include: typeof MARKER_INCLUDE;
+}>;
+
+/**
+ * `hiddenUserIds`: people with a block with the viewer. They show as no
+ * creator, and a cover photo they uploaded isn't shown.
+ */
+export function toMarkerDto(
+  marker: MarkerWithCreator,
+  signer: UrlSigner,
+  hiddenUserIds: ReadonlySet<string> = new Set(),
+): MarkerDto {
+  const creatorHidden =
+    marker.createdById !== null && hiddenUserIds.has(marker.createdById);
+  const coverHidden =
+    marker.coverPhoto !== null &&
+    hiddenUserIds.has(marker.coverPhoto.uploaderId);
+  const coverPhotoId = coverHidden ? null : marker.coverPhotoId;
   return {
     id: marker.id,
     tripId: marker.tripId,
@@ -273,14 +292,17 @@ export function toMarkerDto(marker: MarkerWithCreator): MarkerDto {
     location: { lat: marker.lat, lng: marker.lng },
     time: marker.time,
     position: marker.position,
-    // Photos, likes and comments arrive in stages 5 and 6.
-    coverPhotoId: null,
-    coverThumbUrl: null,
-    photoCount: 0,
+    coverPhotoId,
+    coverThumbUrl: thumbUrl(signer, coverPhotoId),
+    photoCount: marker._count.photos,
+    // Likes and comments arrive in stage 6.
     likeCount: marker.likeCount,
     likedByMe: false,
     commentCount: marker.commentCount,
-    createdBy: marker.createdBy ? toUserSummary(marker.createdBy) : null,
+    createdBy:
+      marker.createdBy && !creatorHidden
+        ? toUserSummary(marker.createdBy)
+        : null,
     createdAt: marker.createdAt.toISOString(),
     updatedAt: marker.updatedAt.toISOString(),
   };

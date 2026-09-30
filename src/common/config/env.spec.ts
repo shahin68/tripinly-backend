@@ -72,4 +72,27 @@ describe('validateEnv', () => {
     expect(message).toContain('NODE_ENV');
     expect(message).not.toContain('hunter2');
   });
+  it('requires photo storage settings together, with an account or endpoint', () => {
+    expect(() => validateEnv({ ...valid, R2_BUCKET: 'photos' })).toThrow(
+      EnvValidationError,
+    );
+    const storage = {
+      R2_ACCESS_KEY_ID: 'key',
+      R2_SECRET_ACCESS_KEY: 'secret',
+      R2_BUCKET: 'photos',
+    };
+    expect(() => validateEnv({ ...valid, ...storage })).toThrow(
+      /R2_ACCOUNT_ID/,
+    );
+    expect(
+      validateEnv({
+        ...valid,
+        ...storage,
+        R2_ENDPOINT: 'http://localhost:9000',
+      }).R2_ENDPOINT,
+    ).toBe('http://localhost:9000');
+    expect(
+      validateEnv({ ...valid, R2_ENDPOINT: '' }).R2_ENDPOINT,
+    ).toBeUndefined();
+  });
 });

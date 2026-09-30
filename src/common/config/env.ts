@@ -59,6 +59,20 @@ export const envSchema = z
         'must be a URL such as https://tripinly.app',
       )
       .default('tripinly://app'),
+    // Photo storage: Cloudflare R2 (any S3-compatible store; MinIO locally).
+    // Photo endpoints answer 503 while unset.
+    R2_ACCOUNT_ID: optionalString,
+    /** Overrides the endpoint derived from R2_ACCOUNT_ID, e.g. http://localhost:9000 for MinIO. */
+    R2_ENDPOINT: z
+      .string()
+      .trim()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    R2_ACCESS_KEY_ID: optionalString,
+    R2_SECRET_ACCESS_KEY: optionalString,
+    R2_BUCKET: optionalString,
+
     // Places (docs/knowledge/10-maps-places-routing.md)
     /** Photon geocoder for address and city search. Public komoot instance at first, self-hosted later. */
     PHOTON_BASE_URL: z
@@ -113,6 +127,27 @@ export const envSchema = z
         path: ['APPLE_BUNDLE_ID'],
         message:
           'set all of APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY, or none',
+      });
+    }
+    const storage = [
+      env.R2_ACCESS_KEY_ID,
+      env.R2_SECRET_ACCESS_KEY,
+      env.R2_BUCKET,
+    ];
+    if (storage.some(Boolean) && !storage.every(Boolean)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['R2_BUCKET'],
+        message:
+          'set all of R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, or none',
+      });
+    }
+    if (env.R2_BUCKET && !env.R2_ACCOUNT_ID && !env.R2_ENDPOINT) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['R2_ACCOUNT_ID'],
+        message:
+          'set R2_ACCOUNT_ID (or R2_ENDPOINT) with the storage credentials',
       });
     }
     if (env.DEV_AUTH_ENABLED && env.NODE_ENV === 'production') {

@@ -5,6 +5,7 @@ import { CoreModule } from './common/core.module';
 import { AllExceptionsFilter } from './common/errors/all-exceptions.filter';
 import { createValidationPipe } from './common/errors/validation';
 import { AppThrottlerGuard } from './common/throttling/app-throttler.guard';
+import { QueueModule } from './common/queue/queue.module';
 import { ThrottlingModule } from './common/throttling/throttling.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
@@ -13,6 +14,7 @@ import { HealthModule } from './modules/health/health.module';
 import { InvitesModule } from './modules/invites/invites.module';
 import { MarkersModule } from './modules/markers/markers.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { PhotosModule } from './modules/photos/photos.module';
 import { PlacesModule } from './modules/places/places.module';
 import { TripsModule } from './modules/trips/trips.module';
 import { UsersModule } from './modules/users/users.module';
@@ -22,6 +24,7 @@ import { UsersModule } from './modules/users/users.module';
     CoreModule,
     EventEmitterModule.forRoot(),
     ThrottlingModule,
+    QueueModule,
     HealthModule,
     AuthModule,
     ConsentsModule,
@@ -31,6 +34,7 @@ import { UsersModule } from './modules/users/users.module';
     PlacesModule,
     MarkersModule,
     InvitesModule,
+    PhotosModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

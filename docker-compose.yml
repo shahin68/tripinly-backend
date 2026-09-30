@@ -1,4 +1,4 @@
-# Local development stack. `docker compose up -d db redis minio` for dependencies
+# Local development stack. `docker compose up -d db redis minio minio-init` for dependencies
 # while running the app with `npm run start:dev`, or `docker compose up` for everything.
 services:
   db:
@@ -41,6 +41,15 @@ services:
     volumes:
       - minio-data:/data
 
+  # Creates the photo bucket in MinIO.
+  minio-init:
+    image: minio/mc:latest
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - until mc alias set local http://minio:9000 tripinly tripinly-secret; do sleep 1; done && mc mb -p local/tripinly-photos
+    depends_on:
+      - minio
+
   migrate:
     build: .
     command: ['npx', 'prisma', 'migrate', 'deploy']
@@ -52,6 +61,12 @@ services:
       # Local-only values; never reuse them anywhere else.
       JWT_ACCESS_SECRET: local-compose-access-token-secret-32chars
       ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE=
+      # Upload and image URLs are signed for this host, so the app must reach it too
+      # (e.g. http://10.0.2.2:9000 from the Android emulator; change both together).
+      R2_ENDPOINT: http://minio:9000
+      R2_ACCESS_KEY_ID: tripinly
+      R2_SECRET_ACCESS_KEY: tripinly-secret
+      R2_BUCKET: tripinly-photos
     depends_on:
       db:
         condition: service_healthy

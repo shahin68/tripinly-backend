@@ -55,15 +55,17 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 **markers**
 - day → trip_days, `tripId` (denormalized for access checks), place → places (`RESTRICT`: places with markers are never deleted)
 - `name`, `lat`, `lng`, `location geography(Point)` (generated), `time` (nullable `HH:mm`), `position` (0-based, contiguous per day)
-- `coverPhotoId` → photos (nullable)
+- `coverPhotoId` → photos (nullable, unique, `SET NULL`): always a ready photo of this marker
 - `createdById` → users (nullable, `ON DELETE SET NULL`)
 - `copiedFromMarkerId` → markers (nullable, `SET NULL`)
 - `likeCount`, `commentCount`, `hiddenAt`
 
 **photos**
-- marker → markers, `uploaderId` → users, `position`
-- `storageKeyOriginal`, `storageKeyThumb`, `storageKeyDisplay`, `width`, `height`, `mimeType`, `bytes`
+- marker → markers (`CASCADE`), `tripId` (denormalized, `CASCADE`), `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
+- Storage keys derive from the id: `photos/{id}/original` (re-encoded without metadata once processed), `photos/{id}/thumb.webp` (256 px square), `photos/{id}/display.webp` (≤ 1600 px). Deleting the prefix `photos/{id}/` deletes every file.
+- `width`, `height` (upright, after EXIF rotation), `mimeType`, `bytes` (declared at upload)
 - `status` (`pending_upload` | `processing` | `ready` | `failed`), `likeCount`, `hiddenAt`
+- Pending and failed photos are removed with their files after 24 h (hourly job).
 
 ## Social
 

@@ -39,7 +39,7 @@ docs/knowledge/           # this folder
 
 ## Key libraries
 
-`@nestjs/*`, `@nestjs/swagger`, `@nestjs/config` (validated with zod or Joi), `@nestjs/throttler` (Redis store), `@nestjs/event-emitter`, `@nestjs/bullmq` + `bullmq`, `@nestjs/websockets` + `socket.io` + `@socket.io/redis-adapter`, `prisma` + `@prisma/client`, `nestjs-i18n`, `class-validator`, `class-transformer`, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, `sharp` (thumbnails, EXIF stripping, HEIC via libheif if available), `firebase-admin`, `resend`, `google-auth-library` (Google ID token), `jose` (Apple token verification, JWT signing), `pino` via `nestjs-pino`.
+`@nestjs/*`, `@nestjs/swagger`, `@nestjs/config` (validated with zod or Joi), `@nestjs/throttler` (Redis store), `@nestjs/event-emitter`, `@nestjs/bullmq` + `bullmq`, `@nestjs/websockets` + `socket.io` + `@socket.io/redis-adapter`, `prisma` + `@prisma/client`, `nestjs-i18n`, `class-validator`, `class-transformer`, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, `sharp` (thumbnails, EXIF stripping; its prebuilt libvips cannot decode HEIC, so the app uploads JPEG), `firebase-admin`, `resend`, `google-auth-library` (Google ID token), `jose` (Apple token verification, JWT signing), `pino` via `nestjs-pino`.
 
 Adding anything else: state the reason.
 
@@ -53,7 +53,8 @@ Adding anything else: state the reason.
 | `JWT_ACCESS_SECRET` (≥ 32 chars, HS256), `JWT_ACCESS_TTL_SECONDS` (900), `JWT_REFRESH_TTL_DAYS` (60) | Tokens |
 | `GOOGLE_CLIENT_IDS` | Comma-separated accepted audiences (iOS + Android + web client IDs). Unset = Google sign-in answers 503 |
 | `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Apple sign-in verification and token revocation. All four or none; unset = Apple sign-in answers 503. The `.p8` key may use literal `\n` |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Storage |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Private photo bucket (R2 API token with Object Read & Write on that bucket). Key, secret and bucket together or not at all; unset = photo endpoints answer 503. No public bucket URL: clients get signed URLs |
+| `R2_ENDPOINT` | Overrides `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, e.g. MinIO locally (`http://localhost:9000`). Signed URLs use this host, so clients must reach it |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email |
 | `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
