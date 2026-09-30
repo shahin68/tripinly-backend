@@ -34,7 +34,9 @@
 | Photos (EXIF stripped) | Core feature | Until deleted by user or account deletion |
 | Trips, markers, comments, likes | Core feature | Until deleted |
 | Consent records | Proof of consent (GDPR Art. 7(1); kept under Art. 17(3)(e) for defending legal claims) | After deletion keep only a minimal record: keyed hash of the user ID, document type, version, locale, granted/withdrawn timestamps. Kept for `CONSENT_PROOF_RETENTION_YEARS` (default **5**, the Hungarian general limitation period), then purged by a job. The value is configuration so legal counsel can change it without code changes. |
-| Device tokens, locale | Push | Until logout, token invalid, or deletion |
+| Device tokens, locale | Push | Until logout, token invalid (removed when FCM reports it unregistered), or deletion |
+| In-app notifications, notification settings | Activity list, push preferences | Until account deletion (received ones deleted; ones caused by the user keep the row with the actor removed); deleted with the trip, marker or comment they are about |
+| Email address in email jobs | Sending one transactional email | Only while the job runs; removed from Redis when it finishes or fails, never logged |
 | Current location (Nearby) | Query only | **Not stored, not logged** |
 | IP addresses in logs | Security | Short log retention (e.g. 14 days) |
 

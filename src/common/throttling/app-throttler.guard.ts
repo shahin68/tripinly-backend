@@ -10,6 +10,12 @@ import { ErrorCode } from '../errors/error-codes';
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
+  /** HTTP only; the realtime gateway authenticates its own connections. */
+  override canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') return Promise.resolve(true);
+    return super.canActivate(context);
+  }
+
   protected override getTracker(req: Record<string, unknown>): Promise<string> {
     const request = req as unknown as AuthenticatedRequest;
     return Promise.resolve(

@@ -148,9 +148,11 @@ See `10-maps-places-routing.md` for response shape, buffers and caching.
 ### Notifications
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/notifications` | Paginated, newest first |
-| POST | `/notifications/read` | Body: IDs or `all` |
-| GET/PATCH | `/me/notification-settings` | Per-type push on/off |
+| GET | `/notifications` | Paginated (`cursor`, `limit`), newest first → `{ items, nextCursor, unreadCount }`. Item: `id`, `type`, `actor` (user summary or null), `trip` (`{ id, title }` or null), `markerId`, `count`, `title`, `body` (localized by `Accept-Language`, else the saved locale; the same text as the push), `deepLink`, `read`, `createdAt`, `updatedAt`. Hides entries caused by someone I have a block with and entries about trips I can no longer see |
+| POST | `/notifications/read` | Body `{ "ids": [...] }` (up to 100) or `{ "all": true }` → 204. Foreign or unknown ids are ignored |
+| GET/PATCH | `/me/notification-settings` | `{ commentOnMarker, addedToTrip, tripChangedByCollaborator, likesGrouped }`, all `true` by default; PATCH sends only what changes. Off stops the push, not the in-app entry |
+
+Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notifications.md`.
 
 ### Moderation
 | Method | Path | Notes |

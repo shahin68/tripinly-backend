@@ -1,0 +1,37 @@
+{
+  "someone": "Jemand",
+  "comment_on_marker": {
+    "title": "{actor} hat {marker} kommentiert",
+    "body": "{excerpt}"
+  },
+  "added_to_trip": {
+    "title": "Zu {trip} hinzugefügt",
+    "body": "{actor} hat dich zu dieser Reise hinzugefügt."
+  },
+  "trip_changed_by_collaborator": {
+    "title": "Änderungen in {trip}",
+    "places_added": {
+      "one": "{actor} hat einen Ort hinzugefügt",
+      "other": "{actor} hat {count} Orte hinzugefügt"
+    },
+    "one_actor": {
+      "one": "{actor} hat eine Änderung vorgenommen",
+      "other": "{actor} hat {count} Änderungen vorgenommen"
+    },
+    "many_actors": {
+      "one": "{actor} und andere haben eine Änderung vorgenommen",
+      "other": "{actor} und andere haben {count} Änderungen vorgenommen"
+    }
+  },
+  "likes_grouped": {
+    "title": "Neue Likes",
+    "in_trip": {
+      "one": "{actor} gefällt dein Beitrag in {trip}",
+      "other": "{count} Personen gefallen deine Beiträge in {trip}"
+    },
+    "anywhere": {
+      "one": "{actor} gefällt dein Beitrag",
+      "other": "{count} Personen gefallen deine Beiträge"
+    }
+  }
+}

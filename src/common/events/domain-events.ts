@@ -1,3 +1,6 @@
+import { applyDecorators } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+
 /**
  * Domain events emitted by services after their transaction commits. Realtime
  * and notification modules subscribe; services never call gateways directly.
@@ -47,4 +50,14 @@ export function domainEvent<T>(
   tripId?: string,
 ): DomainEvent<T> {
   return { event, tripId, actorId, at: new Date().toISOString(), data };
+}
+
+/**
+ * Listens to several domain events with one handler. (An array passed to
+ * @OnEvent is an EventEmitter2 namespace path, not a list of events.)
+ */
+export function OnDomainEvents(
+  ...events: readonly DomainEventName[]
+): MethodDecorator {
+  return applyDecorators(...events.map((event) => OnEvent(event)));
 }

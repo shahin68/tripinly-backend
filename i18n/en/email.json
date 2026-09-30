@@ -1,0 +1,16 @@
+{
+  "footer": "You're receiving this email because of your Tripinly account. It was sent automatically; replies aren't read.",
+  "data_export_ready": {
+    "subject": "Your Tripinly data is ready",
+    "heading": "Your data export is ready",
+    "body": "You asked for a copy of your Tripinly data. You can download it with the button below. The link works for 7 days.",
+    "button": "Download my data",
+    "ignore": "If you didn't ask for this, you can ignore this email, and consider signing out of Tripinly on your other devices."
+  },
+  "account_deletion_confirmed": {
+    "subject": "Your Tripinly account has been deleted",
+    "heading": "Your account has been deleted",
+    "body": "As you asked, your Tripinly account and the data connected to it have been deleted. We won't email you again.",
+    "ignore": "Thanks for travelling with us."
+  }
+}

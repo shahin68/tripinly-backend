@@ -16,6 +16,10 @@ export interface AccessTokenClaims {
   onb: boolean;
 }
 
+export interface VerifiedAccessToken extends AccessTokenClaims {
+  expiresAt: Date;
+}
+
 export interface IssuedAccessToken {
   token: string;
   expiresAt: Date;
@@ -49,7 +53,7 @@ export class AccessTokenService {
     return { token, expiresAt: new Date(expiresAt * 1000) };
   }
 
-  async verify(token: string): Promise<AccessTokenClaims> {
+  async verify(token: string): Promise<VerifiedAccessToken> {
     try {
       const { payload } = await jwtVerify(token, this.secret, {
         issuer: ISSUER,
@@ -59,14 +63,20 @@ export class AccessTokenService {
       if (
         typeof payload.sub !== 'string' ||
         (payload.role !== 'user' && payload.role !== 'admin') ||
-        typeof payload.onb !== 'boolean'
+        typeof payload.onb !== 'boolean' ||
+        typeof payload.exp !== 'number'
       ) {
         throw new AppException(
           ErrorCode.UNAUTHENTICATED,
           HttpStatus.UNAUTHORIZED,
         );
       }
-      return { sub: payload.sub, role: payload.role, onb: payload.onb };
+      return {
+        sub: payload.sub,
+        role: payload.role,
+        onb: payload.onb,
+        expiresAt: new Date(payload.exp * 1000),
+      };
     } catch (error) {
       if (error instanceof joseErrors.JWTExpired) {
         throw new AppException(
