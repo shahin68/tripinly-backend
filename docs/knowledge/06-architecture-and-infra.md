@@ -68,7 +68,7 @@ Adding anything else: state the reason.
 | `DEPLOY_ENV` | `local` (default), `staging` or `production`. Separates the Railway environments, which all run with `NODE_ENV=production` |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for work without Google/Apple accounts. Refused at boot when `DEPLOY_ENV=production`, or when `NODE_ENV=production` outside staging |
 | `DEV_AUTH_SECRET` | Required (32+ chars) when dev auth is on in staging; callers send it as `X-Dev-Auth-Secret`. Optional locally |
-| `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. Without a key, routes are straight lines (`degraded`) |
+| `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. `ORS_BASE_URL` defaults to `https://api.heigit.org/openrouteservice` (the old api.openrouteservice.org host was shut down 2026-08-24; existing keys work on the new host). Without a key, routes are straight lines (`degraded`) |
 | `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |
 | `OSM_IMPORT_REGIONS` | Geofabrik extract paths. Default `europe/austria,europe/hungary` |
