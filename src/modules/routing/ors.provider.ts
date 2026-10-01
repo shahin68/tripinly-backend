@@ -89,7 +89,10 @@ export class OrsProvider extends RoutingProvider {
     if (!key) throw new RoutingUnavailableError('not_configured');
     await this.countCall(kind);
 
-    const url = new URL(path, this.config.get('ORS_BASE_URL', { infer: true }));
+    // Appended, not resolved: the base carries a path (`/openrouteservice`)
+    // that `new URL('/v2/…', base)` would drop.
+    const base = this.config.get('ORS_BASE_URL', { infer: true });
+    const url = `${base.replace(/\/+$/, '')}${path}`;
     for (let attempt = 1; ; attempt++) {
       const started = Date.now();
       let status = 0;

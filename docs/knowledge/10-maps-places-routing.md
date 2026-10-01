@@ -70,7 +70,7 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 
 ## Routing — openrouteservice
 
-Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
+Host: `https://api.heigit.org/openrouteservice` (`ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
 
 ### `GET /routes?from=lat,lng&to=lat,lng&mode=walking&categories=…`
 and

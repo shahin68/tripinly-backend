@@ -88,7 +88,8 @@ export const envSchema = z
     ORS_BASE_URL: z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
-      .default('https://api.openrouteservice.org'),
+      // api.openrouteservice.org was shut down on 2026-08-24.
+      .default('https://api.heigit.org/openrouteservice'),
     /** Calls per UTC day before falling back (free plan: 2000 directions, 500 matrix). */
     ORS_DIRECTIONS_DAILY_QUOTA: z.coerce
       .number()
