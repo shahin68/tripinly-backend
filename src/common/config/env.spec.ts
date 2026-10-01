@@ -75,6 +75,28 @@ describe('validateEnv', () => {
     ).toThrow(/DEV_AUTH_ENABLED/);
   });
 
+  it('allows dev auth on staging only behind a secret, never on production', () => {
+    const staging = {
+      ...valid,
+      NODE_ENV: 'production',
+      DEPLOY_ENV: 'staging',
+      DEV_AUTH_ENABLED: 'true',
+    };
+    expect(() => validateEnv(staging)).toThrow(/DEV_AUTH_SECRET/);
+    expect(
+      validateEnv({ ...staging, DEV_AUTH_SECRET: 's'.repeat(32) })
+        .DEV_AUTH_ENABLED,
+    ).toBe(true);
+    expect(() =>
+      validateEnv({
+        ...valid,
+        DEPLOY_ENV: 'production',
+        DEV_AUTH_ENABLED: 'true',
+        DEV_AUTH_SECRET: 's'.repeat(32),
+      }),
+    ).toThrow(/DEV_AUTH_ENABLED/);
+  });
+
   it('rejects a short JWT secret and a wrong-size encryption key', () => {
     expect(() =>
       validateEnv({

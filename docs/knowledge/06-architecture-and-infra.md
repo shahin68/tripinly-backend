@@ -65,7 +65,9 @@ Adding anything else: state the reason.
 | `RESEND_API_KEY`, `EMAIL_FROM` | Email through Resend. Worker only. `EMAIL_FROM` (e.g. `Tripinly <no-reply@mail.tripinly.app>`, on a domain verified in Resend) is required with the key. Unset = emails skipped with a warning |
 | `APP_LINK_BASE_URL` | Base of share and invite links (`<base>/invites/<token>`). Defaults to the `tripinly://app` scheme until there is an App Links / Universal Links domain |
 | `ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). AES-256-GCM for stored Apple refresh tokens, and the HMAC key for consent-proof subject hashes. API and worker. Never rotate it without re-encrypting |
-| `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for local work without Google/Apple accounts. Refused at boot in production |
+| `DEPLOY_ENV` | `local` (default), `staging` or `production`. Separates the Railway environments, which all run with `NODE_ENV=production` |
+| `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` for work without Google/Apple accounts. Refused at boot when `DEPLOY_ENV=production`, or when `NODE_ENV=production` outside staging |
+| `DEV_AUTH_SECRET` | Required (32+ chars) when dev auth is on in staging; callers send it as `X-Dev-Auth-Secret`. Optional locally |
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. Without a key, routes are straight lines (`degraded`) |
 | `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |

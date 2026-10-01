@@ -25,7 +25,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 |---|---|---|
 | POST | `/auth/google` | Body: Google ID token. Returns tokens + `onboardingRequired` |
 | POST | `/auth/apple` | Body: Apple identity token + authorization code (for revocation later) + optional `givenName`/`familyName` (Apple sends the name only on first sign-in) |
-| POST | `/auth/dev` | Local development only (`DEV_AUTH_ENABLED`; 404 otherwise). Body: `subject`, optional `name` |
+| POST | `/auth/dev` | Local and staging only (`DEV_AUTH_ENABLED`; 404 otherwise). When `DEV_AUTH_SECRET` is set, the `X-Dev-Auth-Secret` header must match or the answer is 404. Body: `subject`, optional `name` |
 | POST | `/auth/refresh` | Body: `refreshToken`. Rotates refresh token; reuse of an old token revokes the whole family |
 | POST | `/auth/logout` | Body: `refreshToken`, optional `fcmToken`. Revokes the session and removes that device. No access token needed; always 204 |
 
