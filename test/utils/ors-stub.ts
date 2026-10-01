@@ -1,7 +1,9 @@
 import { createServer, type Server } from 'node:http';
 
 export const ORS_STUB_PORT = 47832;
-export const ORS_STUB_URL = `http://127.0.0.1:${ORS_STUB_PORT}`;
+/** Mirrors api.heigit.org/openrouteservice: the base URL carries a path. */
+export const ORS_STUB_PREFIX = '/openrouteservice';
+export const ORS_STUB_URL = `http://127.0.0.1:${ORS_STUB_PORT}${ORS_STUB_PREFIX}`;
 export const ORS_STUB_KEY = 'test-ors-key';
 
 export interface OrsRequest {
@@ -37,9 +39,14 @@ export async function startOrsStub(): Promise<OrsStub> {
     let raw = '';
     req.on('data', (chunk: Buffer) => (raw += chunk.toString()));
     req.on('end', () => {
+      if (!req.url?.startsWith(`${ORS_STUB_PREFIX}/`)) {
+        res.writeHead(404).end();
+        return;
+      }
+      const path = req.url.slice(ORS_STUB_PREFIX.length);
       const body = JSON.parse(raw || '{}') as OrsRequest['body'];
       stub.requests.push({
-        path: req.url ?? '',
+        path,
         authorization: req.headers.authorization,
         body,
       });
@@ -53,7 +60,7 @@ export async function startOrsStub(): Promise<OrsStub> {
           .writeHead(200, { 'Content-Type': 'application/json' })
           .end(JSON.stringify(value));
 
-      if (req.url?.startsWith('/v2/directions/')) {
+      if (path.startsWith('/v2/directions/')) {
         const points = body.coordinates ?? [];
         const line: number[][] = [points[0]];
         const segments = points.slice(1).map((to, i) => {
@@ -77,7 +84,7 @@ export async function startOrsStub(): Promise<OrsStub> {
           ],
         });
       }
-      if (req.url?.startsWith('/v2/matrix/')) {
+      if (path.startsWith('/v2/matrix/')) {
         const locations = body.locations ?? [];
         return json({
           durations:

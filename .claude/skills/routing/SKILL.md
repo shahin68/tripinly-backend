@@ -16,7 +16,7 @@ interface RoutingProvider {
   matrix(points: LatLng[], mode: Mode): Promise<{ durations: number[][] }>;
 }
 ```
-ORS implementation: `POST {ORS_BASE_URL}/v2/directions/{profile}/geojson` and `POST /v2/matrix/{profile}` (`metrics: ["duration"]`), profiles `foot-walking`, `cycling-regular`, `driving-car`. Note ORS takes `[lng, lat]`. Timeout 5 s, one retry on 5xx, no retry on 429. Log provider latency and status, never coordinates.
+ORS implementation: `POST {ORS_BASE_URL}/v2/directions/{profile}/geojson` and `POST {ORS_BASE_URL}/v2/matrix/{profile}` (`metrics: ["duration"]`), profiles `foot-walking`, `cycling-regular`, `driving-car`. Note ORS takes `[lng, lat]`. Timeout 5 s, one retry on 5xx, no retry on 429. Log provider latency and status, never coordinates. `ORS_BASE_URL` defaults to `https://api.heigit.org/openrouteservice` (api.openrouteservice.org was shut down 2026-08-24); it has a path, so append paths to it rather than resolving them with `new URL(path, base)`.
 
 ## Endpoints
 

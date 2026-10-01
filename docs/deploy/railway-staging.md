@@ -68,7 +68,7 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
    - `DATABASE_URL` → **Add Reference** → `postgres` → `DATABASE_URL`.
    - `REDIS_URL` → **Add Reference** → `redis` → `REDIS_URL`.
    - `DEV_AUTH_ENABLED` = `true` and `DEV_AUTH_SECRET` 🔑 = from step 2 (test sign-in while Google and Apple aren't set up; refused on production).
-   - `ORS_API_KEY` 🔑 = your openrouteservice key (optional; without it routes are straight lines).
+   - `ORS_API_KEY` 🔑 = your openrouteservice key (optional; without it routes are straight lines). Leave `ORS_BASE_URL` unset: it defaults to `https://api.heigit.org/openrouteservice`, and keys from the openrouteservice dashboard work there.
 4. **Deploy.** The first deploy runs all migrations.
 
 ## 6. The `worker` service
