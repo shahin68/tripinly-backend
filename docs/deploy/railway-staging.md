@@ -56,7 +56,12 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
 1. **+ Create** → **GitHub Repo** → `shahin68/tripinly-backend`. Rename the service to `api`.
 2. Service → **Settings**:
    - **Source → Branch:** `develop` (staging follows develop).
-   - **Config-as-code → Railway config file:** `/railway/api.json`. This sets the Dockerfile build, `node dist/main.js`, migrations before each deploy (`npx prisma migrate deploy`) and the health check `/v1/health/ready`.
+   - **Build:** Dockerfile (Railway picks up the `Dockerfile` at the repository root).
+   - **Deploy → Custom Start Command:** `node dist/main.js`.
+   - **Deploy → Pre-deploy Command:** `npx prisma migrate deploy`. Migrations run before every deploy; without it the database stays empty.
+   - **Deploy → Healthcheck Path:** `/v1/health/ready`, timeout `120` seconds.
+   - **Deploy → Restart Policy:** On Failure, 5 retries.
+   - Railway's config files (Config as Code) are closed to new services, so these settings are entered by hand.
    - **Networking → Generate Domain.** That's the staging API address until there's a real domain.
 3. Service → **Variables**:
    - **Add all shared variables** (button at the top of the variables list).
@@ -69,7 +74,7 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
 ## 6. The `worker` service
 
 1. **+ Create** → **GitHub Repo** → the same repository. Rename it to `worker`.
-2. **Settings:** branch `develop`; **Railway config file:** `/railway/worker.json`. No domain.
+2. **Settings:** branch `develop`; **Custom Start Command:** `node dist/main.worker.js` (without it the service runs the image's default command, which is the api); **Restart Policy:** On Failure, 5 retries. No pre-deploy command, no healthcheck, no domain.
 3. **Variables:**
    - all shared variables, plus `DATABASE_URL` and `REDIS_URL` references as for `api`;
    - `OSM_IMPORT_ENABLED` = `true` (loads Austria and Hungary places on first start, then monthly; the first import takes a while and downloads a few hundred MB);
@@ -89,6 +94,8 @@ railway link            # pick tripinly → staging → api
 railway ssh -- npm run db:seed
 ```
 
+`railway ssh` needs an SSH key: if it says none was found, run `ssh-keygen -t ed25519`, accept the defaults, run the command again and let it register the key. If the seed reports that `legal_documents` does not exist, the migrations haven't run: run `railway ssh -- npx prisma migrate deploy` first and check the api's pre-deploy command.
+
 ## 8. Smoke test
 
 From a checkout of this repository (`npm ci` once):
@@ -96,6 +103,10 @@ From a checkout of this repository (`npm ci` once):
 ```sh
 DEV_AUTH_SECRET=<the staging value> node scripts/smoke-test.mjs https://<api domain>
 ```
+
+On Windows `cmd`, set the secret on its own line first (no quotes, no trailing space): `set DEV_AUTH_SECRET=<value>`, then `node scripts/smoke-test.mjs https://<api domain>`. In PowerShell: `$env:DEV_AUTH_SECRET="<value>"`.
+
+If dev sign-in answers 404, `DEV_AUTH_ENABLED=true` is missing on the api or the secret doesn't match. If photos time out, check that the worker runs `node dist/main.worker.js` (its logs must not show `Mapped {/v1/...} route` lines).
 
 It checks health, test sign-in, onboarding, a trip and marker with a live event, a photo upload processed by the worker, a route, and deletes its test account at the end. Every line should show ✓.
 

@@ -22,7 +22,7 @@ Both `api` and `worker` build from the same repo and Dockerfile (multi-stage: in
 2. Deploy to **staging** first.
 3. Migrations run once as a pre-deploy command on the `api` service: `npx prisma migrate deploy`. The worker never runs migrations.
 4. Migrations must be backward compatible with the currently running version (expand → migrate → contract across releases), because old instances keep serving during the rollout.
-5. Smoke test staging: `DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>` (health, test sign-in, trip, marker, realtime event, photo, route, deletion). The step-by-step first setup is `docs/deploy/railway-staging.md`; service settings live in `railway/api.json` and `railway/worker.json`.
+5. Smoke test staging: `DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>` (health, test sign-in, trip, marker, realtime event, photo, route, deletion). The step-by-step first setup is `docs/deploy/railway-staging.md`; service settings (start commands, pre-deploy migrations, healthcheck) are entered by hand in Railway as that guide lists, because Config as Code is closed to new services.
 6. Promote to **production** only when the user says so.
 
 ## Environment variables
