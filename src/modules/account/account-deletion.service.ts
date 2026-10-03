@@ -5,6 +5,7 @@ import type { Job } from 'bullmq';
 import { createHmac } from 'node:crypto';
 import type { Env } from '../../common/config/env';
 import { decrypt } from '../../common/crypto/crypto';
+import { IdempotencyStore } from '../../common/idempotency/idempotency.store';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
@@ -53,6 +54,7 @@ export class AccountDeletionService {
     private readonly revenueCat: RevenueCatClient,
     private readonly email: EmailService,
     private readonly events: EventEmitter2,
+    private readonly idempotency: IdempotencyStore,
     config: ConfigService<Env, true>,
   ) {
     this.encryptionKey = Buffer.from(
@@ -107,6 +109,12 @@ export class AccountDeletionService {
         await this.deleteUserRow(userId);
         await save({ userDeleted: true });
       }
+    }
+
+    if (!job.data.idempotencyPurged) {
+      // Stored responses to content-creating POSTs (24 h).
+      await this.idempotency.purgeUser(userId);
+      await save({ idempotencyPurged: true });
     }
 
     if (!job.data.filesQueued) {

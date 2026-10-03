@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CoreModule } from './common/core.module';
 import { AllExceptionsFilter } from './common/errors/all-exceptions.filter';
 import { createValidationPipe } from './common/errors/validation';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
 import { AppThrottlerGuard } from './common/throttling/app-throttler.guard';
 import { QueueModule } from './common/queue/queue.module';
 import { ThrottlingModule } from './common/throttling/throttling.module';
@@ -60,6 +61,7 @@ import { UsersModule } from './modules/users/users.module';
     // Order matters: authenticate first so rate limits can key on the user.
     { provide: APP_GUARD, useExisting: AuthGuard },
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule {}

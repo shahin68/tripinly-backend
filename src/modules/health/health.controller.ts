@@ -23,6 +23,13 @@ class ReadinessChecksDto {
 
   @ApiProperty({ enum: ['up', 'down'] })
   redis: 'up' | 'down';
+
+  @ApiProperty({
+    enum: ['up', 'down'],
+    description:
+      'down while a migration this build ships with is not applied, or one failed',
+  })
+  migrations: 'up' | 'down';
 }
 
 class ReadinessDto {
@@ -47,7 +54,10 @@ export class HealthController {
   }
 
   @Get('ready')
-  @ApiOperation({ summary: 'Readiness: Postgres and Redis are reachable' })
+  @ApiOperation({
+    summary:
+      'Readiness: Postgres and Redis are reachable and all migrations are applied',
+  })
   @ApiOkResponse({ type: ReadinessDto })
   @ApiServiceUnavailableResponse({
     type: ErrorResponseDto,

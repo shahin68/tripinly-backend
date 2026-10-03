@@ -15,7 +15,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
   ```
   `code` is stable and documented; clients switch on `code`, never on `message`. Validation errors use `VALIDATION_FAILED` with per-field `details`.
 - **Status codes:** 200/201/204 success, 400 validation, 401 unauthenticated, 403 forbidden, 404 not found (also used for private resources the caller can't see — never reveal existence), 409 conflict (e.g. username taken), 422 domain rule violated, 429 rate limited.
-- **Idempotency:** likes and unlikes are idempotent. `POST` creating content accepts an optional `Idempotency-Key` header.
+- **Idempotency:** likes and unlikes are idempotent. `POST` creating content (trips, trip copy, days, markers, add-to-trip, marker copy, comments, invites) accepts an optional `Idempotency-Key` header: a client-generated UUID, new per user action and reused on its retries. For 24 hours a retry with the same key and the same request returns the first response with the header `Idempotent-Replayed: true` and creates nothing. The same key with a different request → 422 `IDEMPOTENCY_KEY_REUSED`; while the first request is still running → 409 `IDEMPOTENCY_KEY_IN_PROGRESS`; a malformed key (not 1–255 visible ASCII characters) → 400 `VALIDATION_FAILED`. Failed requests don't keep the key, so a retry runs again. Keys are per user. `upload-url` is left out because its response holds a signed URL; `POST /reports` already answers a repeat with the existing report.
 - **Rate limits:** every route is limited per user (per IP when signed out), default 120 requests/minute; auth routes 20/minute per IP. Search, comment and upload endpoints get tighter limits as they are built.
 
 ## Endpoints
@@ -166,7 +166,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
-| GET | `/health/ready` | DB + Redis reachable; 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
+| GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
 
 ## Key response shapes
@@ -184,6 +184,6 @@ Field names the client relies on (full schemas in OpenAPI):
 
 ## Stable error codes (starter set)
 
-`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`\|`optimizeMarkers`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED` (403: suspended; also on refresh), `REAUTH_REQUIRED` (403: `DELETE /me` without a sign-in in the last 10 minutes), `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
+`UNAUTHENTICATED`, `TOKEN_EXPIRED`, `REFRESH_TOKEN_REUSED`, `ONBOARDING_INCOMPLETE`, `CONSENT_REQUIRED`, `AGE_REQUIREMENT_NOT_MET`, `USERNAME_TAKEN`, `USERNAME_INVALID`, `USERNAME_CHANGE_TOO_SOON` (422, `details.availableAt`), `VALIDATION_FAILED`, `NOT_FOUND`, `FORBIDDEN`, `TRIP_NOT_COPYABLE`, `USER_BLOCKED`, `INVITE_EXPIRED` (410), `PHOTO_LIMIT_REACHED`, `LIMIT_REACHED` (422, `details.resource` = `trips`\|`days`\|`markers`\|`members`\|`invites`\|`optimizeMarkers`, `details.max`), `UPLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `PREMIUM_REQUIRED`, `RATE_LIMITED` (429, `details.retryAfterSeconds`, `Retry-After` header), `ACCOUNT_SUSPENDED` (403: suspended; also on refresh), `REAUTH_REQUIRED` (403: `DELETE /me` without a sign-in in the last 10 minutes), `ROUTING_UNAVAILABLE`, `BBOX_TOO_LARGE` (400, `details.maxSpanDegrees`), `IDEMPOTENCY_KEY_REUSED` (422), `IDEMPOTENCY_KEY_IN_PROGRESS` (409), `SERVICE_UNAVAILABLE` (503, e.g. `/health/ready` when a dependency is down), `INTERNAL_ERROR` (500, never carries internal details).
 
 Add new codes here when you introduce them.

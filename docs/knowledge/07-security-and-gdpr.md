@@ -41,6 +41,7 @@
 | Data export ZIPs | Access / portability | 7 days in R2, then deleted by the hourly sweep |
 | Reports filed, admin audit log | Moderation, accountability | Reports stay without the reporter after their deletion; audit entries stay without the admin after theirs |
 | Email address in email jobs | Sending one transactional email | Only while the job runs; removed from Redis when it finishes or fails, never logged. The account deletion job holds the address from its start until the confirmation is queued |
+| Responses to content-creating POSTs sent with an `Idempotency-Key` | Replaying a retried request instead of creating a duplicate | 24 hours in Redis (`idempotency:{userId}:{key}`), never logged; purged by account deletion |
 | Current location (Nearby) | Query only | **Not stored, not logged** |
 | IP addresses in logs | Security | Short log retention (e.g. 14 days) |
 

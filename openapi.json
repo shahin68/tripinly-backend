@@ -49,7 +49,7 @@
             }
           }
         },
-        "summary": "Readiness: Postgres and Redis are reachable",
+        "summary": "Readiness: Postgres and Redis are reachable and all migrations are applied",
         "tags": [
           "ops"
         ]
@@ -723,7 +723,19 @@
       "post": {
         "description": "One day per date, or one \"Day 1\" without dates.",
         "operationId": "Trips_create",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -880,6 +892,17 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
           }
         ],
         "responses": {
@@ -917,6 +940,17 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
             }
           }
         ],
@@ -1454,6 +1488,17 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
           }
         ],
         "requestBody": {
@@ -1501,6 +1546,17 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
             }
           }
         ],
@@ -1550,6 +1606,17 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
             }
           }
         ],
@@ -1755,6 +1822,17 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
             }
           }
         ],
@@ -2249,6 +2327,17 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
             }
           }
         ],
@@ -3085,11 +3174,20 @@
               "up",
               "down"
             ]
+          },
+          "migrations": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "description": "down while a migration this build ships with is not applied, or one failed"
           }
         },
         "required": [
           "database",
-          "redis"
+          "redis",
+          "migrations"
         ]
       },
       "ReadinessDto": {
@@ -3139,6 +3237,8 @@
               "REAUTH_REQUIRED",
               "ROUTING_UNAVAILABLE",
               "BBOX_TOO_LARGE",
+              "IDEMPOTENCY_KEY_REUSED",
+              "IDEMPOTENCY_KEY_IN_PROGRESS",
               "SERVICE_UNAVAILABLE",
               "INTERNAL_ERROR"
             ],

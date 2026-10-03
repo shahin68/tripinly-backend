@@ -34,6 +34,7 @@ import {
   UpdateTripDto,
 } from './trips.dto';
 import { TripsService } from './trips.service';
+import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 
 @ApiTags('trips')
 @ApiBearerAuth()
@@ -45,6 +46,7 @@ export class TripsController {
   ) {}
 
   @Post('trips')
+  @Idempotent()
   @ApiOperation({
     summary: 'Create a trip',
     description: 'One day per date, or one "Day 1" without dates.',
@@ -68,6 +70,7 @@ export class TripsController {
   }
 
   @Post('trips/:id/copy')
+  @Idempotent()
   @ApiOperation({
     summary: 'Add a public trip to my trips',
     description:
@@ -104,6 +107,7 @@ export class TripsController {
   }
 
   @Post('trips/:id/days')
+  @Idempotent()
   @ApiOperation({
     summary: 'Append a day',
     description: 'Extends endDate by one day for dated trips.',

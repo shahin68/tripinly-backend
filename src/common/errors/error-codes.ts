@@ -30,6 +30,10 @@ export const ErrorCode = {
   REAUTH_REQUIRED: 'REAUTH_REQUIRED',
   ROUTING_UNAVAILABLE: 'ROUTING_UNAVAILABLE',
   BBOX_TOO_LARGE: 'BBOX_TOO_LARGE',
+  /** The Idempotency-Key was already used for a different request (422). */
+  IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+  /** The first request with this Idempotency-Key is still running (409). */
+  IDEMPOTENCY_KEY_IN_PROGRESS: 'IDEMPOTENCY_KEY_IN_PROGRESS',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

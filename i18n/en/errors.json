@@ -24,6 +24,8 @@
   "REAUTH_REQUIRED": "Please sign in again to confirm it's you.",
   "ROUTING_UNAVAILABLE": "Routes are unavailable right now. Please try again later.",
   "BBOX_TOO_LARGE": "Zoom in to see places in this area.",
+  "IDEMPOTENCY_KEY_REUSED": "This request key was already used for a different request.",
+  "IDEMPOTENCY_KEY_IN_PROGRESS": "This request is still being processed. Please try again in a moment.",
   "SERVICE_UNAVAILABLE": "The service is temporarily unavailable. Please try again later.",
   "INTERNAL_ERROR": "Something went wrong on our side. Please try again."
 }

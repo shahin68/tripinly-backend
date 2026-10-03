@@ -32,6 +32,7 @@ import {
   LikeParamsDto,
   LikeStateDto,
 } from './social.dto';
+import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 
 @ApiTags('social')
 @ApiBearerAuth()
@@ -54,6 +55,7 @@ export class SocialController {
   }
 
   @Post('markers/:id/comments')
+  @Idempotent()
   @Throttle({ default: COMMENT_RATE_LIMIT })
   @ApiOperation({
     summary: 'Comment on a marker',
