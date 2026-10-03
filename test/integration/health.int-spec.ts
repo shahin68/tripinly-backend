@@ -1,8 +1,12 @@
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import request from 'supertest';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { REDIS } from '../../src/common/redis/redis.module';
+import { MIGRATIONS_DIR } from '../../src/modules/health/health.service';
 import { createTestApp } from '../utils/create-test-app';
 
 describe('Health (integration)', () => {
@@ -22,10 +26,13 @@ describe('Health (integration)', () => {
       .expect(200, { status: 'ok' });
   });
 
-  it('GET /v1/health/ready reports Postgres and Redis as up', async () => {
+  it('GET /v1/health/ready reports Postgres, Redis and migrations as up', async () => {
     await request(app.getHttpServer())
       .get('/v1/health/ready')
-      .expect(200, { status: 'ok', checks: { database: 'up', redis: 'up' } });
+      .expect(200, {
+        status: 'ok',
+        checks: { database: 'up', redis: 'up', migrations: 'up' },
+      });
   });
 
   it('has the PostGIS and pg_trgm extensions installed by the first migration', async () => {
@@ -71,8 +78,41 @@ describe('Health (integration)', () => {
         error: {
           code: 'SERVICE_UNAVAILABLE',
           message: expect.any(String),
-          details: { checks: { database: 'up', redis: 'down' } },
+          details: {
+            checks: { database: 'up', redis: 'down', migrations: 'up' },
+          },
         },
+      });
+    });
+  });
+
+  describe('when the build ships a migration that is not applied', () => {
+    let pending: INestApplication;
+    let migrationsDir: string;
+
+    beforeAll(async () => {
+      migrationsDir = mkdtempSync(join(tmpdir(), 'migrations-'));
+      cpSync(join(process.cwd(), 'prisma', 'migrations'), migrationsDir, {
+        recursive: true,
+      });
+      mkdirSync(join(migrationsDir, '29991231000000_not_applied'));
+      pending = await createTestApp({
+        override: (builder) =>
+          builder.overrideProvider(MIGRATIONS_DIR).useValue(migrationsDir),
+      });
+    });
+
+    afterAll(async () => {
+      await pending.close();
+      rmSync(migrationsDir, { recursive: true, force: true });
+    });
+
+    it('GET /v1/health/ready returns 503 with migrations down', async () => {
+      const response = await request(pending.getHttpServer())
+        .get('/v1/health/ready')
+        .expect(503);
+      expect(response.body.error.details).toEqual({
+        checks: { database: 'up', redis: 'up', migrations: 'down' },
       });
     });
   });

@@ -7,10 +7,10 @@ REST API (`/v1`), real-time server and background worker for Tripinly, a social 
 
 ## Local development
 
-Requirements: Node 24 (`.nvmrc`) and Docker.
+Requirements: Node 24 (`.nvmrc`) and Docker. `.env.local.example` holds local defaults; `.env.example` lists every variable with empty values, because Railway imports it into new services.
 
 ```bash
-cp .env.example .env
+cp .env.local.example .env
 docker compose up -d db redis     # PostGIS 16 and Redis
 npm ci
 npx prisma migrate deploy         # applies migrations
@@ -19,7 +19,7 @@ npm run db:seed                   # placeholder Terms/Privacy so onboarding can 
 npm run start:dev                 # http://localhost:3000/v1/health, docs at /v1/docs
 ```
 
-Without Google or Apple accounts, sign in with `POST /v1/auth/dev` (`{"subject":"alice"}`); it is enabled by `DEV_AUTH_ENABLED=true` in `.env.example` and refused in production.
+Without Google or Apple accounts, sign in with `POST /v1/auth/dev` (`{"subject":"alice"}`); it is enabled by `DEV_AUTH_ENABLED=true` in `.env.local.example` and refused in production.
 
 The worker runs with `npm run build && npm run start:worker`. `docker compose up` builds the image and runs migrations, api and worker together.
 

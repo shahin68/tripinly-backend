@@ -24,6 +24,8 @@
   "REAUTH_REQUIRED": "Kérjük, jelentkezz be újra, hogy megerősítsd, te vagy az.",
   "ROUTING_UNAVAILABLE": "Az útvonalak jelenleg nem érhetők el. Kérjük, próbáld újra később.",
   "BBOX_TOO_LARGE": "Nagyíts rá, hogy lásd a helyeket ezen a területen.",
+  "IDEMPOTENCY_KEY_REUSED": "Ezt a kéréskulcsot már egy másik kéréshez használták.",
+  "IDEMPOTENCY_KEY_IN_PROGRESS": "Ez a kérés még feldolgozás alatt áll. Kérjük, próbáld újra egy pillanat múlva.",
   "SERVICE_UNAVAILABLE": "A szolgáltatás átmenetileg nem érhető el. Kérjük, próbáld újra később.",
   "INTERNAL_ERROR": "Hiba történt nálunk. Kérjük, próbáld újra."
 }

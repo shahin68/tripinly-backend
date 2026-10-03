@@ -29,6 +29,7 @@ export interface DeleteAccountJob {
   appleRevoked?: boolean;
   revenueCatDeleted?: boolean;
   userDeleted?: boolean;
+  idempotencyPurged?: boolean;
   filesQueued?: boolean;
   emailed?: boolean;
 }

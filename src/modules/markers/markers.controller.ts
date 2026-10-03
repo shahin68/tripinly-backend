@@ -30,6 +30,7 @@ import {
 } from './markers.dto';
 import { AddToTripDto } from '../places/places.dto';
 import { MarkersService } from './markers.service';
+import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 
 class MarkerOrderResultDto {
   @ApiProperty({ format: 'uuid' })
@@ -46,6 +47,7 @@ export class MarkersController {
   constructor(private readonly markers: MarkersService) {}
 
   @Post('days/:id/markers')
+  @Idempotent()
   @ApiOperation({
     summary: 'Add a marker to a day',
     description:
@@ -61,6 +63,7 @@ export class MarkersController {
   }
 
   @Post('places/:id/add-to-trip')
+  @Idempotent()
   @ApiTags('places')
   @ApiOperation({
     summary: 'Add a place to a trip day',
@@ -81,6 +84,7 @@ export class MarkersController {
   }
 
   @Post('markers/:id/copy')
+  @Idempotent()
   @ApiOperation({
     summary: 'Copy a marker to one of my trips',
     description:

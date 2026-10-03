@@ -231,9 +231,19 @@ export class EnvValidationError extends Error {
   }
 }
 
-/** Used by ConfigModule. Reports variable names only, never their values. */
+/**
+ * Used by ConfigModule. Empty values count as unset, so the blank `.env.example`
+ * that Railway imports falls back to defaults. Reports variable names only,
+ * never their values.
+ */
 export function validateEnv(raw: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(raw);
+  const result = envSchema.safeParse(
+    Object.fromEntries(
+      Object.entries(raw).filter(
+        ([, value]) => !(typeof value === 'string' && value.trim() === ''),
+      ),
+    ),
+  );
   if (!result.success) {
     throw new EnvValidationError(
       result.error.issues.map(

@@ -26,6 +26,7 @@ import {
   InviteTokenParamDto,
 } from './invites.dto';
 import { InvitesService } from './invites.service';
+import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 
 @ApiTags('invites')
 @ApiBearerAuth()
@@ -34,6 +35,7 @@ export class InvitesController {
   constructor(private readonly invites: InvitesService) {}
 
   @Post('trips/:id/invites')
+  @Idempotent()
   @ApiOperation({
     summary: 'Owner creates an invite link (valid 7 days, reusable)',
   })

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { EnvValidationError, validateEnv } from './env';
 
 const valid = {
@@ -25,6 +27,28 @@ describe('validateEnv', () => {
     });
     expect(env.GOOGLE_CLIENT_IDS).toBeUndefined();
     expect(env.DEV_AUTH_ENABLED).toBe(true);
+  });
+
+  it('falls back to defaults for every blank variable in .env.example', () => {
+    const blank = Object.fromEntries(
+      readFileSync(join(__dirname, '../../../.env.example'), 'utf8')
+        .split('\n')
+        .filter((line) => /^[A-Z][A-Z0-9_]*=$/.test(line))
+        .map((line) => [line.slice(0, -1), '']),
+    );
+    expect(Object.keys(blank).length).toBeGreaterThan(30);
+    expect(validateEnv({ ...blank, ...valid })).toMatchObject({
+      NODE_ENV: 'development',
+      DEPLOY_ENV: 'local',
+      PORT: 3000,
+      DEV_AUTH_ENABLED: false,
+    });
+  });
+
+  it('still requires secrets left blank', () => {
+    expect(() => validateEnv({ ...valid, JWT_ACCESS_SECRET: '' })).toThrow(
+      /JWT_ACCESS_SECRET/,
+    );
   });
 
   it('requires Apple settings together', () => {

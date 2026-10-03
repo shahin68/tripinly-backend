@@ -7,7 +7,7 @@
 | **api** | NestJS HTTP server + Socket.IO gateway | `api` (public domain, HTTPS terminated by Railway) |
 | **worker** | Same codebase, `main.worker.ts`: BullMQ processors (thumbnails, OSM import, counter rebuild, notification planning and push batching, email, account deletion and data export) and realtime events raised there | `worker` (no public domain) |
 | **postgres** | PostgreSQL 16 with PostGIS | Railway Postgres with PostGIS (use a PostGIS-enabled image/template; run `CREATE EXTENSION IF NOT EXISTS postgis` in the first migration) |
-| **redis** | Queues, Socket.IO adapter, rate limits, short caches | Railway Redis |
+| **redis** | Queues, Socket.IO adapter, rate limits, short caches, idempotency records | Railway Redis |
 
 External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import).
 
@@ -50,6 +50,8 @@ docs/knowledge/           # this folder
 Adding anything else: state the reason.
 
 ## Environment variables
+
+`.env.example` lists every variable with empty values (Railway imports it into new services, so it must hold no defaults or example secrets); `.env.local.example` holds the local development values. Empty values count as unset.
 
 | Name | Purpose |
 |---|---|
