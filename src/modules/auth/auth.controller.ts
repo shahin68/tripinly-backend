@@ -16,8 +16,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { I18nLang } from 'nestjs-i18n';
-import { timingSafeEqual } from 'node:crypto';
 import { Public } from '../../common/auth/auth.decorators';
+import { devSecretMatches } from '../../common/auth/dev-auth';
 import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { AUTH_RATE_LIMIT } from '../../common/throttling/throttling.module';
@@ -100,7 +100,7 @@ export class AuthController {
     @I18nLang() lang: string,
     @Headers('x-dev-auth-secret') secret?: string,
   ): Promise<AuthTokensDto> {
-    if (!this.devAuthEnabled || !secretMatches(this.devAuthSecret, secret)) {
+    if (!this.devAuthEnabled || !devSecretMatches(this.devAuthSecret, secret)) {
       throw AppException.notFound();
     }
     return this.auth.signIn(
@@ -130,12 +130,4 @@ export class AuthController {
   logout(@Body() body: LogoutDto): Promise<void> {
     return this.auth.logout(body.refreshToken, body.fcmToken);
   }
-}
-
-/** No secret configured (local) passes; otherwise a constant-time match. */
-function secretMatches(expected: string | undefined, given?: string): boolean {
-  if (!expected) return true;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(given ?? '');
-  return a.length === b.length && timingSafeEqual(a, b);
 }

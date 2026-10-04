@@ -106,7 +106,7 @@ export class AccountDeletionService {
           await this.revenueCat.deleteSubscriber(userId);
           await save({ revenueCatDeleted: true });
         }
-        await this.deleteUserRow(userId);
+        await this.deleteUserRow(userId, job.data.releaseUsername ?? false);
         await save({ userDeleted: true });
       }
     }
@@ -305,7 +305,10 @@ export class AccountDeletionService {
    * rest (identities, tokens, devices, blocks, notifications to them,
    * entitlements, invites, exports, settings) goes with the row by cascade.
    */
-  private async deleteUserRow(userId: string): Promise<void> {
+  private async deleteUserRow(
+    userId: string,
+    releaseUsername: boolean,
+  ): Promise<void> {
     const retainUntil = new Date();
     retainUntil.setUTCFullYear(
       retainUntil.getUTCFullYear() + this.retentionYears,
@@ -330,7 +333,11 @@ export class AccountDeletionService {
           })),
         });
       }
-      if (user.username) {
+      if (user.username && releaseUsername) {
+        await tx.usernameHold.deleteMany({
+          where: { username: user.username },
+        });
+      } else if (user.username) {
         const releasedAt = new Date(Date.now() + USERNAME_HOLD_DAYS * DAY_MS);
         await tx.usernameHold.upsert({
           where: { username: user.username },
