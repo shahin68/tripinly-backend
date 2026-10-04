@@ -1,6 +1,6 @@
 # Tripinly — API Spec
 
-REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the code (`/v1/openapi.json`) is what the KMP client consumes; this file describes intent and conventions.
+REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the code (`/v1/openapi.json`) is what the KMP client consumes. Swagger UI is served at `/v1/docs` on local and staging (not on production, decided by `DEPLOY_ENV`). This file describes intent and conventions.
 
 ## Conventions
 
