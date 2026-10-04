@@ -22,6 +22,8 @@ export const AccountJobs = {
  */
 export interface DeleteAccountJob {
   userId: string;
+  /** Developer deletion (local/staging): free the username at once instead of holding it. */
+  releaseUsername?: boolean;
   email?: string | null;
   locale?: string;
   /** Every photo to delete from storage, collected before any row goes. */
@@ -57,10 +59,16 @@ export class AccountJobsService {
   constructor(@InjectQueue(ACCOUNT_QUEUE) private readonly queue: Queue) {}
 
   /** One job per user: asking twice doesn't delete twice. */
-  async delete(userId: string): Promise<void> {
+  async delete(
+    userId: string,
+    options: { releaseUsername?: boolean } = {},
+  ): Promise<void> {
     await this.queue.add(
       AccountJobs.DELETE,
-      { userId } satisfies DeleteAccountJob,
+      {
+        userId,
+        ...(options.releaseUsername && { releaseUsername: true }),
+      } satisfies DeleteAccountJob,
       {
         ...DELETE_RETRY,
         jobId: deleteJobId(userId),

@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { unzipSync, strFromU8 } from 'fflate';
 import { SignJWT } from 'jose';
 import { randomUUID } from 'node:crypto';
+import request from 'supertest';
 import { CoreModule } from '../../src/common/core.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { QueueModule } from '../../src/common/queue/queue.module';
@@ -358,6 +359,66 @@ describe('Account deletion and export (integration)', () => {
       await eventually(() => email.sent.length === 1, 10_000, 'email');
       expect(email.sent[0]).toMatchObject({ to: 'alice@example.com' });
       expect(email.sent[0].subject).toContain('deleted');
+    });
+  });
+
+  describe('DELETE /auth/dev/accounts', () => {
+    const accounts = () => request(app.getHttpServer());
+
+    async function gone(userId: string): Promise<void> {
+      await eventually(
+        async () => (await prisma.user.count({ where: { id: userId } })) === 0,
+        10_000,
+        'account deleted',
+      );
+    }
+
+    it('deletes a developer account and frees its username at once', async () => {
+      const alice = await onboardedUser(app, 'alice');
+
+      await accounts()
+        .delete('/v1/auth/dev/accounts')
+        .query({ subject: 'alice' })
+        .expect(202, { status: 'deleting' });
+      await as(alice).get('/v1/me').expect(401);
+      await gone(alice.userId);
+
+      expect(
+        await prisma.usernameHold.findUnique({ where: { username: 'alice' } }),
+      ).toBeNull();
+      const again = await devSignIn(app, 'alice');
+      expect(again.userId).not.toBe(alice.userId);
+      await as(again).patch('/v1/me').send({ username: 'alice' }).expect(200);
+    });
+
+    it('finds any account by username, with or without the @', async () => {
+      const bob = await onboardedUser(app, 'bob');
+
+      await accounts()
+        .delete('/v1/auth/dev/accounts')
+        .query({ username: '@Bob' })
+        .expect(202);
+      await gone(bob.userId);
+      expect(
+        await prisma.usernameHold.findUnique({ where: { username: 'bob' } }),
+      ).toBeNull();
+    });
+
+    it('needs exactly one of subject or username, and a matching account', async () => {
+      await onboardedUser(app, 'carol');
+
+      for (const query of [{}, { subject: 'carol', username: 'carol' }]) {
+        const { body } = await accounts()
+          .delete('/v1/auth/dev/accounts')
+          .query(query)
+          .expect(400);
+        expect(body.error.code).toBe('VALIDATION_FAILED');
+      }
+      await accounts()
+        .delete('/v1/auth/dev/accounts')
+        .query({ subject: 'Carol' })
+        .expect(404);
+      expect(await prisma.user.count()).toBe(1);
     });
   });
 

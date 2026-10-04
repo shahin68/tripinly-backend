@@ -10,6 +10,7 @@ import { type DataExport, Prisma } from '../../generated/prisma/client';
 import { RefreshTokenService } from '../auth/refresh-token.service';
 import { SessionRevocationService } from '../auth/session-revocation.service';
 import type { AccountDeletionDto, DataExportDto } from './account.dto';
+import { normalizeUsername } from '../users/username';
 import { AccountJobsService } from './account.queue';
 import { exportKey } from './export-keys';
 
@@ -39,27 +40,64 @@ export class AccountService {
     if (Date.now() - user.authTime.getTime() > REAUTH_WINDOW_MS) {
       throw new AppException(ErrorCode.REAUTH_REQUIRED, HttpStatus.FORBIDDEN);
     }
+    await this.closeAndDelete(user.id, { releaseUsername: false });
+    return { status: 'deleting' };
+  }
+
+  /**
+   * DELETE /auth/dev/accounts (local and staging only): the same deletion
+   * without a fresh sign-in, for a developer account by its dev subject or any
+   * account by username. The username is freed at once instead of held, so
+   * test names can be reused.
+   */
+  async deleteForDevelopment(
+    target: { subject: string } | { username: string },
+  ): Promise<AccountDeletionDto> {
+    const user = await this.prisma.user.findFirst({
+      where:
+        'subject' in target
+          ? {
+              identities: {
+                some: { provider: 'dev', providerSubject: target.subject },
+              },
+            }
+          : { username: normalizeUsername(target.username) },
+      select: { id: true, status: true },
+    });
+    if (!user) throw AppException.notFound();
+    if (user.status === 'deleting') {
+      // Already on its way out (the normal flow holds the username); nothing to change.
+      return { status: 'deleting' };
+    }
+    await this.closeAndDelete(user.id, { releaseUsername: true });
+    return { status: 'deleting' };
+  }
+
+  /** Locks the account, signs it out everywhere and queues the deletion. */
+  private async closeAndDelete(
+    userId: string,
+    options: { releaseUsername: boolean },
+  ): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.user.updateMany({
-        where: { id: user.id, status: { not: 'deleting' } },
+        where: { id: userId, status: { not: 'deleting' } },
         data: { status: 'deleting' },
       }),
-      this.prisma.device.deleteMany({ where: { userId: user.id } }),
+      this.prisma.device.deleteMany({ where: { userId } }),
     ]);
-    await this.refreshTokens.revokeAll(user.id);
-    await this.revocations.revoke(user.id, ErrorCode.UNAUTHENTICATED);
+    await this.refreshTokens.revokeAll(userId);
+    await this.revocations.revoke(userId, ErrorCode.UNAUTHENTICATED);
     this.events.emit(
       DomainEvents.ACCOUNT_CLOSED,
-      domainEvent(DomainEvents.ACCOUNT_CLOSED, user.id, {
-        userId: user.id,
+      domainEvent(DomainEvents.ACCOUNT_CLOSED, userId, {
+        userId,
         reason: 'deleted',
       }),
     );
     // If this fails the hourly sweep enqueues it; the account is locked either way.
-    await this.jobs.delete(user.id).catch((error: unknown) => {
+    await this.jobs.delete(userId, options).catch((error: unknown) => {
       this.logger.warn(`Could not queue account deletion: ${String(error)}`);
     });
-    return { status: 'deleting' };
   }
 
   /**

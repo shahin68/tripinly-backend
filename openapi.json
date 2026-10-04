@@ -2963,6 +2963,66 @@
         ]
       }
     },
+    "/v1/auth/dev/accounts": {
+      "delete": {
+        "description": "Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise, and where DEV_AUTH_SECRET is set the X-Dev-Auth-Secret header must match. Pass exactly one of subject (a developer account) or username (any account). Runs the full account deletion without a fresh sign-in and frees the username immediately instead of holding it for 30 days. 404 when no account matches.",
+        "operationId": "DevAccount_delete",
+        "parameters": [
+          {
+            "name": "subject",
+            "required": false,
+            "in": "query",
+            "description": "A developer account by the subject it signs in with (case-sensitive, as in POST /auth/dev)",
+            "schema": {
+              "example": "alice",
+              "type": "string"
+            }
+          },
+          {
+            "name": "username",
+            "required": false,
+            "in": "query",
+            "description": "Any account by its username, with or without the @",
+            "schema": {
+              "example": "alice",
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-dev-auth-secret",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Dev-Auth-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete a test account at once (development only)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/v1/reports": {
       "post": {
         "description": "You must be able to see the target (404 otherwise). One open report per target: repeating it answers 200 with the existing report. Up to 20 reports a day.",
