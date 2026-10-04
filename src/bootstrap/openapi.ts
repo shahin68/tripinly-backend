@@ -24,7 +24,7 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
   });
 }
 
-/** Serves the document at /v1/openapi.json, plus Swagger UI at /v1/docs outside production. */
+/** Serves the document at /v1/openapi.json, plus Swagger UI at /v1/docs except on the production deployment. */
 export function setupOpenApi(app: INestApplication, withUi: boolean): void {
   const document = buildOpenApiDocument(app);
   SwaggerModule.setup('v1/docs', app, document, {
