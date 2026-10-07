@@ -26,6 +26,7 @@
   "BBOX_TOO_LARGE": "Zoom in to see places in this area.",
   "IDEMPOTENCY_KEY_REUSED": "This request key was already used for a different request.",
   "IDEMPOTENCY_KEY_IN_PROGRESS": "This request is still being processed. Please try again in a moment.",
+  "ID_CONFLICT": "Something with this ID already exists.",
   "SERVICE_UNAVAILABLE": "The service is temporarily unavailable. Please try again later.",
   "INTERNAL_ERROR": "Something went wrong on our side. Please try again."
 }

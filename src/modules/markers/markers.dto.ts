@@ -56,6 +56,15 @@ export class CreateMarkerDto {
   @ApiPropertyOptional({
     format: 'uuid',
     description:
+      'Client-chosen ID, so the app can show the marker before the response; 409 ID_CONFLICT if taken',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  id?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
       'A place from our in-view, search or along-the-way results. Omit when sending location.',
   })
   @ValidateIf(

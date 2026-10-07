@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
@@ -206,6 +207,21 @@ describe('Markers and place matching (integration)', () => {
         201,
       );
       expect(await positions()).toEqual(['Start', 'A', 'B', 'End']);
+    });
+
+    it('uses a client-chosen ID and refuses a taken one', async () => {
+      const id = randomUUID();
+      const created = await addMarker({
+        id,
+        name: 'A',
+        location: SACHER,
+      }).expect(201);
+      expect(created.body.id).toBe(id);
+      const again = await addMarker({ id, name: 'B', location: SACHER }).expect(
+        409,
+      );
+      expect(again.body.error.code).toBe('ID_CONFLICT');
+      expect(await positions()).toEqual(['A']);
     });
 
     it('applies trip access rules', async () => {

@@ -26,6 +26,7 @@
   "BBOX_TOO_LARGE": "Zoome hinein, um Orte in diesem Bereich zu sehen.",
   "IDEMPOTENCY_KEY_REUSED": "Dieser Anfrageschlüssel wurde bereits für eine andere Anfrage verwendet.",
   "IDEMPOTENCY_KEY_IN_PROGRESS": "Diese Anfrage wird noch bearbeitet. Bitte versuche es gleich noch einmal.",
+  "ID_CONFLICT": "Ein Eintrag mit dieser ID existiert bereits.",
   "SERVICE_UNAVAILABLE": "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
   "INTERNAL_ERROR": "Bei uns ist etwas schiefgelaufen. Bitte versuche es erneut."
 }

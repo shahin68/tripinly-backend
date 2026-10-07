@@ -3299,6 +3299,7 @@
               "BBOX_TOO_LARGE",
               "IDEMPOTENCY_KEY_REUSED",
               "IDEMPOTENCY_KEY_IN_PROGRESS",
+              "ID_CONFLICT",
               "SERVICE_UNAVAILABLE",
               "INTERNAL_ERROR"
             ],
@@ -4785,6 +4786,11 @@
       "CreateMarkerDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Client-chosen ID, so the app can show the marker before the response; 409 ID_CONFLICT if taken"
+          },
           "placeId": {
             "type": "string",
             "format": "uuid",

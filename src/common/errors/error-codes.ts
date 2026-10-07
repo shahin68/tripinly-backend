@@ -34,6 +34,8 @@ export const ErrorCode = {
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
   /** The first request with this Idempotency-Key is still running (409). */
   IDEMPOTENCY_KEY_IN_PROGRESS: 'IDEMPOTENCY_KEY_IN_PROGRESS',
+  /** A client-chosen `id` on create already exists (409). */
+  ID_CONFLICT: 'ID_CONFLICT',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
