@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { AppException } from '../../common/errors/app.exception';
+import { withClientIds } from '../../common/errors/id-conflict';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -56,36 +57,39 @@ export class MarkersService {
       'edit_content',
     );
 
-    const marker = await this.prisma.$transaction(async (tx) => {
-      await lockTrip(tx, trip.id);
-      await assertDayInTrip(tx, dayId, trip.id);
-      const count = await tx.marker.count({ where: { dayId } });
-      if (count >= TripLimits.MARKERS_PER_DAY) {
-        throw limitReached('markers', TripLimits.MARKERS_PER_DAY);
-      }
-      const place = await this.places.match(tx, placeInput, userId);
-      const position = Math.min(input.position ?? count, count);
-      await tx.marker.updateMany({
-        where: { dayId, position: { gte: position } },
-        data: { position: { increment: 1 } },
-      });
-      const created = await tx.marker.create({
-        data: {
-          dayId,
-          tripId: trip.id,
-          placeId: place.id,
-          name: input.name ?? place.name,
-          lat: input.location?.lat ?? place.lat,
-          lng: input.location?.lng ?? place.lng,
-          time: input.time ?? null,
-          position,
-          createdById: userId,
-        },
-        include: MARKER_INCLUDE,
-      });
-      await touchTrip(tx, trip.id);
-      return created;
-    });
+    const marker = await withClientIds(input.id !== undefined, () =>
+      this.prisma.$transaction(async (tx) => {
+        await lockTrip(tx, trip.id);
+        await assertDayInTrip(tx, dayId, trip.id);
+        const count = await tx.marker.count({ where: { dayId } });
+        if (count >= TripLimits.MARKERS_PER_DAY) {
+          throw limitReached('markers', TripLimits.MARKERS_PER_DAY);
+        }
+        const place = await this.places.match(tx, placeInput, userId);
+        const position = Math.min(input.position ?? count, count);
+        await tx.marker.updateMany({
+          where: { dayId, position: { gte: position } },
+          data: { position: { increment: 1 } },
+        });
+        const created = await tx.marker.create({
+          data: {
+            id: input.id,
+            dayId,
+            tripId: trip.id,
+            placeId: place.id,
+            name: input.name ?? place.name,
+            lat: input.location?.lat ?? place.lat,
+            lng: input.location?.lng ?? place.lng,
+            time: input.time ?? null,
+            position,
+            createdById: userId,
+          },
+          include: MARKER_INCLUDE,
+        });
+        await touchTrip(tx, trip.id);
+        return created;
+      }),
+    );
 
     const dto = toMarkerDto(marker, this.storage);
     this.events.emit(
