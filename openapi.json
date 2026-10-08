@@ -1532,6 +1532,35 @@
         "tags": [
           "markers"
         ]
+      },
+      "delete": {
+        "description": "Clears the day in one request (editor or owner); the day itself stays. 204 also when it was already empty.",
+        "operationId": "Markers_clearDay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete all of a day's markers",
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/places/{id}/add-to-trip": {

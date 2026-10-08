@@ -276,6 +276,65 @@ export class MarkersService {
   }
 
   /**
+   * Deletes all of a day's markers in one go ("clear day"). Moderated (hidden)
+   * markers stay, as they do for reorder; they move up to fill the gap.
+   */
+  async clearDay(userId: string, dayId: string): Promise<void> {
+    const { trip } = await this.access.assertForDay(
+      userId,
+      dayId,
+      'edit_content',
+    );
+    const result = await this.prisma.$transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      await assertDayInTrip(tx, dayId, trip.id);
+      const markers = await tx.marker.findMany({
+        where: { dayId },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        select: { id: true, placeId: true, likeCount: true, hiddenAt: true },
+      });
+      const deleted = markers.filter((m) => !m.hiddenAt);
+      if (deleted.length === 0) return null;
+      const markerIds = deleted.map((m) => m.id);
+      const photos = await tx.photo.findMany({
+        where: { markerId: { in: markerIds } },
+        select: { id: true },
+      });
+      await tx.marker.deleteMany({ where: { id: { in: markerIds } } });
+      const liked = deleted.filter((m) => m.likeCount > 0);
+      if (liked.length > 0) {
+        await recomputePopularity(
+          tx,
+          liked.map((m) => m.placeId),
+        );
+      }
+      for (const [position, marker] of markers
+        .filter((m) => m.hiddenAt)
+        .entries()) {
+        await tx.marker.update({
+          where: { id: marker.id },
+          data: { position },
+        });
+      }
+      await touchTrip(tx, trip.id);
+      return { markerIds, photoIds: photos.map((p) => p.id) };
+    });
+    if (!result) return;
+    await this.photoJobs.deleteFiles(result.photoIds);
+    for (const markerId of result.markerIds) {
+      this.events.emit(
+        DomainEvents.MARKER_DELETED,
+        domainEvent(
+          DomainEvents.MARKER_DELETED,
+          userId,
+          { markerId, dayId },
+          trip.id,
+        ),
+      );
+    }
+  }
+
+  /**
    * Copies a marker of a public trip (not my own) to a day of a trip I can
    * edit: same name, location, time and place; no photos, comments or likes.
    */

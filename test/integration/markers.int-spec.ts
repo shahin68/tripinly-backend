@@ -364,6 +364,37 @@ describe('Markers and place matching (integration)', () => {
     });
   });
 
+  describe('DELETE /v1/days/:id/markers', () => {
+    it("deletes the day's markers in one request and keeps hidden ones", async () => {
+      await addMarker({ name: 'A', location: SACHER }).expect(201);
+      const b = await addMarker({ name: 'B', location: SACHER }).expect(201);
+      await addMarker({ name: 'C', location: SACHER }).expect(201);
+      await addMarker(
+        { name: 'Other day', location: SACHER },
+        owner,
+        trip.days[1].id,
+      ).expect(201);
+      await prisma.marker.update({
+        where: { id: b.body.id },
+        data: { hiddenAt: new Date() },
+      });
+      const emit = jest.spyOn(app.get(EventEmitter2), 'emit');
+
+      await as(stranger).delete(`/v1/days/${dayId}/markers`).expect(403);
+      await as(editor).delete(`/v1/days/${dayId}/markers`).expect(204);
+
+      expect(await positions()).toEqual(['B']);
+      expect(await positions(trip.days[1].id)).toEqual(['Other day']);
+      expect(
+        emit.mock.calls.filter(([name]) => name === 'marker.deleted'),
+      ).toHaveLength(2);
+      emit.mockRestore();
+      // Already empty (apart from the hidden one): still fine.
+      await as(editor).delete(`/v1/days/${dayId}/markers`).expect(204);
+      await as(owner).delete(`/v1/days/${randomUUID()}/markers`).expect(404);
+    });
+  });
+
   describe('PUT /v1/days/:id/marker-order', () => {
     it("sets the order when given exactly the day's markers", async () => {
       const a = await addMarker({ name: 'A', location: SACHER }).expect(201);

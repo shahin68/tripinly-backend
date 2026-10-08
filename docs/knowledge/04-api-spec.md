@@ -97,6 +97,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/days/{id}/markers` | Optional client-chosen `id` (UUID) so the app can show and edit the marker before the response; a taken ID → 409 `ID_CONFLICT` (a client that gets this for its own retried create treats the marker as saved). Either `placeId` (optional `name` overrides the place name), or `name` + `location` (+ optional `osmType`/`osmId` from a Photon result, `category` for a new place). Optional `time` (`HH:mm`), `position` (insert; appended when omitted). Unknown fields such as a Google place ID → 400. Max 50 per day |
+| DELETE | `/days/{id}/markers` | Clears the day: deletes all its markers in one request (editor or owner) → 204, also when already empty; the day stays. Moderated (hidden) markers stay. Emits `marker.deleted` per marker |
 | GET | `/markers/{id}` | Marker with photos, like state, comment count |
 | PATCH | `/markers/{id}` | `name`, `time` (null clears), `placeId` or `location` (re-matches the place), `dayId` (another day of the same trip, else 400 `fields.dayId = ["notInTrip"]`), `position` |
 | DELETE | `/markers/{id}` | |

@@ -135,6 +135,21 @@ export class MarkersController {
     return this.markers.delete(user.id, id);
   }
 
+  @Delete('days/:id/markers')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Delete all of a day's markers",
+    description:
+      'Clears the day in one request (editor or owner); the day itself stays. 204 also when it was already empty.',
+  })
+  @ApiNoContentResponse()
+  clearDay(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.markers.clearDay(user.id, id);
+  }
+
   @Put('days/:id/marker-order')
   @ApiOperation({ summary: "Set the order of a day's markers" })
   @ApiOkResponse({ type: MarkerOrderResultDto })
