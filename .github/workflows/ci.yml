@@ -1,10 +1,13 @@
 name: CI
 
+# Pull requests only: a merge into develop builds the same code the PR already checked.
 on:
   pull_request:
     branches: [develop, master]
-  push:
-    branches: [develop]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.claude/**'
 
 concurrency:
   group: ci-${{ github.ref }}
