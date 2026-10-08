@@ -110,6 +110,14 @@ If dev sign-in answers 404, `DEV_AUTH_ENABLED=true` is missing on the api or the
 
 It checks health, test sign-in, onboarding, a trip and marker with a live event, a photo upload processed by the worker, a route, and deletes its test account at the end. Every line should show ✓.
 
+## 9. Test accounts for the apps
+
+```sh
+DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://<api domain>
+```
+
+(On Windows, set the secret first as in step 8.) It signs in two developer accounts, `tester` and `tester2`, finishes their onboarding, deletes the trips they own and creates the same three again: **Vienna weekend** (public, 2 days, 5 stops), **Budapest with a friend** (private, `tester2` is an editor) and **Empty trip**. In a debug build of the app, use the developer sign-in with subject `tester` or `tester2`. Run it again whenever you want the known starting data back.
+
 ## Checklist of every value
 
 | Where | Variable | Status |
