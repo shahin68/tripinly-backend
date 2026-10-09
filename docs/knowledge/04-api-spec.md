@@ -67,11 +67,11 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Trips
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips` | `title`, optional `startDate`/`endDate` (one day per date, max 20; `endDate` needs `startDate`; no dates → one "Day 1"), `visibility` (default: my `defaultTripVisibility`), `memberUsernames` (≤ 20, added as editors; unknown → 400 `fields["memberUsernames.<i>"] = ["notFound"]`, ones I blocked → `["blocked"]`). Max 200 owned trips |
+| POST | `/trips` | `title`, optional `startDate`/`endDate` (one day per date, max 20; `endDate` needs `startDate`; no dates → one "Day 1"), optional `destination` `{ name (1–200), location { lat, lng } }` (e.g. a city from `/places/search`), `visibility` (default: my `defaultTripVisibility`), `memberUsernames` (≤ 20, added as editors; unknown → 400 `fields["memberUsernames.<i>"] = ["notFound"]`, ones I blocked → `["blocked"]`). Max 200 owned trips |
 | GET | `/trips/{id}` | Trip with days, markers (cover thumbnail URLs), members, `copiedFrom` summary |
-| PATCH | `/trips/{id}` | Owner: `title`, `visibility`, `startDate` (null removes both dates, days stay), `endDate` (resizes: adds empty days, removes trailing days only if empty, else 400 `fields.endDate = ["daysNotEmpty"]`) |
+| PATCH | `/trips/{id}` | Owner: `title`, `visibility`, `destination` (null removes it), `startDate` (null removes both dates, days stay), `endDate` (resizes: adds empty days, removes trailing days only if empty, else 400 `fields.endDate = ["daysNotEmpty"]`) |
 | DELETE | `/trips/{id}` | Owner |
-| POST | `/trips/{id}/copy` | "Add to my trips" → 201 with the new trip (title, dates, days, visible markers; my default visibility; `copiedFrom` set). Own or private trip → 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in → 404. Counts toward 200 owned trips |
+| POST | `/trips/{id}/copy` | "Add to my trips" → 201 with the new trip (title, dates, destination, days, visible markers; my default visibility; `copiedFrom` set). Own or private trip → 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in → 404. Counts toward 200 owned trips |
 | GET | `/explore/trips?cursor=&limit=` | Public trips from others with at least one marker, ranked by `(likes + 2 × copies) / (age days + 2)^1.5`, newest on ties. Trip summaries; `nextCursor` continues the same ranking |
 
 ### Days
@@ -175,7 +175,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 
 Field names the client relies on (full schemas in OpenAPI):
 
-- **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]` → `{ user, role }` (owner first; people with a block with me are left out), `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: user summary }` or null), `days[]` → `{ id, position, date (startDate + position, or null), markers[] }`, `createdAt`, `updatedAt`.
+- **Trip** (`GET /trips/{id}`): `id`, `title`, `startDate`, `endDate`, `destination` (`{ name, location }` or null; the client opens the map there while the trip has no markers), `visibility`, `owner` (user summary), `myRole` (`owner`\|`editor`\|`viewer`), `members[]` → `{ user, role }` (owner first; people with a block with me are left out), `likeCount`, `likedByMe`, `copyCount`, `copiedFrom` (`{ tripId, owner: user summary }` or null), `days[]` → `{ id, position, date (startDate + position, or null), markers[] }`, `createdAt`, `updatedAt`.
 - **Marker**: `id`, `tripId`, `dayId`, `placeId`, `name`, `location`, `time` (`HH:mm` or null), `position`, `coverPhotoId`, `coverThumbUrl`, `photoCount`, `likeCount`, `likedByMe`, `commentCount`, `createdBy` (user summary, or null after account deletion or across a block), `createdAt`, `updatedAt`.
 - **Photo**: `id`, `markerId`, `status` (`pending_upload`\|`processing`\|`ready`\|`failed`), `thumbUrl`, `displayUrl` (null until ready; signed, valid at least 1 h and unchanged within the hour so images cache), `width`, `height`, `position`, `likeCount`, `likedByMe`, `uploader` (null across a block), `createdAt`.
 - **Trip summary** (My Trips, Explore, profiles): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner`, `role` (`owner`\|`editor`\|`viewer`), `coverThumbUrl`, `dayCount`, `markerCount`, `likeCount`, `likedByMe`, `copyCount`, `updatedAt`.

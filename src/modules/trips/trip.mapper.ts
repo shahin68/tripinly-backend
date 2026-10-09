@@ -10,7 +10,7 @@ import { BlocksService } from '../moderation/blocks.service';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { likedAmong } from '../social/liked';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
-import type { TripDto, TripSummaryDto } from './trips.dto';
+import type { DestinationDto, TripDto, TripSummaryDto } from './trips.dto';
 
 type Summary = Pick<User, 'id' | 'username' | 'displayName'>;
 
@@ -47,6 +47,31 @@ export function dayDate(
     : null;
 }
 
+export function toDestination(
+  trip: Pick<Trip, 'destinationName' | 'destinationLat' | 'destinationLng'>,
+): DestinationDto | null {
+  if (
+    trip.destinationName === null ||
+    trip.destinationLat === null ||
+    trip.destinationLng === null
+  ) {
+    return null;
+  }
+  return {
+    name: trip.destinationName,
+    location: { lat: trip.destinationLat, lng: trip.destinationLng },
+  };
+}
+
+/** The columns for a destination from the API; null clears them. */
+export function destinationColumns(destination: DestinationDto | null) {
+  return {
+    destinationName: destination?.name ?? null,
+    destinationLat: destination?.location.lat ?? null,
+    destinationLng: destination?.location.lng ?? null,
+  };
+}
+
 /**
  * `hiddenUserIds`: users with a block in either direction with the viewer.
  * They are left out of the member list and shown as no creator on markers,
@@ -65,6 +90,7 @@ export function toTripDto(
     title: trip.title,
     startDate: trip.startDate ? toCalendarDate(trip.startDate) : null,
     endDate: trip.endDate ? toCalendarDate(trip.endDate) : null,
+    destination: toDestination(trip),
     visibility: trip.visibility,
     owner: toUserSummary(trip.owner),
     myRole: myRole ?? 'viewer',

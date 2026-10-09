@@ -205,6 +205,10 @@ model Trip {
   /// With a start date, endDate = startDate + days - 1 (kept in sync by TripsService).
   startDate        DateTime?      @db.Date
   endDate          DateTime?      @db.Date
+  /// Optional destination ("Paris"), picked from place search: all three set or all null.
+  destinationName  String?
+  destinationLat   Float?
+  destinationLng   Float?
   visibility       TripVisibility
   copiedFromTripId String?        @db.Uuid
   likeCount        Int            @default(0)

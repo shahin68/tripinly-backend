@@ -27,7 +27,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Trips
 
 **trips**
-- owner → users, `title`, `startDate`, `endDate` (both nullable; with a start date, `endDate = startDate + days − 1`, kept in sync on every day or date change), `visibility`
+- owner → users, `title`, `startDate`, `endDate` (both nullable; with a start date, `endDate = startDate + days − 1`, kept in sync on every day or date change), `destinationName`, `destinationLat`, `destinationLng` (optional destination: all three or none, enforced by a CHECK), `visibility`
 - `copiedFromTripId` → trips (nullable, `ON DELETE SET NULL`)
 - `likeCount`, `copyCount` (denormalized, maintained in the same transaction or by job)
 - `hiddenAt` (moderation)

@@ -18,7 +18,7 @@
 
 | Event | When | Data |
 |---|---|---|
-| `trip.updated` | Title, dates, visibility changed | changed fields |
+| `trip.updated` | Title, dates, destination, visibility changed | changed fields |
 | `trip.deleted` | Trip deleted | — (clients leave the room) |
 | `day.created` / `day.deleted` | | day |
 | `marker.created` / `marker.updated` / `marker.deleted` | | marker (with cover thumbnail URL) |
