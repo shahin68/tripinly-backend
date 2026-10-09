@@ -1250,8 +1250,9 @@
             "name": "q",
             "required": true,
             "in": "query",
+            "description": "From the first letter. A single letter only searches Photon (prefix matches such as cities); our places need two",
             "schema": {
-              "minLength": 2,
+              "minLength": 1,
               "maxLength": 100,
               "example": "stephansdom",
               "type": "string"
@@ -3964,6 +3965,45 @@
           "items"
         ]
       },
+      "LocationDto": {
+        "type": "object",
+        "properties": {
+          "lat": {
+            "type": "number",
+            "example": 48.2082,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lng": {
+            "type": "number",
+            "example": 16.3738,
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ]
+      },
+      "DestinationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "Paris"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          }
+        },
+        "required": [
+          "name",
+          "location"
+        ]
+      },
       "CreateTripDto": {
         "type": "object",
         "properties": {
@@ -3990,6 +4030,14 @@
               "private"
             ],
             "description": "Defaults to the user's defaultTripVisibility"
+          },
+          "destination": {
+            "description": "Where the trip goes, e.g. a city from GET /places/search. The map opens there while the trip has no markers",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DestinationDto"
+              }
+            ]
           },
           "memberUsernames": {
             "maxItems": 20,
@@ -4037,27 +4085,6 @@
         "required": [
           "tripId",
           "owner"
-        ]
-      },
-      "LocationDto": {
-        "type": "object",
-        "properties": {
-          "lat": {
-            "type": "number",
-            "example": 48.2082,
-            "minimum": -90,
-            "maximum": 90
-          },
-          "lng": {
-            "type": "number",
-            "example": 16.3738,
-            "minimum": -180,
-            "maximum": 180
-          }
-        },
-        "required": [
-          "lat",
-          "lng"
         ]
       },
       "MarkerDto": {
@@ -4203,6 +4230,15 @@
             "nullable": true,
             "example": "2026-10-11"
           },
+          "destination": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DestinationDto"
+              }
+            ]
+          },
           "visibility": {
             "type": "string",
             "enum": [
@@ -4264,6 +4300,7 @@
           "title",
           "startDate",
           "endDate",
+          "destination",
           "visibility",
           "owner",
           "myRole",
@@ -4301,6 +4338,16 @@
             "enum": [
               "public",
               "private"
+            ]
+          },
+          "destination": {
+            "nullable": true,
+            "description": "null removes the destination",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DestinationDto"
+              }
             ]
           }
         }

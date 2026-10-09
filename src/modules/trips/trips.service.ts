@@ -27,6 +27,7 @@ import { TripAccessService } from './trip-access.service';
 import { TripLimits } from './trip-limits';
 import {
   dayDate,
+  destinationColumns,
   TRIP_DETAIL_INCLUDE,
   toTripDto,
   toTripSummaries,
@@ -99,6 +100,7 @@ export class TripsService {
           title: input.title,
           startDate,
           endDate,
+          ...destinationColumns(input.destination ?? null),
           visibility: input.visibility ?? owner.defaultTripVisibility,
           members: {
             create: [
@@ -185,6 +187,17 @@ export class TripsService {
       ) {
         data.visibility = changed.visibility = input.visibility;
       }
+      if (input.destination !== undefined) {
+        const next = destinationColumns(input.destination);
+        if (
+          next.destinationName !== trip.destinationName ||
+          next.destinationLat !== trip.destinationLat ||
+          next.destinationLng !== trip.destinationLng
+        ) {
+          Object.assign(data, next);
+          changed.destination = input.destination;
+        }
+      }
 
       if (input.startDate !== undefined || input.endDate !== undefined) {
         const next = await this.resizeForDates(tx, trip, dayCount, input);
@@ -264,7 +277,7 @@ export class TripsService {
 
   /**
    * "Add to my trips": a new, independent trip owned by the caller with the
-   * source's title, dates, days and visible markers (names, locations, times,
+   * source's title, dates, destination, days and visible markers (names, locations, times,
    * order, places). No photos, comments, likes or members; the caller's
    * default visibility.
    */
@@ -301,6 +314,9 @@ export class TripsService {
           title: source.title,
           startDate: source.startDate,
           endDate: source.endDate,
+          destinationName: source.destinationName,
+          destinationLat: source.destinationLat,
+          destinationLng: source.destinationLng,
           visibility: copier.defaultTripVisibility,
           copiedFromTripId: source.id,
           members: { create: { userId, role: 'owner', addedById: userId } },

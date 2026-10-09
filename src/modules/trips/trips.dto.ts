@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsIn,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -11,9 +12,10 @@ import {
   Matches,
   MaxLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import type { Page } from '../../common/pagination/pagination';
-import { MarkerDto } from '../markers/markers.dto';
+import { LocationDto, MarkerDto } from '../markers/markers.dto';
 import { UserSummaryDto } from '../users/user-summary';
 import { VISIBILITIES, type VisibilityValue } from '../users/users.dto';
 
@@ -24,6 +26,20 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const TRIP_ROLES = ['owner', 'editor'] as const;
 export const MY_ROLES = ['owner', 'editor', 'viewer'] as const;
+
+export class DestinationDto {
+  @ApiProperty({ minLength: 1, maxLength: 200, example: 'Paris' })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 200)
+  name: string;
+
+  @ApiProperty({ type: LocationDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => LocationDto)
+  location: LocationDto;
+}
 
 export class CreateTripDto {
   @ApiProperty({ minLength: 1, maxLength: 100, example: 'Vienna weekend' })
@@ -55,6 +71,17 @@ export class CreateTripDto {
   @IsOptional()
   @IsIn(VISIBILITIES)
   visibility?: VisibilityValue;
+
+  @ApiPropertyOptional({
+    type: DestinationDto,
+    description:
+      'Where the trip goes, e.g. a city from GET /places/search. The map opens there while the trip has no markers',
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => DestinationDto)
+  destination?: DestinationDto;
 
   @ApiPropertyOptional({
     type: [String],
@@ -103,6 +130,19 @@ export class UpdateTripDto {
   @IsOptional()
   @IsIn(VISIBILITIES)
   visibility?: VisibilityValue;
+
+  @ApiPropertyOptional({
+    type: DestinationDto,
+    nullable: true,
+    description: 'null removes the destination',
+  })
+  @ValidateIf(
+    (o: UpdateTripDto) => o.destination !== null && o.destination !== undefined,
+  )
+  @IsObject()
+  @ValidateNested()
+  @Type(() => DestinationDto)
+  destination?: DestinationDto | null;
 }
 
 export class TripMemberDto {
@@ -154,6 +194,9 @@ export class TripDto {
 
   @ApiProperty({ type: String, nullable: true, example: '2026-10-11' })
   endDate: string | null;
+
+  @ApiProperty({ type: DestinationDto, nullable: true })
+  destination: DestinationDto | null;
 
   @ApiProperty({ enum: VISIBILITIES })
   visibility: VisibilityValue;

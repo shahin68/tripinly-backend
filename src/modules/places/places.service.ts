@@ -426,7 +426,8 @@ export class PlacesService {
     lang: string,
     near: { lat: number; lng: number } | undefined,
   ): Promise<SearchResultDto[]> {
-    if (!q) return [];
+    // Trigram matching needs two characters; one letter is left to Photon's prefix search.
+    if (q.length < 2) return [];
     const proximity = near
       ? Prisma.sql`+ 0.3 / (1 + ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography) / 5000.0)`
       : Prisma.empty;

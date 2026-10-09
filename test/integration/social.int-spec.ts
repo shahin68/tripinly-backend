@@ -367,6 +367,15 @@ describe('Social (integration)', () => {
           name: 'Naschmarkt',
           location: { lat: 48.1985, lng: 16.3634 },
         });
+      await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({
+          destination: {
+            name: 'Vienna',
+            location: { lat: 48.2082, lng: 16.3738 },
+          },
+        })
+        .expect(200);
       await readyPhoto(app, owner, markerId);
       await as(stranger)
         .post(`/v1/markers/${markerId}/comments`)
@@ -385,6 +394,10 @@ describe('Social (integration)', () => {
         title: 'Vienna',
         startDate: '2026-10-09',
         endDate: '2026-10-10',
+        destination: {
+          name: 'Vienna',
+          location: { lat: 48.2082, lng: 16.3738 },
+        },
         visibility: 'private',
         owner: { username: 'stranger' },
         myRole: 'owner',

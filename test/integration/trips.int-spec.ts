@@ -88,11 +88,27 @@ describe('Trips, days and members (integration)', () => {
       expect(trip).toMatchObject({
         startDate: null,
         endDate: null,
+        destination: null,
         visibility: 'private',
       });
       expect(trip.days).toEqual([
         expect.objectContaining({ position: 0, date: null, markers: [] }),
       ]);
+    });
+
+    it('keeps an optional destination', async () => {
+      const trip = await createTrip({
+        destination: {
+          name: ' Paris ',
+          location: { lat: 48.8566, lng: 2.3522 },
+        },
+      });
+      expect(trip.destination).toEqual({
+        name: 'Paris',
+        location: { lat: 48.8566, lng: 2.3522 },
+      });
+      const { body } = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
+      expect(body.destination).toEqual(trip.destination);
     });
 
     it('validates dates, members and limits', async () => {
@@ -127,6 +143,17 @@ describe('Trips, days and members (integration)', () => {
           { 'memberUsernames.1': ['notFound'] },
         ],
         [{ title: '' }, 400, 'VALIDATION_FAILED'],
+        [{ destination: { name: 'Paris' } }, 400, 'VALIDATION_FAILED'],
+        [
+          { destination: { name: '', location: { lat: 48.8, lng: 2.3 } } },
+          400,
+          'VALIDATION_FAILED',
+        ],
+        [
+          { destination: { name: 'Paris', location: { lat: 95, lng: 2.3 } } },
+          400,
+          'VALIDATION_FAILED',
+        ],
       ];
       for (const [body, status, code, fields] of cases) {
         const response = await as(owner)
@@ -331,6 +358,33 @@ describe('Trips, days and members (integration)', () => {
         null,
         null,
       ]);
+    });
+
+    it('sets, changes and removes the destination', async () => {
+      const trip = await createTrip();
+      const paris = { name: 'Paris', location: { lat: 48.8566, lng: 2.3522 } };
+      const set = await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ destination: paris })
+        .expect(200);
+      expect(set.body.destination).toEqual(paris);
+
+      const titled = await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ title: 'Paris in spring' })
+        .expect(200);
+      expect(titled.body.destination).toEqual(paris);
+
+      const cleared = await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ destination: null })
+        .expect(200);
+      expect(cleared.body.destination).toBeNull();
+
+      await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ destination: { name: 'Paris' } })
+        .expect(400);
     });
   });
 
