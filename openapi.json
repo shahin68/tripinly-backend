@@ -1250,8 +1250,9 @@
             "name": "q",
             "required": true,
             "in": "query",
+            "description": "From the first letter. A single letter only searches Photon (prefix matches such as cities); our places need two",
             "schema": {
-              "minLength": 2,
+              "minLength": 1,
               "maxLength": 100,
               "example": "stephansdom",
               "type": "string"

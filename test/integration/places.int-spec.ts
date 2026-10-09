@@ -402,9 +402,23 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(Date.now() - started).toBeLessThan(4_000);
     });
 
+    it('answers a single letter with Photon results only', async () => {
+      await insertPlace(app, {
+        name: 'Wiener Riesenrad',
+        lat: 48.2166,
+        lng: 16.3959,
+      });
+      photon.features = [photonCity];
+
+      const { body } = await as(alice).get('/v1/places/search?q=w').expect(200);
+
+      expect(names(body.items)).toEqual(['Wien']);
+      expect(photon.requests[0].get('q')).toBe('w');
+    });
+
     it('validates the query', async () => {
       const { body } = await as(alice)
-        .get('/v1/places/search?q=a&lat=48.2')
+        .get('/v1/places/search?q=%20&lat=48.2')
         .expect(400);
       expect(Object.keys(body.error.details.fields).sort()).toEqual([
         'lng',

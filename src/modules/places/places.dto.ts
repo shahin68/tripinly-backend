@@ -139,12 +139,18 @@ export class NearbyQueryDto {
 }
 
 export class SearchQueryDto {
-  @ApiProperty({ minLength: 2, maxLength: 100, example: 'stephansdom' })
+  @ApiProperty({
+    minLength: 1,
+    maxLength: 100,
+    example: 'stephansdom',
+    description:
+      'From the first letter. A single letter only searches Photon (prefix matches such as cities); our places need two',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @Length(2, 100)
+  @Length(1, 100)
   q: string;
 
   @ApiPropertyOptional({

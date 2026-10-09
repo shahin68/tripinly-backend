@@ -126,7 +126,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/places/in-view?bbox=minLng,minLat,maxLng,maxLat&zoom=&categories=&limit=` | Places for the visible map area: `{ places[], clusters[], attribution }`. Tripinly places first, OSM places from zoom 14, clusters below zoom 14 when there are more than `limit` (10–200, default 100). A bbox too large for the zoom → 400 `BBOX_TOO_LARGE` |
-| GET | `/places/search?q=&lat=&lng=` | `{ items[], attribution }`: our places (`source: "place"`, with `id`) then Photon results (`source: "photon"`, no `id`; send name + location + `osmType`/`osmId` when adding the marker). `q` 2–100 chars; 60 requests/min per user |
+| GET | `/places/search?q=&lat=&lng=` | `{ items[], attribution }`: our places (`source: "place"`, with `id`) then Photon results (`source: "photon"`, no `id`; send name + location + `osmType`/`osmId` when adding the marker). `q` 1–100 chars (one letter searches Photon only); 60 requests/min per user |
 | GET | `/places/nearby?lat=&lng=&radiusKm=&cursor=&limit=` | Popular places around the user (radius 0.1–50 km, default 5), each with `distanceMeters`; the first page is topped up with OSM sights when fewer than 10 are in range. Location not stored |
 | GET | `/places/popular?bbox=…&excludeTripId=&limit=` | Tripinly places only in the visible area (bbox side ≤ 5°), excluding places already in the trip |
 | GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `photoThumbUrls` (up to 10 from public trips, most liked first), `attribution` |
