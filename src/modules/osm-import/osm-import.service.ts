@@ -234,72 +234,36 @@ export class OsmImportService {
     };
   }
 
-  /**
-   * osmium: keep the tags we import, then export as a GeoJSON sequence (areas as polygons).
-   * Sized for a 1 GB worker: node locations go into an on-disk index and onto the ways
-   * first, so nothing later has to hold the region's nodes in memory. Nodes and ways are
-   * filtered without their references (`-R`); relations get their own pass, which only
-   * pulls in the members of the few matching relations. Both halves are merged again.
-   */
+  /** osmium: keep the tags we import, then export as a GeoJSON sequence (areas as polygons). */
   private async extract(source: string, workDir: string): Promise<string> {
-    const index = join(workDir, 'nodes.idx');
-    const located = join(workDir, 'located.osm.pbf');
-    const nodesAndWays = join(workDir, 'poi-nw.osm.pbf');
-    const relations = join(workDir, 'poi-r.osm.pbf');
     const filtered = join(workDir, 'poi.osm.pbf');
     const exported = join(workDir, 'poi.geojsonseq');
-    const keepLocations = ['-f', 'pbf,locations_on_ways=true', '--overwrite'];
-    const osmium = (args: string[]) =>
-      run('osmium', args, { timeout: OSMIUM_TIMEOUT_MS });
-
-    await osmium([
-      'add-locations-to-ways',
-      source,
-      '-i',
-      `sparse_file_array,${index}`,
-      '-o',
-      located,
-      ...keepLocations,
-    ]);
-    await rm(index, { force: true });
-    await osmium([
-      'tags-filter',
-      located,
-      '-R',
-      ...OSMIUM_TAG_FILTERS.map((filter) => filter.replace(/^nwr\//, 'nw/')),
-      '-o',
-      nodesAndWays,
-      ...keepLocations,
-    ]);
-    await osmium([
-      'tags-filter',
-      located,
-      ...OSMIUM_TAG_FILTERS.map((filter) => filter.replace(/^nwr\//, 'r/')),
-      '-o',
-      relations,
-      ...keepLocations,
-    ]);
-    await rm(located, { force: true });
-    await osmium([
-      'merge',
-      nodesAndWays,
-      relations,
-      '-o',
-      filtered,
-      ...keepLocations,
-    ]);
-    await osmium([
-      'export',
-      filtered,
-      '-i',
-      'none',
-      '-f',
-      'geojsonseq',
-      '--add-unique-id=type_id',
-      '-o',
-      exported,
-      '--overwrite',
-    ]);
+    await run(
+      'osmium',
+      [
+        'tags-filter',
+        source,
+        ...OSMIUM_TAG_FILTERS,
+        '-o',
+        filtered,
+        '--overwrite',
+      ],
+      { timeout: OSMIUM_TIMEOUT_MS },
+    );
+    await run(
+      'osmium',
+      [
+        'export',
+        filtered,
+        '-f',
+        'geojsonseq',
+        '--add-unique-id=type_id',
+        '-o',
+        exported,
+        '--overwrite',
+      ],
+      { timeout: OSMIUM_TIMEOUT_MS },
+    );
     return exported;
   }
 

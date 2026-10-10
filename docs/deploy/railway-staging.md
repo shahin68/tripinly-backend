@@ -74,7 +74,7 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
 ## 6. The `worker` service
 
 1. **+ Create** → **GitHub Repo** → the same repository. Rename it to `worker`.
-2. **Settings:** branch `develop`; **Custom Start Command:** `node dist/main.worker.js` (without it the service runs the image's default command, which is the api); **Restart Policy:** On Failure, 5 retries. No pre-deploy command, no healthcheck, no domain.
+2. **Settings:** branch `develop`; **Custom Start Command:** `node dist/main.worker.js` (without it the service runs the image's default command, which is the api); **Restart Policy:** On Failure, 5 retries; **Resource limits:** memory at least 4 GB (the OSM import's osmium step needs it; 1 GB gets it killed). No pre-deploy command, no healthcheck, no domain.
 3. **Variables:**
    - all shared variables, plus `DATABASE_URL` and `REDIS_URL` references as for `api`;
    - `OSM_IMPORT_ENABLED` = `true` (loads Austria and Hungary places on first start, then monthly; the first import takes a while and downloads a few hundred MB);
