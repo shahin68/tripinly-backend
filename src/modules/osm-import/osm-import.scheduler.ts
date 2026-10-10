@@ -57,10 +57,16 @@ export class OsmImportScheduler implements OnApplicationBootstrap {
       });
       if (!imported) {
         // The job id dedupes restarts while the initial load is queued or
-        // running; a load that failed for good is queued again.
+        // running. A load that failed for good, or waits to retry, starts over
+        // now: a restart is how a failing import gets tried again.
         const jobId = regionJobKey('initial', region);
         const previous = await this.queue.getJob(jobId);
-        if (previous && (await previous.isFailed())) await previous.remove();
+        if (
+          previous &&
+          ((await previous.isFailed()) || (await previous.isDelayed()))
+        ) {
+          await previous.remove();
+        }
         await this.queue.add('import', { region }, { jobId, ...RETRIES });
         this.logger.log(`Initial OSM import of ${region} is queued`);
       }

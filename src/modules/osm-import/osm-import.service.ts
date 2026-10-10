@@ -461,7 +461,17 @@ function describeError(error: unknown): string {
     killed?: boolean;
     stderr?: string;
   };
-  if (!failed.cmd) return error.message;
+  if (!failed.cmd) {
+    // fetch only says "fetch failed"; the reason (DNS, refused, reset, TLS) is in the cause.
+    const cause = error.cause instanceof Error ? error.cause : undefined;
+    if (!cause) return error.message;
+    const code = (cause as Error & { code?: string }).code;
+    const reason =
+      code && !cause.message.includes(code)
+        ? `${code} ${cause.message}`
+        : cause.message;
+    return `${error.message}: ${reason}`;
+  }
   const tool = failed.cmd.split(' ').slice(0, 2).join(' ');
   const ending = failed.signal
     ? `killed by ${failed.signal}`
