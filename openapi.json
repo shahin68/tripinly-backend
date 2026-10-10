@@ -1573,7 +1573,7 @@
     },
     "/v1/days/{id}/markers": {
       "post": {
-        "description": "Send placeId (a place from our results) or name + location (custom pin, or a Photon result with osmType/osmId). Google place IDs are rejected.",
+        "description": "Send placeId (a place from our results), name + location (custom pin, or a Photon result with osmType/osmId), or location alone (a tap on the map): the server then names the stop after one of our public places within 25 m, else the address there (Photon reverse), else its coordinates. Google place IDs are rejected.",
         "operationId": "Markers_create",
         "parameters": [
           {
@@ -5031,7 +5031,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 120,
-            "description": "Required with location (custom pin or Photon result). With placeId, overrides the place name."
+            "description": "With location: the custom pin or Photon result name; leave it out for a tap on the map and the server names the stop. With placeId, overrides the place name."
           },
           "location": {
             "description": "Custom pin or Photon result. Omit when sending placeId.",

@@ -19,6 +19,7 @@ import {
   ApiProperty,
   ApiTags,
 } from '@nestjs/swagger';
+import { I18nLang } from 'nestjs-i18n';
 import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import {
@@ -51,15 +52,16 @@ export class MarkersController {
   @ApiOperation({
     summary: 'Add a marker to a day',
     description:
-      'Send placeId (a place from our results) or name + location (custom pin, or a Photon result with osmType/osmId). Google place IDs are rejected.',
+      'Send placeId (a place from our results), name + location (custom pin, or a Photon result with osmType/osmId), or location alone (a tap on the map): the server then names the stop after one of our public places within 25 m, else the address there (Photon reverse), else its coordinates. Google place IDs are rejected.',
   })
   @ApiCreatedResponse({ type: MarkerDto })
   create(
     @CurrentUser() user: AuthUser,
     @Param() { id }: IdParamDto,
     @Body() body: CreateMarkerDto,
+    @I18nLang() lang: string,
   ): Promise<MarkerDto> {
-    return this.markers.create(user.id, id, body);
+    return this.markers.create(user.id, id, body, lang);
   }
 
   @Post('places/:id/add-to-trip')
@@ -75,12 +77,14 @@ export class MarkersController {
     @CurrentUser() user: AuthUser,
     @Param() { id }: IdParamDto,
     @Body() body: AddToTripDto,
+    @I18nLang() lang: string,
   ): Promise<MarkerDto> {
-    return this.markers.create(user.id, body.dayId, {
-      placeId: id,
-      time: body.time,
-      position: body.position,
-    });
+    return this.markers.create(
+      user.id,
+      body.dayId,
+      { placeId: id, time: body.time, position: body.position },
+      lang,
+    );
   }
 
   @Post('markers/:id/copy')

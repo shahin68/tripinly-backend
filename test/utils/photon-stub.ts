@@ -4,7 +4,7 @@ export const PHOTON_STUB_PORT = 47831;
 export const PHOTON_STUB_URL = `http://127.0.0.1:${PHOTON_STUB_PORT}`;
 
 export interface PhotonStub {
-  /** GeoJSON features the next searches return. */
+  /** GeoJSON features the next searches and reverse lookups return. */
   features: unknown[];
   /** 'ok' answers, 'error' returns 500, 'hang' never answers (client timeout). */
   mode: 'ok' | 'error' | 'hang';
@@ -24,7 +24,7 @@ export async function startPhotonStub(): Promise<PhotonStub> {
     const url = new URL(req.url ?? '/', PHOTON_STUB_URL);
     stub.requests.push(url.searchParams);
     if (stub.mode === 'hang') return;
-    if (stub.mode === 'error' || url.pathname !== '/api') {
+    if (stub.mode === 'error' || !['/api', '/reverse'].includes(url.pathname)) {
       res.writeHead(500).end();
       return;
     }
