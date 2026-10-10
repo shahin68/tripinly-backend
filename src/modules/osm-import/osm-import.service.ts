@@ -158,7 +158,7 @@ export class OsmImportService {
         deactivated,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
       // The run row keeps the error too, but the logs are what people look at first.
       this.logger.error(`OSM import of ${region} failed: ${message}`);
       await this.prisma.osmImportRun.update({
@@ -409,4 +409,27 @@ async function deactivateMissing(db: Client, region: string): Promise<number> {
     [region],
   );
   return result.rowCount ?? 0;
+}
+
+/**
+ * A failed osmium run's message is mostly the command line, which pushes its
+ * stderr past what the run row keeps. Name the tool, how it ended (exit code
+ * or the signal that killed it, e.g. SIGKILL when out of memory) and stderr.
+ */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const failed = error as Error & {
+    cmd?: string;
+    code?: number | string;
+    signal?: string | null;
+    killed?: boolean;
+    stderr?: string;
+  };
+  if (!failed.cmd) return error.message;
+  const tool = failed.cmd.split(' ').slice(0, 2).join(' ');
+  const ending = failed.signal
+    ? `killed by ${failed.signal}`
+    : `exit code ${failed.code}`;
+  const stderr = failed.stderr?.trim();
+  return `${tool} failed (${ending})${stderr ? `: ${stderr}` : ''}`;
 }
