@@ -183,6 +183,61 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(names(body.places)).toContain('Café NE');
     });
 
+    it('keeps the same picks when the view moves a little', async () => {
+      for (let i = 0; i < 30; i++) {
+        await insertPlace(app, {
+          name: `Café ${i}`,
+          category: 'cafe',
+          lat: 48.2005 + (i % 6) * 0.0015,
+          lng: 16.3605 + Math.floor(i / 6) * 0.003,
+        });
+      }
+      const picks = async (bbox: string) => {
+        const { body } = await as(alice)
+          .get(`/v1/places/in-view?bbox=${bbox}&zoom=15&limit=8`)
+          .expect(200);
+        return new Set(names(body.places));
+      };
+
+      const before = await picks(VIEW);
+      const after = await picks('16.3611,48.2003,16.3811,48.2103');
+      // Places visible in both views stay picked.
+      const kept = [...before].filter((name) => after.has(name));
+      expect(kept.length).toBeGreaterThanOrEqual(6);
+    });
+
+    it('fills the map with notable OSM places below zoom 14 while hot spots are few', async () => {
+      await insertPlace(app, {
+        name: 'Stephansdom',
+        lat: 48.2085,
+        lng: 16.3731,
+        tags: { wikidata: 'Q167592' },
+      });
+      await insertPlace(app, {
+        name: 'Corner café',
+        category: 'cafe',
+        lat: 48.209,
+        lng: 16.374,
+      });
+      await insertPlace(app, {
+        name: 'Hot spot',
+        lat: 48.21,
+        lng: 16.37,
+        popularity: 3,
+      });
+      const bbox = '16.1,48.1,16.6,48.4';
+
+      const zoomedOut = await as(alice)
+        .get(`/v1/places/in-view?bbox=${bbox}&zoom=11`)
+        .expect(200);
+      expect(names(zoomedOut.body.places)).toEqual(['Hot spot', 'Stephansdom']);
+
+      const farOut = await as(alice)
+        .get(`/v1/places/in-view?bbox=${bbox}&zoom=9`)
+        .expect(200);
+      expect(names(farOut.body.places)).toEqual(['Hot spot']);
+    });
+
     it('shows only Tripinly places below zoom 14, clustered when over the limit', async () => {
       for (let i = 0; i < 8; i++) {
         await insertPlace(app, {
