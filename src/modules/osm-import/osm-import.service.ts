@@ -95,13 +95,16 @@ export class OsmImportService {
       let source = options.sourceFile;
       let extractAt: Date | null = null;
       if (!source) {
+        this.logger.log(`OSM import of ${region}: downloading`);
         ({ path: source, extractAt } = await this.download(region, workDir));
       }
+      this.logger.log(`OSM import of ${region}: filtering with osmium`);
       const features = await this.extract(source, workDir);
 
       await createStaging(db);
       const seen = await this.stage(db, features);
       if (seen === 0) throw new Error('the extract contained no places');
+      this.logger.log(`OSM import of ${region}: ${seen} places staged, saving`);
 
       const { inserted, updated } = await upsert(db, region);
 
@@ -155,7 +158,9 @@ export class OsmImportService {
         deactivated,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = describeError(error);
+      // The run row keeps the error too, but the logs are what people look at first.
+      this.logger.error(`OSM import of ${region} failed: ${message}`);
       await this.prisma.osmImportRun.update({
         where: { id: importRun.id },
         data: {
@@ -191,6 +196,12 @@ export class OsmImportService {
         `download of ${region} failed with HTTP ${response.status}`,
       );
     }
+    const size = Number(response.headers.get('content-length'));
+    if (size) {
+      this.logger.log(
+        `OSM import of ${region}: ${Math.round(size / 1_048_576)} MB to download`,
+      );
+    }
     const md5 = createHash('md5');
     await pipeline(
       Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
@@ -223,36 +234,72 @@ export class OsmImportService {
     };
   }
 
-  /** osmium: keep the tags we import, then export as a GeoJSON sequence (areas as polygons). */
+  /**
+   * osmium: keep the tags we import, then export as a GeoJSON sequence (areas as polygons).
+   * Sized for a 1 GB worker: node locations go into an on-disk index and onto the ways
+   * first, so nothing later has to hold the region's nodes in memory. Nodes and ways are
+   * filtered without their references (`-R`); relations get their own pass, which only
+   * pulls in the members of the few matching relations. Both halves are merged again.
+   */
   private async extract(source: string, workDir: string): Promise<string> {
+    const index = join(workDir, 'nodes.idx');
+    const located = join(workDir, 'located.osm.pbf');
+    const nodesAndWays = join(workDir, 'poi-nw.osm.pbf');
+    const relations = join(workDir, 'poi-r.osm.pbf');
     const filtered = join(workDir, 'poi.osm.pbf');
     const exported = join(workDir, 'poi.geojsonseq');
-    await run(
-      'osmium',
-      [
-        'tags-filter',
-        source,
-        ...OSMIUM_TAG_FILTERS,
-        '-o',
-        filtered,
-        '--overwrite',
-      ],
-      { timeout: OSMIUM_TIMEOUT_MS },
-    );
-    await run(
-      'osmium',
-      [
-        'export',
-        filtered,
-        '-f',
-        'geojsonseq',
-        '--add-unique-id=type_id',
-        '-o',
-        exported,
-        '--overwrite',
-      ],
-      { timeout: OSMIUM_TIMEOUT_MS },
-    );
+    const keepLocations = ['-f', 'pbf,locations_on_ways=true', '--overwrite'];
+    const osmium = (args: string[]) =>
+      run('osmium', args, { timeout: OSMIUM_TIMEOUT_MS });
+
+    await osmium([
+      'add-locations-to-ways',
+      source,
+      '-i',
+      `sparse_file_array,${index}`,
+      '-o',
+      located,
+      ...keepLocations,
+    ]);
+    await rm(index, { force: true });
+    await osmium([
+      'tags-filter',
+      located,
+      '-R',
+      ...OSMIUM_TAG_FILTERS.map((filter) => filter.replace(/^nwr\//, 'nw/')),
+      '-o',
+      nodesAndWays,
+      ...keepLocations,
+    ]);
+    await osmium([
+      'tags-filter',
+      located,
+      ...OSMIUM_TAG_FILTERS.map((filter) => filter.replace(/^nwr\//, 'r/')),
+      '-o',
+      relations,
+      ...keepLocations,
+    ]);
+    await rm(located, { force: true });
+    await osmium([
+      'merge',
+      nodesAndWays,
+      relations,
+      '-o',
+      filtered,
+      ...keepLocations,
+    ]);
+    await osmium([
+      'export',
+      filtered,
+      '-i',
+      'none',
+      '-f',
+      'geojsonseq',
+      '--add-unique-id=type_id',
+      '-o',
+      exported,
+      '--overwrite',
+    ]);
     return exported;
   }
 
@@ -398,4 +445,27 @@ async function deactivateMissing(db: Client, region: string): Promise<number> {
     [region],
   );
   return result.rowCount ?? 0;
+}
+
+/**
+ * A failed osmium run's message is mostly the command line, which pushes its
+ * stderr past what the run row keeps. Name the tool, how it ended (exit code
+ * or the signal that killed it, e.g. SIGKILL when out of memory) and stderr.
+ */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const failed = error as Error & {
+    cmd?: string;
+    code?: number | string;
+    signal?: string | null;
+    killed?: boolean;
+    stderr?: string;
+  };
+  if (!failed.cmd) return error.message;
+  const tool = failed.cmd.split(' ').slice(0, 2).join(' ');
+  const ending = failed.signal
+    ? `killed by ${failed.signal}`
+    : `exit code ${failed.code}`;
+  const stderr = failed.stderr?.trim();
+  return `${tool} failed (${ending})${stderr ? `: ${stderr}` : ''}`;
 }
