@@ -194,16 +194,22 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       }
       const picks = async (bbox: string) => {
         const { body } = await as(alice)
-          .get(`/v1/places/in-view?bbox=${bbox}&zoom=15&limit=8`)
+          .get(`/v1/places/in-view?bbox=${bbox}&zoom=15&limit=10`)
           .expect(200);
-        return new Set(names(body.places));
+        return body.places as { name: string; location: { lng: number } }[];
       };
 
       const before = await picks(VIEW);
-      const after = await picks('16.3611,48.2003,16.3811,48.2103');
-      // Places visible in both views stay picked.
-      const kept = [...before].filter((name) => after.has(name));
-      expect(kept.length).toBeGreaterThanOrEqual(6);
+      // Half a tile east: the two western columns of cafés leave the view.
+      const after = new Set(
+        (await picks('16.366,48.20,16.386,48.21')).map((p) => p.name),
+      );
+      const stillInView = before.filter((p) => p.location.lng >= 16.366);
+      expect(stillInView.length).toBeGreaterThan(0);
+      // Every pick still in view stays picked.
+      expect(
+        stillInView.map((p) => p.name).filter((n) => !after.has(n)),
+      ).toEqual([]);
     });
 
     it('fills the map with notable OSM places below zoom 14 while hot spots are few', async () => {
