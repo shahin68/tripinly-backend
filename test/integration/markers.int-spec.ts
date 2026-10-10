@@ -10,6 +10,7 @@ import {
 } from '../utils/auth-helpers';
 import { api, type TripBody } from '../utils/api';
 import { createTestApp } from '../utils/create-test-app';
+import { startPhotonStub, type PhotonStub } from '../utils/photon-stub';
 
 const SACHER = { lat: 48.20383, lng: 16.36958 };
 /** About 20 m from SACHER. */
@@ -26,8 +27,10 @@ describe('Markers and place matching (integration)', () => {
   let stranger: Session;
   let trip: TripBody;
   let dayId: string;
+  let photon: PhotonStub;
 
   beforeAll(async () => {
+    photon = await startPhotonStub();
     app = await createTestApp();
     prisma = app.get(PrismaService);
     as = api(app).as;
@@ -35,11 +38,15 @@ describe('Markers and place matching (integration)', () => {
 
   afterAll(async () => {
     await app.close();
+    await photon.close();
   });
 
   beforeEach(async () => {
     await resetState(app);
     await publishLegalDocuments(app);
+    photon.features = [];
+    photon.mode = 'ok';
+    photon.requests = [];
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
@@ -157,6 +164,62 @@ describe('Markers and place matching (integration)', () => {
       expect(renamed.body.name).toBe('Dom');
     });
 
+    it('names a tapped point after our place there, else the address, else its coordinates', async () => {
+      const osm = await prisma.place.create({
+        data: {
+          name: 'Hotel Sacher',
+          normalizedName: 'hotel sacher',
+          searchText: 'hotel sacher',
+          category: 'attraction',
+          lat: SACHER.lat,
+          lng: SACHER.lng,
+          source: 'osm',
+          osmType: 'node',
+          osmId: 1n,
+        },
+      });
+      const atPlace = await addMarker({ location: NEAR_SACHER }).expect(201);
+      expect(atPlace.body).toMatchObject({
+        placeId: osm.id,
+        name: 'Hotel Sacher',
+        location: NEAR_SACHER,
+      });
+      expect(photon.requests).toHaveLength(0);
+
+      photon.features = [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [16.36958, 48.20518] },
+          properties: {
+            osm_type: 'N',
+            osm_id: 42,
+            street: 'Kärntner Straße',
+            housenumber: '38',
+            city: 'Wien',
+          },
+        },
+      ];
+      const atAddress = await addMarker({ location: FAR_FROM_SACHER }).expect(
+        201,
+      );
+      expect(atAddress.body).toMatchObject({
+        name: 'Kärntner Straße 38',
+        location: FAR_FROM_SACHER,
+      });
+      expect(photon.requests[0].get('lat')).toBe(String(FAR_FROM_SACHER.lat));
+      expect(photon.requests[0].get('limit')).toBe('1');
+      const place = await prisma.place.findUniqueOrThrow({
+        where: { id: atAddress.body.placeId },
+      });
+      expect(place).toMatchObject({ osmType: 'node', osmId: 42n });
+
+      photon.mode = 'error';
+      const nowhere = await addMarker({
+        location: { lat: 47.5, lng: 15.25 },
+      }).expect(201);
+      expect(nowhere.body.name).toBe('47.50000, 15.25000');
+    });
+
     it('rejects Google IDs and mixed or incomplete input', async () => {
       const cases: Record<string, unknown>[] = [
         { placeId: 'ChIJ3S-JXmauEmsRUcIaWtf4MzE' },
@@ -166,7 +229,6 @@ describe('Markers and place matching (integration)', () => {
           googlePlaceId: 'ChIJ3S-JXmauEmsRUcIaWtf4MzE',
         },
         { name: 'X' },
-        { location: SACHER },
         {},
         { name: 'X', location: { lat: 91, lng: 0 } },
         { name: 'X', location: SACHER, time: '25:00' },

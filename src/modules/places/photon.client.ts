@@ -5,6 +5,8 @@ import type { SearchResultDto } from './places.dto';
 
 const PHOTON_TIMEOUT_MS = 2_000;
 const PHOTON_LIMIT = 8;
+/** How far from a tapped point an address may be to name it. */
+const REVERSE_RADIUS_KM = 0.1;
 /** Languages the public Photon index has names for; others get local names. */
 const PHOTON_LANGUAGES = new Set(['en', 'de', 'fr']);
 const OSM_TYPE: Record<string, SearchResultDto['osmType']> = {
@@ -65,6 +67,43 @@ export class PhotonClient {
         `Photon search failed: ${error instanceof Error ? error.name : 'unknown error'}`,
       );
       return [];
+    }
+  }
+
+  /** The nearest address or named feature at a point, or null (also on any failure). */
+  async reverse({
+    lat,
+    lng,
+    lang,
+  }: {
+    lat: number;
+    lng: number;
+    lang: string;
+  }): Promise<SearchResultDto | null> {
+    const url = new URL(
+      '/reverse',
+      this.config.get('PHOTON_BASE_URL', { infer: true }),
+    );
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('radius', String(REVERSE_RADIUS_KM));
+    if (PHOTON_LANGUAGES.has(lang)) url.searchParams.set('lang', lang);
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Tripinly/1.0', Accept: 'application/json' },
+        signal: AbortSignal.timeout(PHOTON_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = (await response.json()) as { features?: unknown };
+      const [feature] = Array.isArray(body.features) ? body.features : [];
+      return feature ? toResult(feature as PhotonFeature) : null;
+    } catch (error) {
+      // No coordinates in logs.
+      this.logger.warn(
+        `Photon reverse failed: ${error instanceof Error ? error.name : 'unknown error'}`,
+      );
+      return null;
     }
   }
 }

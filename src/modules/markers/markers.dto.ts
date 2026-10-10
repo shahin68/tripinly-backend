@@ -77,11 +77,9 @@ export class CreateMarkerDto {
     minLength: 1,
     maxLength: 120,
     description:
-      'Required with location (custom pin or Photon result). With placeId, overrides the place name.',
+      'With location: the custom pin or Photon result name; leave it out for a tap on the map and the server names the stop. With placeId, overrides the place name.',
   })
-  @ValidateIf(
-    (o: CreateMarkerDto) => o.name !== undefined || o.location !== undefined,
-  )
+  @ValidateIf((o: CreateMarkerDto) => o.name !== undefined)
   @Transform(trim)
   @IsString()
   @Length(1, 120)

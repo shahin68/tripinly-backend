@@ -19,7 +19,10 @@ import {
 } from './bbox';
 import { normalizePlaceName } from './normalize-name';
 import { PhotonClient } from './photon.client';
-import { PlaceMatchingService } from './place-matching.service';
+import {
+  PlaceMatchingService,
+  type PlaceInput,
+} from './place-matching.service';
 import {
   IN_VIEW_CACHE_TTL_SECONDS,
   IN_VIEW_CACHE_VERSION_KEY,
@@ -54,6 +57,8 @@ const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
 const NEARBY_TOP_UP_BELOW = 10;
 const SEARCH_LIMIT = 10;
+/** A tapped point takes the name of one of our public places this close. */
+const PLACE_AT_RADIUS_METERS = 25;
 const PLACE_PHOTO_LIMIT = 10;
 /** Sights that top up Nearby; cafés and bars are too many to be useful there. */
 const SIGHT_CATEGORIES: PlaceCategory[] = [
@@ -286,6 +291,33 @@ export class PlacesService {
       (item) => !item.osmType || !known.has(`${item.osmType}:${item.osmId}`),
     );
     return { items: [...ours, ...extra], attribution: OSM_ATTRIBUTION };
+  }
+
+  /**
+   * What a stop tapped on the map is: one of our public places within 25 m,
+   * else the Photon address there, else a place named by its coordinates.
+   * The point is used for this lookup only and not logged.
+   */
+  async placeAt(lat: number, lng: number, lang: string): Promise<PlaceInput> {
+    const point = Prisma.sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+    const [ours] = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT p.id FROM places p
+      WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+        AND ST_DWithin(p.location, ${point}, ${PLACE_AT_RADIUS_METERS})
+      ORDER BY p.location <-> ${point}
+      LIMIT 1`;
+    if (ours) return { placeId: ours.id };
+
+    const address = await this.photon.reverse({ lat, lng, lang });
+    return {
+      name: address?.name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      lat,
+      lng,
+      osm:
+        address?.osmType && address.osmId
+          ? { type: address.osmType, id: BigInt(address.osmId) }
+          : undefined,
+    };
   }
 
   /** A place by id, if the caller may see it (PlaceMatchingService.isVisible). */

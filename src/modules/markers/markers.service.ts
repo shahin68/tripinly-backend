@@ -14,6 +14,7 @@ import {
   PlaceMatchingService,
   type PlaceInput,
 } from '../places/place-matching.service';
+import { PlacesService } from '../places/places.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { TripLimits } from '../trips/trip-limits';
 import { limitReached, lockTrip } from '../trips/trips.service';
@@ -39,6 +40,7 @@ export class MarkersService {
     private readonly prisma: PrismaService,
     private readonly access: TripAccessService,
     private readonly places: PlaceMatchingService,
+    private readonly placeLookup: PlacesService,
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
     private readonly storage: StorageService,
@@ -49,13 +51,22 @@ export class MarkersService {
     userId: string,
     dayId: string,
     input: CreateMarkerDto,
+    lang: string,
   ): Promise<MarkerDto> {
-    const placeInput = toPlaceInput(input);
     const { trip } = await this.access.assertForDay(
       userId,
       dayId,
       'edit_content',
     );
+    // A point with no name is named after what's there, before the trip lock.
+    const placeInput =
+      input.location && input.name === undefined && !input.placeId
+        ? await this.placeLookup.placeAt(
+            input.location.lat,
+            input.location.lng,
+            lang,
+          )
+        : toPlaceInput(input);
 
     const marker = await withClientIds(input.id !== undefined, () =>
       this.prisma.$transaction(async (tx) => {
@@ -473,7 +484,7 @@ function toPlaceInput(input: CreateMarkerDto): PlaceInput {
     }
     return { placeId: input.placeId };
   }
-  // DTO validation guarantees name and location here.
+  // DTO validation guarantees location here; create() looks up a missing name.
   return {
     name: input.name!,
     lat: input.location!.lat,
