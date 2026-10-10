@@ -27,7 +27,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 | POST | `/auth/apple` | Body: Apple identity token + authorization code (for revocation later) + optional `givenName`/`familyName` (Apple sends the name only on first sign-in) |
 | POST | `/auth/dev` | Local and staging only (`DEV_AUTH_ENABLED`; 404 otherwise). When `DEV_AUTH_SECRET` is set, the `X-Dev-Auth-Secret` header must match or the answer is 404. Body: `subject`, optional `name` |
 | DELETE | `/auth/dev/accounts?subject=…` or `?username=…` | Test-account cleanup, same switch and secret as `/auth/dev`. Exactly one of `subject` (a developer account, case-sensitive) or `username` (any account, `@` optional), else 400 `VALIDATION_FAILED`; 404 when nothing matches. Runs the full account deletion without a fresh sign-in and frees the username at once (no 30-day hold). 202 `{ "status": "deleting" }` |
-| POST | `/auth/refresh` | Body: `refreshToken`. Rotates refresh token; reuse of an old token revokes the whole family |
+| POST | `/auth/refresh` | Body: `refreshToken`. Rotates refresh token; reuse of an old token revokes the whole family, except within 30 s of its rotation while the newer token is unused (a lost answer): then a new pair is returned |
 | POST | `/auth/logout` | Body: `refreshToken`, optional `fcmToken`. Revokes the session and removes that device. No access token needed; always 204 |
 
 Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`, `refreshToken`, `refreshTokenExpiresAt`, `onboardingRequired`. Google body: `idToken`. A provider that isn't configured answers 503 `SERVICE_UNAVAILABLE` with `details.provider`; an invalid provider token answers 401 `UNAUTHENTICATED` with `details.reason = invalid_identity_token`.

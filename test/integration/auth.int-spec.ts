@@ -243,36 +243,55 @@ describe('Auth (integration)', () => {
         .expect(200);
     });
 
-    it('revokes the whole session when an old token is reused', async () => {
-      const rotated = await request(server())
-        .post('/v1/auth/refresh')
-        .send({ refreshToken: session.refreshToken })
-        .expect(200);
+    const refresh = (refreshToken: string) =>
+      request(server()).post('/v1/auth/refresh').send({ refreshToken });
+    /** Moves every rotation of this user's tokens back past the grace period. */
+    const pastGrace = () =>
+      prisma.refreshToken.updateMany({
+        where: { userId: session.userId, revokedAt: { not: null } },
+        data: { revokedAt: new Date(Date.now() - 31_000) },
+      });
 
-      const reuse = await request(server())
-        .post('/v1/auth/refresh')
-        .send({ refreshToken: session.refreshToken })
-        .expect(401);
+    it('revokes the whole session when an old token is reused after the grace period', async () => {
+      const rotated = await refresh(session.refreshToken).expect(200);
+      await pastGrace();
+
+      const reuse = await refresh(session.refreshToken).expect(401);
       expect(reuse.body.error.code).toBe('REFRESH_TOKEN_REUSED');
 
       // The legitimate holder of the newer token is signed out too.
-      const newer = await request(server())
-        .post('/v1/auth/refresh')
-        .send({ refreshToken: rotated.body.refreshToken })
-        .expect(401);
+      const newer = await refresh(rotated.body.refreshToken).expect(401);
       expect(newer.body.error.code).toBe('REFRESH_TOKEN_REUSED');
     });
 
-    it('lets only one of two concurrent refreshes win', async () => {
+    it('answers a token used again within 30 s whose answer was lost', async () => {
+      const lost = await refresh(session.refreshToken).expect(200);
+
+      const again = await refresh(session.refreshToken).expect(200);
+      expect(again.body.refreshToken).not.toBe(lost.body.refreshToken);
+
+      // The session goes on with the second answer; the lost one is used up.
+      await refresh(again.body.refreshToken).expect(200);
+      await pastGrace();
+      const stale = await refresh(lost.body.refreshToken).expect(401);
+      expect(stale.body.error.code).toBe('REFRESH_TOKEN_REUSED');
+    });
+
+    it('revokes the session when a token is reused after its successor was used', async () => {
+      const rotated = await refresh(session.refreshToken).expect(200);
+      await refresh(rotated.body.refreshToken).expect(200);
+
+      const reuse = await refresh(session.refreshToken).expect(401);
+      expect(reuse.body.error.code).toBe('REFRESH_TOKEN_REUSED');
+    });
+
+    it('answers two concurrent refreshes of the same token', async () => {
       const results = await Promise.all(
-        [1, 2].map(() =>
-          request(server())
-            .post('/v1/auth/refresh')
-            .send({ refreshToken: session.refreshToken }),
-        ),
+        [1, 2].map(() => refresh(session.refreshToken)),
       );
-      const statuses = results.map((r) => r.status);
-      expect(statuses).toContain(401);
+      expect(results.map((r) => r.status)).toEqual([200, 200]);
+      const [first, second] = results.map((r) => r.body.refreshToken);
+      expect(first).not.toBe(second);
     });
 
     it('rejects unknown and expired tokens', async () => {
