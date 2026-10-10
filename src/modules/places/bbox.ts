@@ -60,3 +60,25 @@ export function snapBbox(bbox: Bbox, zoom: number): Bbox {
     maxLat: Math.min(90, up(bbox.maxLat)),
   };
 }
+
+/**
+ * A map square `z/x/y` on the same degree grid as the snapping: `360 / 2^z` degrees a side, square
+ * x spans longitudes `[x·side, (x+1)·side]` and y latitudes `[y·side, (y+1)·side]`, cut at the poles.
+ */
+export function parseTile(value: string): Bbox {
+  const [z, x, y] = value.split('/').map(Number);
+  const side = 360 / 2 ** z;
+  const bbox = {
+    minLng: x * side,
+    minLat: Math.max(-90, y * side),
+    maxLng: (x + 1) * side,
+    maxLat: Math.min(90, (y + 1) * side),
+  };
+  const valid =
+    z <= 22 &&
+    bbox.minLng >= -180 &&
+    bbox.maxLng <= 180 &&
+    bbox.minLat < bbox.maxLat;
+  if (!valid) throw AppException.validation({ tiles: ['invalidTiles'] });
+  return bbox;
+}

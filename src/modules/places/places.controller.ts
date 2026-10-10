@@ -20,6 +20,8 @@ import {
   PopularResponseDto,
   SearchQueryDto,
   SearchResponseDto,
+  TilesQueryDto,
+  TilesResponseDto,
 } from './places.dto';
 import { PlacesService } from './places.service';
 
@@ -42,6 +44,21 @@ export class PlacesController {
     @I18nLang() lang: string,
   ): Promise<InViewResponseDto> {
     return this.places.inView(user.id, query, lang);
+  }
+
+  @Get('tiles')
+  @ApiOperation({
+    summary: 'Places for several map squares at once',
+    description:
+      'What in-view returns, for each map square asked for (at most 16), in one request. Lets the app load the map by square, keep squares and fetch the ones around the view ahead.',
+  })
+  @ApiOkResponse({ type: TilesResponseDto })
+  tiles(
+    @CurrentUser() user: AuthUser,
+    @Query() query: TilesQueryDto,
+    @I18nLang() lang: string,
+  ): Promise<TilesResponseDto> {
+    return this.places.tiles(user.id, query, lang);
   }
 
   @Get('search')

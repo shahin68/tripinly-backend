@@ -82,6 +82,26 @@ export class InViewQueryDto extends BboxQueryDto {
   limit?: number;
 }
 
+/** Squares in one tiles request; a phone view plus the ring around it fits. */
+export const MAX_TILES_PER_REQUEST = 16;
+const TILE = '\\d{1,2}/-?\\d{1,7}/-?\\d{1,7}';
+const TILES_PATTERN = new RegExp(
+  `^${TILE}(,${TILE}){0,${MAX_TILES_PER_REQUEST - 1}}$`,
+);
+
+export class TilesQueryDto extends PickType(InViewQueryDto, [
+  'zoom',
+  'categories',
+  'limit',
+] as const) {
+  @ApiProperty({
+    example: '13/4469/2840,13/4470/2840',
+    description: `Comma-separated map squares \`z/x/y\`, at most ${MAX_TILES_PER_REQUEST}. A square is \`360 / 2^z\` degrees a side on a plain longitude/latitude grid: x covers longitudes \`[x·side, (x+1)·side]\`, y latitudes \`[y·side, (y+1)·side]\` (both may be negative). A square too large for the zoom returns BBOX_TOO_LARGE.`,
+  })
+  @Matches(TILES_PATTERN, { message: 'invalidTiles' })
+  tiles: string;
+}
+
 export class PopularQueryDto extends BboxQueryDto {
   @ApiPropertyOptional({
     format: 'uuid',
@@ -233,6 +253,28 @@ export class InViewResponseDto {
       'Below zoom 14, when there are more Tripinly places than `limit`; else empty',
   })
   clusters: PlaceClusterDto[];
+
+  @ApiProperty({ example: OSM_ATTRIBUTION })
+  attribution: string;
+}
+
+export class PlaceTileDto {
+  @ApiProperty({ example: '13/4469/2840', description: 'The square, as asked' })
+  tile: string;
+
+  @ApiProperty({
+    type: [PlaceItemDto],
+    description: 'What in-view returns for the square',
+  })
+  places: PlaceItemDto[];
+
+  @ApiProperty({ type: [PlaceClusterDto] })
+  clusters: PlaceClusterDto[];
+}
+
+export class TilesResponseDto {
+  @ApiProperty({ type: [PlaceTileDto] })
+  tiles: PlaceTileDto[];
 
   @ApiProperty({ example: OSM_ATTRIBUTION })
   attribution: string;
