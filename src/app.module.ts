@@ -9,6 +9,7 @@ import { AppThrottlerGuard } from './common/throttling/app-throttler.guard';
 import { QueueModule } from './common/queue/queue.module';
 import { ThrottlingModule } from './common/throttling/throttling.module';
 import { AccountModule } from './modules/account/account.module';
+import { AppConfigModule } from './modules/app-config/app-config.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
@@ -36,6 +37,7 @@ import { UsersModule } from './modules/users/users.module';
     ThrottlingModule,
     QueueModule,
     HealthModule,
+    AppConfigModule,
     BillingModule,
     AuthModule,
     ConsentsModule,

@@ -36,6 +36,11 @@ export const envSchema = z
       .regex(/^rediss?:\/\//, 'must be a redis:// or rediss:// URL'),
     CONSENT_PROOF_RETENTION_YEARS: z.coerce.number().int().min(1).default(5),
 
+    // App settings sent to the clients by GET /v1/app-config, so they change
+    // without an app update (docs/knowledge/04-api-spec.md).
+    /** How old a map square's places may get before the app reloads them in the background. */
+    APP_PLACES_REFRESH_SECONDS: z.coerce.number().int().min(10).default(300),
+
     // Auth (docs/knowledge/07-security-and-gdpr.md)
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),

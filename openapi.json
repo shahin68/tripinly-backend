@@ -55,6 +55,29 @@
         ]
       }
     },
+    "/v1/app-config": {
+      "get": {
+        "description": "Values that steer app behaviour (cache times, limits), set per environment, so they change without an app update. Public: the app reads it at start, before sign-in.",
+        "operationId": "AppConfig_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfigDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Settings for the apps",
+        "tags": [
+          "app-config"
+        ]
+      }
+    },
     "/v1/auth/google": {
       "post": {
         "operationId": "Auth_google_",
@@ -3432,6 +3455,19 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "AppConfigDto": {
+        "type": "object",
+        "properties": {
+          "placesRefreshSeconds": {
+            "type": "number",
+            "example": 300,
+            "description": "Seconds a map square's places stay fresh. The app keeps showing older ones and reloads them in the background when they come into view."
+          }
+        },
+        "required": [
+          "placesRefreshSeconds"
         ]
       },
       "GoogleSignInDto": {

@@ -58,7 +58,7 @@ If the code and the docs disagree, the docs win unless the user says otherwise. 
 
 ## Code conventions
 
-- One Nest module per domain: `auth`, `users`, `consents`, `trips`, `markers`, `photos`, `social` (comments, likes), `places`, `discovery`, `routing`, `osm-import`, `invites`, `notifications`, `moderation`, `account` (export, deletion), `billing` (entitlements), `realtime`, `common`.
+- One Nest module per domain: `auth`, `users`, `consents`, `trips`, `markers`, `photos`, `social` (comments, likes), `places`, `discovery`, `routing`, `osm-import`, `invites`, `notifications`, `moderation`, `account` (export, deletion), `billing` (entitlements), `realtime`, `app-config` (settings the apps read), `common`.
 - Controllers stay thin: validate, call a service, map to a response DTO. Business rules live in services; Prisma calls live in services or repositories, never controllers.
 - IDs are UUIDs. Timestamps are ISO 8601 UTC. Dates without time (trip dates, birth date) are `YYYY-MM-DD`.
 - All routes are under `/v1`. Breaking changes need a new version or explicit user approval.
