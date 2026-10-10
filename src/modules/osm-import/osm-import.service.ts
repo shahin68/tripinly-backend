@@ -95,13 +95,16 @@ export class OsmImportService {
       let source = options.sourceFile;
       let extractAt: Date | null = null;
       if (!source) {
+        this.logger.log(`OSM import of ${region}: downloading`);
         ({ path: source, extractAt } = await this.download(region, workDir));
       }
+      this.logger.log(`OSM import of ${region}: filtering with osmium`);
       const features = await this.extract(source, workDir);
 
       await createStaging(db);
       const seen = await this.stage(db, features);
       if (seen === 0) throw new Error('the extract contained no places');
+      this.logger.log(`OSM import of ${region}: ${seen} places staged, saving`);
 
       const { inserted, updated } = await upsert(db, region);
 
@@ -156,6 +159,8 @@ export class OsmImportService {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // The run row keeps the error too, but the logs are what people look at first.
+      this.logger.error(`OSM import of ${region} failed: ${message}`);
       await this.prisma.osmImportRun.update({
         where: { id: importRun.id },
         data: {
@@ -189,6 +194,12 @@ export class OsmImportService {
     if (!response.ok || !response.body) {
       throw new Error(
         `download of ${region} failed with HTTP ${response.status}`,
+      );
+    }
+    const size = Number(response.headers.get('content-length'));
+    if (size) {
+      this.logger.log(
+        `OSM import of ${region}: ${Math.round(size / 1_048_576)} MB to download`,
       );
     }
     const md5 = createHash('md5');
