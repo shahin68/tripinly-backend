@@ -34,7 +34,7 @@ Reject any field that looks like a Google place ID (`ChIJ…` / `googlePlaceId`)
 
 ## In-view — `GET /places/in-view`
 
-Follow the algorithm in `10-maps-places-routing.md` (Tripinly places first; OSM fill only at zoom ≥ 14, grid-spread by category priority; server clusters at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
+Follow the algorithm in `10-maps-places-routing.md` (Tripinly places first; OSM fill at zoom ≥ 14, notable-only (Wikidata) at zoom 10–13 while hot spots are few, spread over map-fixed cells by category priority; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
 
 Response item:
 ```json

@@ -42,8 +42,10 @@ import {
 
 const DEFAULT_IN_VIEW_LIMIT = 100;
 /** OSM fill is spread over a GRID × GRID split of the bbox. */
-const OSM_FILL_GRID = 6;
-const MAX_CLUSTER_GRID = 8;
+/** OSM places are spread over cells of a quarter tile; clusters group by whole tiles. */
+const OSM_FILL_CELLS_PER_TILE = 4;
+/** From this zoom on, the overview adds notable OSM places while hot spots are few. */
+const OSM_NOTABLE_MIN_ZOOM = 10;
 /** Popular spots have no zoom; this keeps the query to a region. */
 const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
@@ -110,8 +112,8 @@ export class PlacesService {
     const result =
       cached ??
       (zoom >= OSM_FILL_MIN_ZOOM
-        ? await this.inViewDetailed(bbox, categories, limit, lang)
-        : await this.inViewOverview(bbox, categories, limit, lang));
+        ? await this.inViewDetailed(bbox, zoom, categories, limit, lang)
+        : await this.inViewOverview(bbox, zoom, categories, limit, lang));
     if (key && !cached) {
       await this.cacheSet(key, result, IN_VIEW_CACHE_TTL_SECONDS);
     }
@@ -335,9 +337,14 @@ export class PlacesService {
     return rows.flatMap((row) => thumbUrl(this.storage, row.id) ?? []);
   }
 
-  /** Zoom ≥ 14: Tripinly places by popularity, then OSM places spread over the view. */
+  /**
+   * Zoom ≥ 14: Tripinly places by popularity, then OSM places spread over the view.
+   * The spreading cells are fixed on the map, not on the view, so panning keeps the
+   * same picks for the same streets.
+   */
   private async inViewDetailed(
     bbox: Bbox,
+    zoom: number,
     categories: PlaceCategory[] | undefined,
     limit: number,
     lang: string,
@@ -347,24 +354,13 @@ export class PlacesService {
       WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${inCategories(categories)}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit}`;
-    const remaining = limit - tripinly.length;
-    const osm =
-      remaining > 0
-        ? await this.prisma.$queryRaw<PlaceRow[]>`
-          SELECT id, name, names, category, lat, lng, popularity FROM (
-            SELECT ${PLACE_COLUMNS},
-                   row_number() OVER (
-                     PARTITION BY ${gridCell(bbox, OSM_FILL_GRID)}
-                     ORDER BY ${categoryPriority()}, (p.tags ? 'wikidata') DESC, p.id
-                   ) AS rank_in_cell,
-                   ${categoryPriority()} AS priority, (p.tags ? 'wikidata') AS notable
-            FROM places p
-            WHERE p."isActive" AND p.source = 'osm' AND p.popularity = 0
-              AND ${inBbox(bbox)} ${inCategories(categories)}
-          ) spread
-          ORDER BY rank_in_cell, priority, notable DESC, id
-          LIMIT ${remaining}`
-        : [];
+    const osm = await this.osmFill(
+      bbox,
+      zoom,
+      categories,
+      limit - tripinly.length,
+      false,
+    );
     return {
       places: [...tripinly, ...osm].map((row) => toPlaceItem(row, lang)),
       clusters: [],
@@ -372,9 +368,13 @@ export class PlacesService {
     };
   }
 
-  /** Zoom < 14: Tripinly places only, clustered on a grid when there are more than `limit`. */
+  /**
+   * Zoom < 14: Tripinly places, clustered per map tile when there are more than `limit`;
+   * from zoom 10, notable OSM places (with a Wikidata entry) fill up to `limit`.
+   */
   private async inViewOverview(
     bbox: Bbox,
+    zoom: number,
     categories: PlaceCategory[] | undefined,
     limit: number,
     lang: string,
@@ -385,14 +385,24 @@ export class PlacesService {
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit + 1}`;
     if (rows.length <= limit) {
+      // Until there are enough hot spots, OSM's notable places fill the map.
+      const osm =
+        zoom >= OSM_NOTABLE_MIN_ZOOM
+          ? await this.osmFill(
+              bbox,
+              zoom,
+              categories,
+              limit - rows.length,
+              true,
+            )
+          : [];
       return {
-        places: rows.map((row) => toPlaceItem(row, lang)),
+        places: [...rows, ...osm].map((row) => toPlaceItem(row, lang)),
         clusters: [],
         attribution: OSM_ATTRIBUTION,
       };
     }
 
-    const grid = Math.min(MAX_CLUSTER_GRID, Math.floor(Math.sqrt(limit)));
     const cells = await this.prisma.$queryRaw<
       { count: number; lat: number; lng: number; top: PlaceRow }[]
     >`
@@ -403,7 +413,7 @@ export class PlacesService {
               ORDER BY p.popularity DESC, p.id))[1] AS top
       FROM places p
       WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${inCategories(categories)}
-      GROUP BY ${gridCell(bbox, grid)}
+      GROUP BY ${mapCell(tileSize(zoom))}
       ORDER BY count(*) DESC`;
 
     const places: PlaceItemDto[] = [];
@@ -419,6 +429,38 @@ export class PlacesService {
       }
     }
     return { places, clusters, attribution: OSM_ATTRIBUTION };
+  }
+
+  /**
+   * OSM places not yet liked on any trip, spread over cells fixed on the map (so
+   * panning keeps the same picks): each cell's best place first, sights before
+   * parks before food, Wikidata entries first. `notableOnly` keeps Wikidata entries.
+   */
+  private async osmFill(
+    bbox: Bbox,
+    zoom: number,
+    categories: PlaceCategory[] | undefined,
+    limit: number,
+    notableOnly: boolean,
+  ): Promise<PlaceRow[]> {
+    if (limit <= 0) return [];
+    const notable = notableOnly
+      ? Prisma.sql`AND p.tags ? 'wikidata'`
+      : Prisma.empty;
+    return this.prisma.$queryRaw<PlaceRow[]>`
+      SELECT id, name, names, category, lat, lng, popularity FROM (
+        SELECT ${PLACE_COLUMNS},
+               row_number() OVER (
+                 PARTITION BY ${mapCell(tileSize(zoom) / OSM_FILL_CELLS_PER_TILE)}
+                 ORDER BY ${categoryPriority()}, (p.tags ? 'wikidata') DESC, p.id
+               ) AS rank_in_cell,
+               ${categoryPriority()} AS priority, (p.tags ? 'wikidata') AS notable
+        FROM places p
+        WHERE p."isActive" AND p.source = 'osm' AND p.popularity = 0
+          AND ${inBbox(bbox)} ${inCategories(categories)} ${notable}
+      ) spread
+      ORDER BY rank_in_cell, priority, notable DESC, id
+      LIMIT ${limit}`;
   }
 
   private async searchOurs(
@@ -521,10 +563,14 @@ function inCategories(categories: PlaceCategory[] | undefined): Prisma.Sql {
 }
 
 /** Cell of a grid × grid split of the bbox, as "column, row". */
-function gridCell(bbox: Bbox, grid: number): Prisma.Sql {
-  return Prisma.sql`
-    greatest(1, least(${grid}, width_bucket(p.lng, ${bbox.minLng}, ${bbox.maxLng}, ${grid}))),
-    greatest(1, least(${grid}, width_bucket(p.lat, ${bbox.minLat}, ${bbox.maxLat}, ${grid})))`;
+/** Width of a map tile at `zoom`, in degrees. */
+function tileSize(zoom: number): number {
+  return 360 / 2 ** zoom;
+}
+
+/** A square cell of the given size, anchored at 0°/0° so it doesn't move with the view. */
+function mapCell(size: number): Prisma.Sql {
+  return Prisma.sql`floor(p.lng / ${size}), floor(p.lat / ${size})`;
 }
 
 /** Sights before parks before food and drink. */

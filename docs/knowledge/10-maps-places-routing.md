@@ -46,8 +46,8 @@ Stored per place: `name`, `names` (json of `name:<lang>` for localization), `cat
 `?bbox=minLng,minLat,maxLng,maxLat&zoom=15&categories=cafe,attraction&limit=100`
 
 1. **Tripinly places first**: places with `popularity > 0` (from public markers/likes), ranked by popularity, with a flag `isTripinly: true`, `likeCount`, optional cover thumbnail from the most-liked public photo.
-2. **Fill with OSM places** (`popularity = 0`) up to `limit`, only when `zoom >= 14`; spread them over the bbox (grid-bucket the bbox into e.g. 6×6 cells and take the top items per cell by a category priority: attraction/museum/historic before cafe/restaurant/bar).
-3. At `zoom < 14`, return only Tripinly places, pre-clustered server-side when there are more than `limit`: a grid of up to 8×8 cells, a cell with one place returns the place, others a cluster `{ count, location }` (centre of its places).
+2. **Fill with OSM places** (`popularity = 0`) up to `limit`, only when `zoom >= 14`; spread them over cells fixed on the map (a quarter of a map tile at the zoom, anchored at 0°/0°, so panning keeps the same picks) and take the top items per cell by a category priority: attraction/museum/historic before cafe/restaurant/bar, Wikidata entries first.
+3. At `zoom < 14`, return Tripinly places, pre-clustered server-side when there are more than `limit`: one cell per map tile at the zoom (fixed on the map), a cell with one place returns the place, others a cluster `{ count, location }` (centre of its places). While they fit in `limit` and `zoom >= 10`, notable OSM places (with a Wikidata entry) fill up to `limit`, spread like step 2.
 4. Reject oversized bboxes relative to zoom: a side longer than `2880 / 2^floor(zoom)` degrees (about eight tiles; 0.18° at zoom 14) → 400 `BBOX_TOO_LARGE` with `details.maxSpanDegrees`.
 5. Filters: categories, blocked owners' content excluded from Tripinly popularity previews, hidden content excluded.
 6. Cache results per (bbox widened to a quarter-tile grid, zoom, categories, limit, language) in Redis for 60 s. The key carries a version bumped by every OSM import.
