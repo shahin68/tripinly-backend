@@ -72,6 +72,63 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
 
   const names = (items: PlaceBody[]) => items.map((item) => item.name);
 
+  describe('GET /v1/places/tiles', () => {
+    // Zoom-13 squares are 360 / 2^13 ≈ 0.0439° a side; these two sit on top of each other in Vienna.
+    const SOUTH = '13/372/1096';
+    const NORTH = '13/372/1097';
+
+    it('returns for each square what in-view returns for it, in one request', async () => {
+      await insertPlace(app, { name: 'South', lat: 48.2, lng: 16.37 });
+      await insertPlace(app, { name: 'North', lat: 48.21, lng: 16.37 });
+
+      const { body } = await as(alice)
+        .get(`/v1/places/tiles?tiles=${SOUTH},${NORTH}&zoom=15`)
+        .expect(200);
+
+      expect(body.tiles.map((tile: { tile: string }) => tile.tile)).toEqual([
+        SOUTH,
+        NORTH,
+      ]);
+      expect(names(body.tiles[0].places)).toEqual(['South']);
+      expect(names(body.tiles[1].places)).toEqual(['North']);
+      expect(body.attribution).toBe('© OpenStreetMap contributors');
+
+      const side = 360 / 2 ** 13;
+      const south = await as(alice)
+        .get(
+          `/v1/places/in-view?bbox=${372 * side},${1096 * side},${373 * side},${1097 * side}&zoom=15`,
+        )
+        .expect(200);
+      expect(body.tiles[0].places).toEqual(south.body.places);
+    });
+
+    it('rejects malformed squares, too many, and squares too large for the zoom', async () => {
+      const malformed = await as(alice)
+        .get('/v1/places/tiles?tiles=abc&zoom=15')
+        .expect(400);
+      expect(malformed.body.error.details.fields).toEqual({
+        tiles: ['matches'],
+      });
+
+      const many = Array.from({ length: 17 }, (_, i) => `13/${i}/1096`).join(
+        ',',
+      );
+      await as(alice).get(`/v1/places/tiles?tiles=${many}&zoom=15`).expect(400);
+
+      const outside = await as(alice)
+        .get('/v1/places/tiles?tiles=13/5000/1096&zoom=15')
+        .expect(400);
+      expect(outside.body.error.details.fields).toEqual({
+        tiles: ['invalidTiles'],
+      });
+
+      const large = await as(alice)
+        .get('/v1/places/tiles?tiles=10/46/137&zoom=15')
+        .expect(400);
+      expect(large.body.error.code).toBe('BBOX_TOO_LARGE');
+    });
+  });
+
   describe('GET /v1/places/in-view', () => {
     it('lists Tripinly places by popularity, then OSM places, never unliked user places', async () => {
       await insertPlace(app, {

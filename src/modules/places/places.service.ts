@@ -14,6 +14,7 @@ import {
   maxSpanForZoom,
   OSM_FILL_MIN_ZOOM,
   parseBbox,
+  parseTile,
   snapBbox,
 } from './bbox';
 import { normalizePlaceName } from './normalize-name';
@@ -38,6 +39,8 @@ import {
   type SearchQueryDto,
   type SearchResponseDto,
   type SearchResultDto,
+  type TilesQueryDto,
+  type TilesResponseDto,
 } from './places.dto';
 
 const DEFAULT_IN_VIEW_LIMIT = 100;
@@ -99,6 +102,58 @@ export class PlacesService {
   ): Promise<InViewResponseDto> {
     const requested = parseBbox(query.bbox);
     assertBboxSpan(requested, maxSpanForZoom(query.zoom));
+    const result = await this.placesIn(requested, query, lang);
+    return {
+      places: await this.personalize(userId, result.places),
+      clusters: result.clusters,
+      attribution: result.attribution,
+    };
+  }
+
+  /**
+   * In-view for several map squares at once, so the app can load the map by square, keep squares
+   * and fetch the ones around the view ahead. Each square gets exactly what in-view returns for it.
+   */
+  async tiles(
+    userId: string,
+    query: TilesQueryDto,
+    lang: string,
+  ): Promise<TilesResponseDto> {
+    const keys = [...new Set(query.tiles.split(','))];
+    const squares = keys.map((key) => ({ key, bbox: parseTile(key) }));
+    for (const square of squares) {
+      assertBboxSpan(square.bbox, maxSpanForZoom(query.zoom));
+    }
+    const results = await Promise.all(
+      squares.map((square) => this.placesIn(square.bbox, query, lang)),
+    );
+    // One look-up of covers and likes for every square.
+    const places = await this.personalize(
+      userId,
+      results.flatMap((result) => result.places),
+    );
+    let next = 0;
+    return {
+      tiles: squares.map((square, index) => {
+        const count = results[index].places.length;
+        const tile = {
+          tile: square.key,
+          places: places.slice(next, next + count),
+          clusters: results[index].clusters,
+        };
+        next += count;
+        return tile;
+      }),
+      attribution: OSM_ATTRIBUTION,
+    };
+  }
+
+  /** In-view for one area, the same for every viewer and cached for everyone. */
+  private async placesIn(
+    requested: Bbox,
+    query: Pick<InViewQueryDto, 'zoom' | 'categories' | 'limit'>,
+    lang: string,
+  ): Promise<InViewResponseDto> {
     const zoom = Math.floor(query.zoom);
     const bbox = snapBbox(requested, zoom);
     const limit = query.limit ?? DEFAULT_IN_VIEW_LIMIT;
@@ -117,11 +172,7 @@ export class PlacesService {
     if (key && !cached) {
       await this.cacheSet(key, result, IN_VIEW_CACHE_TTL_SECONDS);
     }
-    return {
-      places: await this.personalize(userId, result.places),
-      clusters: result.clusters,
-      attribution: result.attribution,
-    };
+    return result;
   }
 
   async popular(

@@ -56,6 +56,8 @@ Response: `{ "places": [ … ], "clusters": [ { "count": 37, "location": { … }
 
 **Which places are listed:** OSM places and places with `popularity > 0`. Other user places (custom pins, maybe from private trips) never appear in in-view, search, nearby or popular; they are visible only to people who can see a marker at them.
 
+**Loading by map square — `GET /places/tiles`:** the app loads places per fixed map square (`z/x/y`, side `360 / 2^z` degrees, at `z = floor(zoom) − 2`) instead of per view, keeps the squares it has, and prefetches the ring of squares around the view when the camera stops. One request carries up to 16 squares; each square's answer is the in-view answer for its bbox (same picks, clusters and cache), so moving the map only fetches squares it hasn't seen.
+
 The old `/places/popular` endpoint becomes a thin variant of this (Tripinly places only, excluding a trip's own places).
 
 ## Search — `GET /places/search?q=&lat=&lng=`

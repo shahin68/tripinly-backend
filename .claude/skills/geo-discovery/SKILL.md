@@ -43,6 +43,10 @@ Response item:
 ```
 or `{ "cluster": true, "count": 37, "location": {…} }`. Include `"attribution": "© OpenStreetMap contributors"` at the top level.
 
+## Map squares — `GET /places/tiles`
+
+`?tiles=z/x/y,…` (1–16 squares, deduplicated) plus in-view's `zoom`, `categories`, `limit`. Parse each square with `parseTile` (degree grid, side `360/2^z`), check `maxSpanForZoom`, answer each square through the same `placesIn` path as in-view (shared cache), and personalize all places in one go. Never a second ranking path.
+
 Localized `name`: pick `names["name:<Accept-Language>"]` if present, else `name`.
 
 ## Search — `GET /places/search`
