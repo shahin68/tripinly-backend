@@ -17,7 +17,7 @@ Nightly counter rebuild: BullMQ queue `social`, job `recount` at 03:40 UTC in th
 
 Account work: BullMQ queue `account` in the worker, one job at a time. `delete` (one per user, job id `delete-{userId}`, resumable, 10 attempts), `export` (3 attempts, then the export is marked `failed`), `sweep` hourly at :17 (retries failed deletions, re-queues lost ones, expires 7-day-old exports, gives up on exports pending over 6 hours) and `purge-consent-proofs` daily at 04:10 UTC. Export ZIPs are built in the OS temp dir and uploaded in one PUT (up to 5 GB).
 
-OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
+OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts (node locations go into an on-disk index so a region fits in the 1 GB worker); a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
 
 ## Repository layout
 
