@@ -19,11 +19,15 @@ export interface RotatedRefreshToken extends IssuedRefreshToken {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** How long a rotated token may be presented again (its answer may have been lost). */
+export const REUSE_GRACE_MS = 30 * 1000;
 
 /**
  * Opaque 256-bit refresh tokens stored as SHA-256 hashes, rotated on every use.
  * Presenting a token that was already rotated revokes its whole family
- * (REFRESH_TOKEN_REUSED): someone else may hold a copy.
+ * (REFRESH_TOKEN_REUSED): someone else may hold a copy. The exception is a token
+ * presented again within REUSE_GRACE_MS of its rotation whose successor is still
+ * unused: the first answer probably never arrived, so the successor is rotated instead.
  */
 @Injectable()
 export class RefreshTokenService {
@@ -80,6 +84,9 @@ export class RefreshTokenService {
       );
     }
     if (current.revokedAt) {
+      const successor = await this.unusedSuccessorWithinGrace(current);
+      const rotated = successor && (await this.replace(successor));
+      if (rotated) return rotated;
       await this.revokeFamily(current.familyId, 'reuse of a rotated token');
       throw new AppException(
         ErrorCode.REFRESH_TOKEN_REUSED,
@@ -93,45 +100,9 @@ export class RefreshTokenService {
       );
     }
 
-    const token = randomToken();
-    const expiresAt = new Date(Date.now() + this.ttlMs);
-    const rotated = await this.prisma.$transaction(async (tx) => {
-      // Claim the presented token atomically; a concurrent rotation loses here.
-      const claimed = await tx.refreshToken.updateMany({
-        where: { id: current.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      if (claimed.count === 0) return null;
-      const next = await tx.refreshToken.create({
-        data: {
-          userId: current.userId,
-          tokenHash: sha256Hex(token),
-          familyId: current.familyId,
-          expiresAt,
-          deviceLabel: current.deviceLabel,
-          authenticatedAt: current.authenticatedAt,
-        },
-      });
-      await tx.refreshToken.update({
-        where: { id: current.id },
-        data: { replacedById: next.id },
-      });
-      return next;
-    });
-
-    if (!rotated) {
-      await this.revokeFamily(current.familyId, 'concurrent reuse');
-      throw new AppException(
-        ErrorCode.REFRESH_TOKEN_REUSED,
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-    return {
-      token,
-      expiresAt,
-      userId: current.userId,
-      authenticatedAt: current.authenticatedAt,
-    };
+    // Null when a concurrent refresh of the same token claimed it first; the
+    // second pass then finds it just rotated and takes the grace path.
+    return (await this.replace(current)) ?? this.rotate(presented);
   }
 
   /**
@@ -154,6 +125,61 @@ export class RefreshTokenService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  /** Claims `token` and issues its successor in the same family; null if already claimed. */
+  private async replace(token: {
+    id: string;
+    userId: string;
+    familyId: string;
+    deviceLabel: string | null;
+    authenticatedAt: Date;
+  }): Promise<RotatedRefreshToken | null> {
+    const next = randomToken();
+    const expiresAt = new Date(Date.now() + this.ttlMs);
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.refreshToken.updateMany({
+        where: { id: token.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (count === 0) return false;
+      const created = await tx.refreshToken.create({
+        data: {
+          userId: token.userId,
+          tokenHash: sha256Hex(next),
+          familyId: token.familyId,
+          expiresAt,
+          deviceLabel: token.deviceLabel,
+          authenticatedAt: token.authenticatedAt,
+        },
+      });
+      await tx.refreshToken.update({
+        where: { id: token.id },
+        data: { replacedById: created.id },
+      });
+      return true;
+    });
+    if (!claimed) return null;
+    return {
+      token: next,
+      expiresAt,
+      userId: token.userId,
+      authenticatedAt: token.authenticatedAt,
+    };
+  }
+
+  private async unusedSuccessorWithinGrace(token: {
+    revokedAt: Date | null;
+    replacedById: string | null;
+  }) {
+    if (!token.revokedAt || !token.replacedById) return null;
+    if (Date.now() - token.revokedAt.getTime() > REUSE_GRACE_MS) return null;
+    const successor = await this.prisma.refreshToken.findUnique({
+      where: { id: token.replacedById },
+    });
+    return successor && !successor.revokedAt && successor.expiresAt > new Date()
+      ? successor
+      : null;
   }
 
   private async revokeFamily(familyId: string, reason?: string): Promise<void> {
