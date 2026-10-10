@@ -1,0 +1,28 @@
+import { Controller, Get } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/auth/auth.decorators';
+import type { Env } from '../../common/config/env';
+import { AppConfigDto } from './app-config.dto';
+
+@ApiTags('app-config')
+@Controller('app-config')
+export class AppConfigController {
+  constructor(private readonly config: ConfigService<Env, true>) {}
+
+  @Get()
+  @Public()
+  @ApiOperation({
+    summary: 'Settings for the apps',
+    description:
+      'Values that steer app behaviour (cache times, limits), set per environment, so they change without an app update. Public: the app reads it at start, before sign-in.',
+  })
+  @ApiOkResponse({ type: AppConfigDto })
+  get(): AppConfigDto {
+    return {
+      placesRefreshSeconds: this.config.get('APP_PLACES_REFRESH_SECONDS', {
+        infer: true,
+      }),
+    };
+  }
+}

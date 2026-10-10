@@ -80,6 +80,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup; account deletion deletes the customer, worker) and the webhook's shared Authorization value (with the webhook). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |
+| `APP_PLACES_REFRESH_SECONDS` | Sent to the apps by `GET /app-config`: how old a map square's places may get before the app reloads them in the background (default 300, at least 10) |
 
 All validated at startup (`src/common/config/env.ts`); the app refuses to boot if one is missing. Each variable is added to the schema by the stage that first uses it, so local development never needs keys for features that don't exist yet.
 

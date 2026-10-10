@@ -16,6 +16,7 @@ describe('validateEnv', () => {
       PORT: 3000,
       LOG_LEVEL: 'info',
       CONSENT_PROOF_RETENTION_YEARS: 5,
+      APP_PLACES_REFRESH_SECONDS: 300,
     });
   });
 

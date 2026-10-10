@@ -4,7 +4,7 @@ REST over HTTPS, JSON, base path `/v1`. The OpenAPI document generated from the 
 
 ## Conventions
 
-- **Auth:** `Authorization: Bearer <accessToken>` on everything except `/auth/*`, `/legal/*`, `/health` and public share previews.
+- **Auth:** `Authorization: Bearer <accessToken>` on everything except `/auth/*`, `/legal/*`, `/health`, `/app-config` and public share previews.
 - **Language:** `Accept-Language` header selects the locale for error messages and any server-rendered text; falls back to the user's `locale`, then `en`.
 - **Naming:** JSON fields in `camelCase`; paths in `kebab-case`, plural nouns.
 - **IDs:** UUID strings. **Timestamps:** ISO 8601 UTC. **Dates:** `YYYY-MM-DD`. **Coordinates:** `{ "lat": 48.2, "lng": 16.37 }`.
@@ -168,6 +168,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Ops
 | Method | Path | Notes |
 |---|---|---|
+| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds }`. See "App settings" below |
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
 | GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
@@ -184,6 +185,15 @@ Field names the client relies on (full schemas in OpenAPI):
 - **User summary**: `id`, `username`, `displayName`.
 - **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (cover photo of the most liked marker there in a public trip, or null), `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).
+
+
+## App settings — `GET /app-config`
+
+Values that steer how the apps behave (cache times, refresh intervals, limits) come from the server, so they can change without an app update (Shahin, 2026-10-10). Each one is an environment variable on the api (`APP_*`), so changing it on Railway takes effect after the api restarts. The app reads `/app-config` once per launch, before sign-in, and keeps a built-in default for each value, used until the answer arrives or when the call fails. A new tuning value for the apps goes here, not into app code. Feature flags will follow the same route after v1.
+
+| Field | Meaning | Default |
+|---|---|---|
+| `placesRefreshSeconds` | How old a map square's places may get before the app reloads them in the background; older squares are still shown meanwhile | 300 |
 
 ## Stable error codes (starter set)
 
