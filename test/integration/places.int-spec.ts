@@ -107,7 +107,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         .get('/v1/places/tiles?tiles=abc&zoom=15')
         .expect(400);
       expect(malformed.body.error.details.fields).toEqual({
-        tiles: ['invalidTiles'],
+        tiles: ['matches'],
       });
 
       const many = Array.from({ length: 17 }, (_, i) => `13/${i}/1096`).join(
