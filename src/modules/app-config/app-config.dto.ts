@@ -11,4 +11,24 @@ export class AppConfigDto {
       "Seconds a map square's places stay fresh. The app keeps showing older ones and reloads them in the background when they come into view.",
   })
   placesRefreshSeconds!: number;
+
+  @ApiProperty({
+    example: 2560,
+    description:
+      'Longest edge, in pixels, the app shrinks a photo to before uploading it.',
+  })
+  photoMaxEdgePx!: number;
+
+  @ApiProperty({
+    example: 85,
+    description:
+      'JPEG quality (50–100) the app encodes photos with before uploading.',
+  })
+  photoJpegQuality!: number;
+
+  @ApiProperty({
+    example: 2,
+    description: 'How many photos the app uploads at the same time.',
+  })
+  photoParallelUploads!: number;
 }

@@ -104,6 +104,8 @@ export class UploadUrlResponseDto {
   uploadUrl: string;
 
   @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
     example: { 'Content-Type': 'image/jpeg', 'Content-Length': '2400000' },
     description: 'Send these headers with the PUT',
   })

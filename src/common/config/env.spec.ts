@@ -17,6 +17,9 @@ describe('validateEnv', () => {
       LOG_LEVEL: 'info',
       CONSENT_PROOF_RETENTION_YEARS: 5,
       APP_PLACES_REFRESH_SECONDS: 300,
+      APP_PHOTO_MAX_EDGE_PX: 2560,
+      APP_PHOTO_JPEG_QUALITY: 85,
+      APP_PHOTO_PARALLEL_UPLOADS: 2,
     });
   });
 

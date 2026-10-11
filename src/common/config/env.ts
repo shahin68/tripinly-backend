@@ -40,6 +40,27 @@ export const envSchema = z
     // without an app update (docs/knowledge/04-api-spec.md).
     /** How old a map square's places may get before the app reloads them in the background. */
     APP_PLACES_REFRESH_SECONDS: z.coerce.number().int().min(10).default(300),
+    /** Longest edge the app shrinks a photo to before uploading it. */
+    APP_PHOTO_MAX_EDGE_PX: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .max(4096)
+      .default(2560),
+    /** JPEG quality the app encodes photos with. */
+    APP_PHOTO_JPEG_QUALITY: z.coerce
+      .number()
+      .int()
+      .min(50)
+      .max(100)
+      .default(85),
+    /** Photos the app uploads at the same time. */
+    APP_PHOTO_PARALLEL_UPLOADS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(4)
+      .default(2),
 
     // Auth (docs/knowledge/07-security-and-gdpr.md)
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),

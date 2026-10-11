@@ -3464,10 +3464,28 @@
             "type": "number",
             "example": 300,
             "description": "Seconds a map square's places stay fresh. The app keeps showing older ones and reloads them in the background when they come into view."
+          },
+          "photoMaxEdgePx": {
+            "type": "number",
+            "example": 2560,
+            "description": "Longest edge, in pixels, the app shrinks a photo to before uploading it."
+          },
+          "photoJpegQuality": {
+            "type": "number",
+            "example": 85,
+            "description": "JPEG quality (50–100) the app encodes photos with before uploading."
+          },
+          "photoParallelUploads": {
+            "type": "number",
+            "example": 2,
+            "description": "How many photos the app uploads at the same time."
           }
         },
         "required": [
-          "placesRefreshSeconds"
+          "placesRefreshSeconds",
+          "photoMaxEdgePx",
+          "photoJpegQuality",
+          "photoParallelUploads"
         ]
       },
       "GoogleSignInDto": {
@@ -5398,6 +5416,9 @@
           },
           "uploadHeaders": {
             "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
             "example": {
               "Content-Type": "image/jpeg",
               "Content-Length": "2400000"
