@@ -23,6 +23,13 @@ export class AppConfigController {
       placesRefreshSeconds: this.config.get('APP_PLACES_REFRESH_SECONDS', {
         infer: true,
       }),
+      photoMaxEdgePx: this.config.get('APP_PHOTO_MAX_EDGE_PX', { infer: true }),
+      photoJpegQuality: this.config.get('APP_PHOTO_JPEG_QUALITY', {
+        infer: true,
+      }),
+      photoParallelUploads: this.config.get('APP_PHOTO_PARALLEL_UPLOADS', {
+        infer: true,
+      }),
     };
   }
 }

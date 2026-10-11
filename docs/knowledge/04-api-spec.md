@@ -168,7 +168,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Ops
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds }`. See "App settings" below |
+| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads }`. See "App settings" below |
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
 | GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
@@ -194,6 +194,9 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | Field | Meaning | Default |
 |---|---|---|
 | `placesRefreshSeconds` | How old a map square's places may get before the app reloads them in the background; older squares are still shown meanwhile | 300 |
+| `photoMaxEdgePx` | Longest edge, in pixels, the app shrinks a photo to before uploading (1024–4096) | 2560 |
+| `photoJpegQuality` | JPEG quality the app encodes photos with before uploading (50–100) | 85 |
+| `photoParallelUploads` | Photos the app uploads at the same time (1–4) | 2 |
 
 ## Stable error codes (starter set)
 

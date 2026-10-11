@@ -14,8 +14,11 @@ describe('App config (integration)', () => {
   });
 
   it('GET /v1/app-config answers without a token, with the defaults', async () => {
-    await request(app.getHttpServer())
-      .get('/v1/app-config')
-      .expect(200, { placesRefreshSeconds: 300 });
+    await request(app.getHttpServer()).get('/v1/app-config').expect(200, {
+      placesRefreshSeconds: 300,
+      photoMaxEdgePx: 2560,
+      photoJpegQuality: 85,
+      photoParallelUploads: 2,
+    });
   });
 });
