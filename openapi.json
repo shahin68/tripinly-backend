@@ -4013,6 +4013,10 @@
           "markerCount": {
             "type": "number"
           },
+          "editorCount": {
+            "type": "number",
+            "description": "People the trip is shared with as editors (the owner not counted)"
+          },
           "likeCount": {
             "type": "number"
           },
@@ -4037,6 +4041,7 @@
           "coverThumbUrl",
           "dayCount",
           "markerCount",
+          "editorCount",
           "likeCount",
           "likedByMe",
           "copyCount",

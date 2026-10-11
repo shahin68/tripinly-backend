@@ -47,7 +47,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/me` | Profile, settings, onboarding state, entitlements |
 | PATCH | `/me` | Display name, username (once per 30 days after onboarding, else 422 `USERNAME_CHANGE_TOO_SOON` with `details.availableAt`), birth date (onboarding only; under 16 → 422 `AGE_REQUIREMENT_NOT_MET` and the account is deleted), locale, `defaultTripVisibility` |
 | GET | `/me/stats` | `{ tripCount (own + collaborating), markerCount (created by me), photoCount }` |
-| GET | `/me/trips` | Owned + collaborating, most recently changed first (marker and day edits count), cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount` |
+| GET | `/me/trips` | Owned + collaborating, most recently changed first (marker and day edits count), cursor paginated; each item has `role`, `coverThumbUrl` (first cover photo in the trip, or null), `dayCount`, `markerCount`, `editorCount` (people it's shared with, owner not counted) |
 | PUT | `/me/devices/{fcmToken}` | Register/refresh push device. Body: `platform` (`android`\|`ios`), `locale` |
 | DELETE | `/me/devices/{fcmToken}` | |
 | POST | `/me/export` | Starts the GDPR export → 202 **DataExport**; emails a download link valid 7 days when ready. One at a time (a pending export is returned again, 202) and one per 24 h (429 `RATE_LIMITED`, `details.retryAfterSeconds`, `Retry-After`). 503 `SERVICE_UNAVAILABLE` while storage isn't configured |
