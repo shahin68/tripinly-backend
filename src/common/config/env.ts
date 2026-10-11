@@ -62,6 +62,9 @@ export const envSchema = z
       .max(4)
       .default(2),
 
+    /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
+    APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),
+
     // Auth (docs/knowledge/07-security-and-gdpr.md)
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),

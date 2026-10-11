@@ -29,7 +29,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 - A trip has one **owner**, optional **editors** (collaborators), title, start/end dates, ordered **days**, and **visibility**: `public` or `private`. There is no viewer role.
 - Days: with a start date, a trip has one day per date and each day shows its date; without dates, days show "Day n". A trip always has at least one day.
-- Limits: 20 days per trip, 50 markers per day, 200 owned trips per user, 50 members per trip, 20 active invite links per trip (`LIMIT_REACHED`).
+- Limits: 20 days per trip, 50 markers per day, 200 owned trips per user, `APP_TRIP_MAX_MEMBERS` members per trip (default 50, set on Railway), 20 active invite links per trip (`LIMIT_REACHED`).
 - New trips default to the user's `defaultTripVisibility` setting.
 - **Public:** visible to anyone (not blocked), listed in Explore, its markers count toward place popularity, copyable.
 - **Private:** visible only to owner and editors. Never in Explore, search, Nearby, Popular spots or popularity counts. Not copyable. Share links to private trips only work for members.
