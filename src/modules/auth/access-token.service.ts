@@ -35,9 +35,9 @@ export class AccessTokenService {
 
   constructor(config: ConfigService<Env, true>) {
     this.secret = new TextEncoder().encode(
-      config.get('APP_JWT_ACCESS_SECRET', { infer: true }),
+      config.get('JWT_ACCESS_SECRET', { infer: true }),
     );
-    this.ttlSeconds = config.get('APP_JWT_ACCESS_TTL_SECONDS', { infer: true });
+    this.ttlSeconds = config.get('JWT_ACCESS_TTL_SECONDS', { infer: true });
   }
 
   async issue(claims: AccessTokenClaims): Promise<IssuedAccessToken> {

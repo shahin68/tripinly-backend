@@ -19,7 +19,7 @@ const RETRIES = {
 /**
  * Keeps one monthly schedule per configured region (and none for regions that
  * were removed), and queues the initial load for regions never imported.
- * Does nothing unless APP_OSM_IMPORT_ENABLED is set.
+ * Does nothing unless OSM_IMPORT_ENABLED is set.
  */
 @Injectable()
 export class OsmImportScheduler implements OnApplicationBootstrap {
@@ -32,9 +32,9 @@ export class OsmImportScheduler implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const enabled = this.config.get('APP_OSM_IMPORT_ENABLED', { infer: true });
+    const enabled = this.config.get('OSM_IMPORT_ENABLED', { infer: true });
     const regions = enabled
-      ? this.config.get('APP_OSM_IMPORT_REGIONS', { infer: true })
+      ? this.config.get('OSM_IMPORT_REGIONS', { infer: true })
       : [];
     const wanted = new Set(regions.map((r) => regionJobKey('monthly', r)));
 
@@ -45,7 +45,7 @@ export class OsmImportScheduler implements OnApplicationBootstrap {
     }
     if (!enabled) return;
 
-    const pattern = this.config.get('APP_OSM_IMPORT_CRON', { infer: true });
+    const pattern = this.config.get('OSM_IMPORT_CRON', { infer: true });
     for (const region of regions) {
       await this.queue.upsertJobScheduler(
         regionJobKey('monthly', region),

@@ -17,7 +17,7 @@ const UNREGISTERED = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-/** FCM through firebase-admin; disabled while APP_FIREBASE_SERVICE_ACCOUNT_JSON is unset. */
+/** FCM through firebase-admin; disabled while FIREBASE_SERVICE_ACCOUNT_JSON is unset. */
 @Injectable()
 export class FcmPushProvider extends PushProvider implements OnModuleDestroy {
   private readonly logger = new Logger(FcmPushProvider.name);
@@ -26,9 +26,7 @@ export class FcmPushProvider extends PushProvider implements OnModuleDestroy {
 
   constructor(config: ConfigService<Env, true>) {
     super();
-    const raw = config.get('APP_FIREBASE_SERVICE_ACCOUNT_JSON', {
-      infer: true,
-    });
+    const raw = config.get('FIREBASE_SERVICE_ACCOUNT_JSON', { infer: true });
     const account = raw ? parseServiceAccount(raw) : undefined;
     if (account) {
       // A unique app name, so several Nest contexts in one process (tests) don't collide.

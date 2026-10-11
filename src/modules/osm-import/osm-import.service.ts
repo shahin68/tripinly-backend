@@ -88,8 +88,7 @@ export class OsmImportService {
 
       workDir = await mkdtemp(
         join(
-          this.config.get('APP_OSM_IMPORT_TMP_DIR', { infer: true }) ??
-            tmpdir(),
+          this.config.get('OSM_IMPORT_TMP_DIR', { infer: true }) ?? tmpdir(),
           'osm-',
         ),
       );
@@ -187,7 +186,7 @@ export class OsmImportService {
     region: string,
     workDir: string,
   ): Promise<{ path: string; extractAt: Date | null }> {
-    const url = `${this.config.get('APP_GEOFABRIK_BASE_URL', { infer: true })}/${region}-latest.osm.pbf`;
+    const url = `${this.config.get('GEOFABRIK_BASE_URL', { infer: true })}/${region}-latest.osm.pbf`;
     const headers = { 'User-Agent': 'Tripinly-OSM-import/1.0' };
     const path = join(workDir, 'extract.osm.pbf');
 

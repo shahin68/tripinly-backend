@@ -13,7 +13,7 @@ export interface PhotonStub {
   close: () => Promise<void>;
 }
 
-/** A fake Photon on APP_PHOTON_BASE_URL (set by global-setup). */
+/** A fake Photon on PHOTON_BASE_URL (set by global-setup). */
 export async function startPhotonStub(): Promise<PhotonStub> {
   const stub = {
     features: [],

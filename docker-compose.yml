@@ -48,18 +48,18 @@ services:
     command: ['npx', 'prisma', 'migrate', 'deploy']
     environment: &app-env
       NODE_ENV: development
-      APP_LOG_LEVEL: info
+      LOG_LEVEL: info
       DATABASE_URL: postgresql://tripinly:tripinly@db:5432/tripinly
       REDIS_URL: redis://redis:6379
       # Local-only values; never reuse them anywhere else.
-      APP_JWT_ACCESS_SECRET: local-compose-access-token-secret-32chars
-      APP_ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE=
+      JWT_ACCESS_SECRET: local-compose-access-token-secret-32chars
+      ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE=
       # Upload and image URLs are signed for this host, so the app must reach it too
       # (e.g. http://10.0.2.2:7070 from the Android emulator; change both together).
-      APP_R2_ENDPOINT: http://s3:7070
-      APP_R2_ACCESS_KEY_ID: tripinly
-      APP_R2_SECRET_ACCESS_KEY: tripinly-secret
-      APP_R2_BUCKET: tripinly-photos
+      R2_ENDPOINT: http://s3:7070
+      R2_ACCESS_KEY_ID: tripinly
+      R2_SECRET_ACCESS_KEY: tripinly-secret
+      R2_BUCKET: tripinly-photos
     depends_on:
       db:
         condition: service_healthy

@@ -58,10 +58,10 @@ export class AccountDeletionService {
     config: ConfigService<Env, true>,
   ) {
     this.encryptionKey = Buffer.from(
-      config.get('APP_ENCRYPTION_KEY', { infer: true }),
+      config.get('ENCRYPTION_KEY', { infer: true }),
       'base64',
     );
-    this.retentionYears = config.get('APP_CONSENT_PROOF_RETENTION_YEARS', {
+    this.retentionYears = config.get('CONSENT_PROOF_RETENTION_YEARS', {
       infer: true,
     });
   }

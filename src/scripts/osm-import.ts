@@ -14,7 +14,7 @@ class OsmImportScriptModule {}
  * Runs OSM imports now, outside the queue (first load on a new environment,
  * or local development):
  *
- *   npm run osm:import                        # every APP_OSM_IMPORT_REGIONS region
+ *   npm run osm:import                        # every OSM_IMPORT_REGIONS region
  *   npm run osm:import -- europe/austria      # one region
  *   npm run osm:import -- --file vienna.osm.pbf europe/austria   # a local extract
  */
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
     ? regionArgs
     : app
         .get(ConfigService<Env, true>)
-        .get('APP_OSM_IMPORT_REGIONS', { infer: true });
+        .get('OSM_IMPORT_REGIONS', { infer: true });
   if (sourceFile && regions.length !== 1) {
     throw new Error('--file needs exactly one region');
   }

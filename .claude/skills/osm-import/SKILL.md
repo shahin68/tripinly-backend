@@ -9,7 +9,7 @@ Category mapping and legal rules are in `docs/knowledge/10-maps-places-routing.m
 
 ## Source
 
-- Geofabrik country extracts (`https://download.geofabrik.de/<region>-latest.osm.pbf`), regions from `APP_OSM_IMPORT_REGIONS` (default `europe/austria,europe/hungary`).
+- Geofabrik country extracts (`https://download.geofabrik.de/<region>-latest.osm.pbf`), regions from `OSM_IMPORT_REGIONS` (default `europe/austria,europe/hungary`).
 - Download over HTTPS in the worker, verify the `.md5`, record the extract timestamp.
 - Never use Overpass or Nominatim for bulk import.
 

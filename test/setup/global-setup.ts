@@ -77,30 +77,30 @@ export default async function globalSetup(): Promise<void> {
 
   Object.assign(process.env, {
     NODE_ENV: 'test',
-    APP_LOG_LEVEL: 'silent',
+    LOG_LEVEL: 'silent',
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
-    APP_JWT_ACCESS_SECRET:
-      process.env.APP_JWT_ACCESS_SECRET ??
+    JWT_ACCESS_SECRET:
+      process.env.JWT_ACCESS_SECRET ??
       'test-only-access-token-secret-32-chars!',
-    APP_ENCRYPTION_KEY:
-      process.env.APP_ENCRYPTION_KEY ?? Buffer.alloc(32, 7).toString('base64'),
-    APP_DEV_AUTH_ENABLED: 'true',
-    APP_GOOGLE_CLIENT_IDS: 'test-google-client-id',
+    ENCRYPTION_KEY:
+      process.env.ENCRYPTION_KEY ?? Buffer.alloc(32, 7).toString('base64'),
+    DEV_AUTH_ENABLED: 'true',
+    GOOGLE_CLIENT_IDS: 'test-google-client-id',
     // Apple verification uses a local key set in tests; the code exchange is stubbed.
-    APP_APPLE_BUNDLE_ID: 'com.tripinly.test',
-    APP_APPLE_TEAM_ID: 'TESTTEAM01',
-    APP_APPLE_KEY_ID: 'TESTKEY001',
-    APP_APPLE_PRIVATE_KEY: 'unused-in-tests',
+    APPLE_BUNDLE_ID: 'com.tripinly.test',
+    APPLE_TEAM_ID: 'TESTTEAM01',
+    APPLE_KEY_ID: 'TESTKEY001',
+    APPLE_PRIVATE_KEY: 'unused-in-tests',
     // test/utils/photon-stub.ts listens here.
-    APP_PHOTON_BASE_URL: PHOTON_STUB_URL,
+    PHOTON_BASE_URL: PHOTON_STUB_URL,
     // test/utils/ors-stub.ts listens here.
-    APP_ORS_BASE_URL: ORS_STUB_URL,
-    APP_ORS_API_KEY: ORS_STUB_KEY,
-    APP_R2_ENDPOINT: s3Endpoint,
-    APP_R2_ACCESS_KEY_ID: S3_KEY,
-    APP_R2_SECRET_ACCESS_KEY: S3_SECRET,
-    APP_R2_BUCKET: TEST_BUCKET,
+    ORS_BASE_URL: ORS_STUB_URL,
+    ORS_API_KEY: ORS_STUB_KEY,
+    R2_ENDPOINT: s3Endpoint,
+    R2_ACCESS_KEY_ID: S3_KEY,
+    R2_SECRET_ACCESS_KEY: S3_SECRET,
+    R2_BUCKET: TEST_BUCKET,
   });
 
   execFileSync('npx', ['prisma', 'migrate', 'deploy'], {

@@ -38,8 +38,8 @@ jobs:
       TEST_REDIS_URL: redis://localhost:6379
       TEST_S3_ENDPOINT: http://localhost:7070
       # Test-only values; real secrets live in Railway.
-      APP_JWT_ACCESS_SECRET: ci-only-access-token-secret-at-least-32-chars
-      APP_ENCRYPTION_KEY: Y2ktb25seS1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcyE=
+      JWT_ACCESS_SECRET: ci-only-access-token-secret-at-least-32-chars
+      ENCRYPTION_KEY: Y2ktb25seS1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcyE=
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -7,12 +7,12 @@ description: Use for Tripinly environments and deployment on Railway — service
 
 ## Services per environment (staging, production)
 
-| Service    | Start command               | Notes                                          |
-| ---------- | --------------------------- | ---------------------------------------------- |
-| `api`      | `node dist/main.js`         | Public domain; health check `/v1/health/ready` |
-| `worker`   | `node dist/main.worker.js`  | No public domain                               |
-| `postgres` | PostGIS-enabled Postgres 16 | Enable `postgis` in the first migration        |
-| `redis`    | Railway Redis               |                                                |
+| Service | Start command | Notes |
+|---|---|---|
+| `api` | `node dist/main.js` | Public domain; health check `/v1/health/ready` |
+| `worker` | `node dist/main.worker.js` | No public domain |
+| `postgres` | PostGIS-enabled Postgres 16 | Enable `postgis` in the first migration |
+| `redis` | Railway Redis | |
 
 Both `api` and `worker` build from the same repo and Dockerfile (multi-stage: install → `prisma generate` → `nest build` → slim runtime).
 
@@ -22,19 +22,17 @@ Both `api` and `worker` build from the same repo and Dockerfile (multi-stage: in
 2. Deploy to **staging** first.
 3. Migrations run once as a pre-deploy command on the `api` service: `npx prisma migrate deploy`. The worker never runs migrations.
 4. Migrations must be backward compatible with the currently running version (expand → migrate → contract across releases), because old instances keep serving during the rollout.
-5. Smoke test staging: `APP_DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>` (health, test sign-in, trip, marker, realtime event, photo, route, deletion). The step-by-step first setup is `docs/deploy/railway-staging.md`; service settings (start commands, pre-deploy migrations, healthcheck) are entered by hand in Railway as that guide lists, because Config as Code is closed to new services.
+5. Smoke test staging: `DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>` (health, test sign-in, trip, marker, realtime event, photo, route, deletion). The step-by-step first setup is `docs/deploy/railway-staging.md`; service settings (start commands, pre-deploy migrations, healthcheck) are entered by hand in Railway as that guide lists, because Config as Code is closed to new services.
 6. Promote to **production** only when the user says so.
 
 ## Environment variables
 
 The full list is in `docs/knowledge/06-architecture-and-infra.md`. Rules:
-
-- **Every variable we define starts with `APP_`** (Shahin, 2026-10-11), secrets included. Only `NODE_ENV`, `PORT`, `DATABASE_URL` and `REDIS_URL` keep their names, because the platform or a library reads them by that name.
-- Renaming a variable is a deploy step: tell the user the exact old → new names per service, to rename in Railway's Raw Editor (values stay) together with the deploy that ships the rename.
 - Set them in Railway per environment; use Railway reference variables for `DATABASE_URL` and `REDIS_URL`.
 - Staging and production use **separate** R2 buckets, Firebase projects, Resend domains/keys and Apple/Google client configuration where possible.
 - Never print variables in build logs.
-- When adding a variable: name it `APP_<AREA>_<NAME>`, add it to the config schema (boot fails if missing), to `06-architecture-and-infra.md`, and tell the user which value to set in Railway.
+- Behaviour-tuning values (numbers adjusted like feature flags, e.g. `APP_PLACES_REFRESH_SECONDS`, `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES`) start with `APP_`; no other variable does (Shahin, 2026-10-11).
+- When adding a variable: add it to the config schema (boot fails if missing), to `06-architecture-and-infra.md`, and tell the user which value to set in Railway.
 
 ## Operations
 

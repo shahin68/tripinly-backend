@@ -16,9 +16,6 @@ const booleanFlag = z
  * Environment variables, validated at startup. The app refuses to boot when one
  * is missing or malformed. Modules add their variables here as they are built
  * (see docs/knowledge/06-architecture-and-infra.md for the full list).
- *
- * Every variable we define starts with APP_. Only NODE_ENV, PORT, DATABASE_URL
- * and REDIS_URL keep their names, because the platform or a library reads them.
  */
 export const envSchema = z
   .object({
@@ -26,9 +23,9 @@ export const envSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     /** Which deployment this is; only `staging` may enable dev sign-in in production mode. */
-    APP_DEPLOY_ENV: z.enum(['local', 'staging', 'production']).default('local'),
+    DEPLOY_ENV: z.enum(['local', 'staging', 'production']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    APP_LOG_LEVEL: z
+    LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     DATABASE_URL: z
@@ -37,11 +34,7 @@ export const envSchema = z
     REDIS_URL: z
       .string()
       .regex(/^rediss?:\/\//, 'must be a redis:// or rediss:// URL'),
-    APP_CONSENT_PROOF_RETENTION_YEARS: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .default(5),
+    CONSENT_PROOF_RETENTION_YEARS: z.coerce.number().int().min(1).default(5),
 
     // App settings sent to the clients by GET /v1/app-config, so they change
     // without an app update (docs/knowledge/04-api-spec.md).
@@ -70,23 +63,23 @@ export const envSchema = z
       .default(2),
 
     // Auth (docs/knowledge/07-security-and-gdpr.md)
-    APP_JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
-    APP_JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
-    APP_JWT_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(60),
+    JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
+    JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
+    JWT_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(60),
     /** 32 random bytes, base64. Encrypts stored Apple refresh tokens. */
-    APP_ENCRYPTION_KEY: z
+    ENCRYPTION_KEY: z
       .string()
       .refine(
         (value) => Buffer.from(value, 'base64').length === 32,
         'must be 32 bytes, base64-encoded',
       ),
     /** Comma-separated OAuth client IDs (iOS, Android, web) accepted as `aud`. Google sign-in is off when unset. */
-    APP_GOOGLE_CLIENT_IDS: optionalString,
-    APP_APPLE_BUNDLE_ID: optionalString,
-    APP_APPLE_TEAM_ID: optionalString,
-    APP_APPLE_KEY_ID: optionalString,
+    GOOGLE_CLIENT_IDS: optionalString,
+    APPLE_BUNDLE_ID: optionalString,
+    APPLE_TEAM_ID: optionalString,
+    APPLE_KEY_ID: optionalString,
     /** The .p8 key contents; literal "\n" sequences are accepted. */
-    APP_APPLE_PRIVATE_KEY: optionalString,
+    APPLE_PRIVATE_KEY: optionalString,
     /** Base for invite and share links (App Links / Universal Links domain once there is one). */
     APP_LINK_BASE_URL: z
       .string()
@@ -97,21 +90,21 @@ export const envSchema = z
       .default('tripinly://app'),
     // Photo storage: Cloudflare R2 (any S3-compatible store; VersityGW locally).
     // Photo endpoints answer 503 while unset.
-    APP_R2_ACCOUNT_ID: optionalString,
-    /** Overrides the endpoint derived from APP_R2_ACCOUNT_ID, e.g. http://localhost:7070 for the local VersityGW. */
-    APP_R2_ENDPOINT: z
+    R2_ACCOUNT_ID: optionalString,
+    /** Overrides the endpoint derived from R2_ACCOUNT_ID, e.g. http://localhost:7070 for the local VersityGW. */
+    R2_ENDPOINT: z
       .string()
       .trim()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .optional()
       .or(z.literal('').transform(() => undefined)),
-    APP_R2_ACCESS_KEY_ID: optionalString,
-    APP_R2_SECRET_ACCESS_KEY: optionalString,
-    APP_R2_BUCKET: optionalString,
+    R2_ACCESS_KEY_ID: optionalString,
+    R2_SECRET_ACCESS_KEY: optionalString,
+    R2_BUCKET: optionalString,
 
     // Places (docs/knowledge/10-maps-places-routing.md)
     /** Photon geocoder for address and city search. Public komoot instance at first, self-hosted later. */
-    APP_PHOTON_BASE_URL: z
+    PHOTON_BASE_URL: z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://photon.komoot.io'),
@@ -126,30 +119,30 @@ export const envSchema = z
       .default(2),
     // Routing: openrouteservice. Without a key, routes are straight lines
     // (degraded) and best route uses straight-line distance.
-    APP_ORS_API_KEY: optionalString,
-    APP_ORS_BASE_URL: z
+    ORS_API_KEY: optionalString,
+    ORS_BASE_URL: z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       // api.openrouteservice.org was shut down on 2026-08-24.
       .default('https://api.heigit.org/openrouteservice'),
     /** Calls per UTC day before falling back (free plan: 2000 directions, 500 matrix). */
-    APP_ORS_DIRECTIONS_DAILY_QUOTA: z.coerce
+    ORS_DIRECTIONS_DAILY_QUOTA: z.coerce
       .number()
       .int()
       .positive()
       .default(2000),
-    APP_ORS_MATRIX_DAILY_QUOTA: z.coerce.number().int().positive().default(500),
+    ORS_MATRIX_DAILY_QUOTA: z.coerce.number().int().positive().default(500),
     // Push: the Firebase service account JSON (raw or base64). Pushes are
     // skipped while unset; in-app notifications still work.
-    APP_FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,
+    FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,
     // Email: Resend. Emails are skipped (with a warning) while unset.
-    APP_RESEND_API_KEY: optionalString,
+    RESEND_API_KEY: optionalString,
     /** Sender, e.g. "Tripinly <no-reply@mail.tripinly.app>" on a domain verified in Resend. */
-    APP_EMAIL_FROM: optionalString,
+    EMAIL_FROM: optionalString,
     /** RevenueCat secret API key (v1). Account deletion deletes the customer; skipped while unset. */
-    APP_REVENUECAT_API_KEY: optionalString,
+    REVENUECAT_API_KEY: optionalString,
     /** Comma-separated Geofabrik extracts, e.g. europe/austria,europe/hungary. */
-    APP_OSM_IMPORT_REGIONS: z
+    OSM_IMPORT_REGIONS: z
       .string()
       .default('europe/austria,europe/hungary')
       .transform((value) =>
@@ -171,94 +164,94 @@ export const envSchema = z
           .min(1),
       ),
     /** The worker schedules imports only when true (they download hundreds of MB). */
-    APP_OSM_IMPORT_ENABLED: booleanFlag,
+    OSM_IMPORT_ENABLED: booleanFlag,
     /** Cron (UTC) for the monthly refresh. */
-    APP_OSM_IMPORT_CRON: z.string().trim().min(9).default('0 3 2 * *'),
-    APP_GEOFABRIK_BASE_URL: z
+    OSM_IMPORT_CRON: z.string().trim().min(9).default('0 3 2 * *'),
+    GEOFABRIK_BASE_URL: z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://download.geofabrik.de'),
     /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
-    APP_OSM_IMPORT_TMP_DIR: optionalString,
+    OSM_IMPORT_TMP_DIR: optionalString,
     /** Enables POST /v1/auth/dev for local development and staging. Refused in production. */
-    APP_DEV_AUTH_ENABLED: booleanFlag,
+    DEV_AUTH_ENABLED: booleanFlag,
     /** Staging: dev sign-in also needs this value in the X-Dev-Auth-Secret header. */
-    APP_DEV_AUTH_SECRET: optionalString,
+    DEV_AUTH_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     const apple = [
-      env.APP_APPLE_BUNDLE_ID,
-      env.APP_APPLE_TEAM_ID,
-      env.APP_APPLE_KEY_ID,
-      env.APP_APPLE_PRIVATE_KEY,
+      env.APPLE_BUNDLE_ID,
+      env.APPLE_TEAM_ID,
+      env.APPLE_KEY_ID,
+      env.APPLE_PRIVATE_KEY,
     ];
     if (apple.some(Boolean) && !apple.every(Boolean)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_APPLE_BUNDLE_ID'],
+        path: ['APPLE_BUNDLE_ID'],
         message:
-          'set all of APP_APPLE_BUNDLE_ID, APP_APPLE_TEAM_ID, APP_APPLE_KEY_ID and APP_APPLE_PRIVATE_KEY, or none',
+          'set all of APPLE_BUNDLE_ID, APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY, or none',
       });
     }
     const storage = [
-      env.APP_R2_ACCESS_KEY_ID,
-      env.APP_R2_SECRET_ACCESS_KEY,
-      env.APP_R2_BUCKET,
+      env.R2_ACCESS_KEY_ID,
+      env.R2_SECRET_ACCESS_KEY,
+      env.R2_BUCKET,
     ];
     if (storage.some(Boolean) && !storage.every(Boolean)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_R2_BUCKET'],
+        path: ['R2_BUCKET'],
         message:
-          'set all of APP_R2_ACCESS_KEY_ID, APP_R2_SECRET_ACCESS_KEY and APP_R2_BUCKET, or none',
+          'set all of R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, or none',
       });
     }
-    if (env.APP_R2_BUCKET && !env.APP_R2_ACCOUNT_ID && !env.APP_R2_ENDPOINT) {
+    if (env.R2_BUCKET && !env.R2_ACCOUNT_ID && !env.R2_ENDPOINT) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_R2_ACCOUNT_ID'],
+        path: ['R2_ACCOUNT_ID'],
         message:
-          'set APP_R2_ACCOUNT_ID (or APP_R2_ENDPOINT) with the storage credentials',
+          'set R2_ACCOUNT_ID (or R2_ENDPOINT) with the storage credentials',
       });
     }
     if (
-      env.APP_FIREBASE_SERVICE_ACCOUNT_JSON &&
-      !parseServiceAccount(env.APP_FIREBASE_SERVICE_ACCOUNT_JSON)
+      env.FIREBASE_SERVICE_ACCOUNT_JSON &&
+      !parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON)
     ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_FIREBASE_SERVICE_ACCOUNT_JSON'],
+        path: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
         message:
           'must be the service account JSON (project_id, client_email, private_key), raw or base64',
       });
     }
-    if (env.APP_RESEND_API_KEY && !env.APP_EMAIL_FROM) {
+    if (env.RESEND_API_KEY && !env.EMAIL_FROM) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_EMAIL_FROM'],
-        message: 'set APP_EMAIL_FROM together with APP_RESEND_API_KEY',
+        path: ['EMAIL_FROM'],
+        message: 'set EMAIL_FROM together with RESEND_API_KEY',
       });
     }
     // Dev sign-in: local freely; staging only behind a shared secret; never production.
-    const staging = env.APP_DEPLOY_ENV === 'staging';
+    const staging = env.DEPLOY_ENV === 'staging';
     const production =
-      env.APP_DEPLOY_ENV === 'production' ||
+      env.DEPLOY_ENV === 'production' ||
       (env.NODE_ENV === 'production' && !staging);
-    if (env.APP_DEV_AUTH_ENABLED && production) {
+    if (env.DEV_AUTH_ENABLED && production) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_DEV_AUTH_ENABLED'],
+        path: ['DEV_AUTH_ENABLED'],
         message: 'must not be enabled in production',
       });
     }
     if (
-      env.APP_DEV_AUTH_ENABLED &&
+      env.DEV_AUTH_ENABLED &&
       staging &&
-      (env.APP_DEV_AUTH_SECRET?.length ?? 0) < 32
+      (env.DEV_AUTH_SECRET?.length ?? 0) < 32
     ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['APP_DEV_AUTH_SECRET'],
+        path: ['DEV_AUTH_SECRET'],
         message: 'set at least 32 characters to enable dev sign-in on staging',
       });
     }

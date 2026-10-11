@@ -11,10 +11,10 @@ export class ResendEmailProvider extends EmailProvider {
 
   constructor(config: ConfigService<Env, true>) {
     super();
-    const key = config.get('APP_RESEND_API_KEY', { infer: true });
+    const key = config.get('RESEND_API_KEY', { infer: true });
     if (key) {
       this.client = new Resend(key);
-      this.from = config.get('APP_EMAIL_FROM', { infer: true });
+      this.from = config.get('EMAIL_FROM', { infer: true });
     }
   }
 

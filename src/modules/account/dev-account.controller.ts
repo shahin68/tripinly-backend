@@ -35,8 +35,8 @@ export class DevAccountController {
     private readonly account: AccountService,
     config: ConfigService<Env, true>,
   ) {
-    this.devAuthEnabled = config.get('APP_DEV_AUTH_ENABLED', { infer: true });
-    this.devAuthSecret = config.get('APP_DEV_AUTH_SECRET', { infer: true });
+    this.devAuthEnabled = config.get('DEV_AUTH_ENABLED', { infer: true });
+    this.devAuthSecret = config.get('DEV_AUTH_SECRET', { infer: true });
   }
 
   @Delete()
@@ -44,7 +44,7 @@ export class DevAccountController {
   @ApiOperation({
     summary: 'Delete a test account at once (development only)',
     description:
-      'Only when APP_DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise, and where APP_DEV_AUTH_SECRET is set the X-Dev-Auth-Secret header must match. Pass exactly one of subject (a developer account) or username (any account). Runs the full account deletion without a fresh sign-in and frees the username immediately instead of holding it for 30 days. 404 when no account matches.',
+      'Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise, and where DEV_AUTH_SECRET is set the X-Dev-Auth-Secret header must match. Pass exactly one of subject (a developer account) or username (any account). Runs the full account deletion without a fresh sign-in and frees the username immediately instead of holding it for 30 days. 404 when no account matches.',
   })
   @ApiHeader({ name: 'X-Dev-Auth-Secret', required: false })
   @ApiAcceptedResponse({ type: AccountDeletionDto })

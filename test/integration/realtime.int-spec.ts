@@ -324,5 +324,5 @@ function signToken(userId: string, ttlSeconds: number): Promise<string> {
     .setIssuedAt(now - 60)
     .setExpirationTime(now + ttlSeconds)
     .setJti(randomUUID())
-    .sign(new TextEncoder().encode(process.env.APP_JWT_ACCESS_SECRET));
+    .sign(new TextEncoder().encode(process.env.JWT_ACCESS_SECRET));
 }

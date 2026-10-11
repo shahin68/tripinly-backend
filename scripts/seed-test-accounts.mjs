@@ -3,17 +3,17 @@
 // staging) to the same known trips, so the apps and their testers always
 // start from the same data.
 //
-//   APP_DEV_AUTH_SECRET=... node scripts/seed-test-accounts.mjs https://<api-domain>
+//   DEV_AUTH_SECRET=... node scripts/seed-test-accounts.mjs https://<api-domain>
 //
 // Sign in to the app with the developer subject `tester` (owner of the trips)
 // or `tester2` (editor on the shared trip). Running it again deletes the
 // trips the testers own and creates them afresh. Prints no tokens.
 
 const base = (process.argv[2] ?? '').replace(/\/$/, '');
-const secret = process.env.APP_DEV_AUTH_SECRET;
+const secret = process.env.DEV_AUTH_SECRET;
 if (!/^https?:\/\//.test(base) || !secret) {
   console.error(
-    'Usage: APP_DEV_AUTH_SECRET=... node scripts/seed-test-accounts.mjs https://<api-domain>',
+    'Usage: DEV_AUTH_SECRET=... node scripts/seed-test-accounts.mjs https://<api-domain>',
   );
   process.exit(2);
 }

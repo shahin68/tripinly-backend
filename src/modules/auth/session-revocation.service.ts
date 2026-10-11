@@ -26,7 +26,7 @@ export class SessionRevocationService {
   ) {
     // A little over the access-token lifetime, so no token outlives the mark.
     this.ttlSeconds =
-      config.get('APP_JWT_ACCESS_TTL_SECONDS', { infer: true }) + 60;
+      config.get('JWT_ACCESS_TTL_SECONDS', { infer: true }) + 60;
   }
 
   async revoke(userId: string, reason: RevocationReason): Promise<void> {

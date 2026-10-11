@@ -47,7 +47,7 @@ export class PhotonClient {
   }: PhotonQuery): Promise<SearchResultDto[]> {
     const url = new URL(
       '/api',
-      this.config.get('APP_PHOTON_BASE_URL', { infer: true }),
+      this.config.get('PHOTON_BASE_URL', { infer: true }),
     );
     url.searchParams.set('q', q);
     url.searchParams.set('limit', String(PHOTON_LIMIT));
@@ -90,7 +90,7 @@ export class PhotonClient {
   }): Promise<SearchResultDto | null> {
     const url = new URL(
       '/reverse',
-      this.config.get('APP_PHOTON_BASE_URL', { infer: true }),
+      this.config.get('PHOTON_BASE_URL', { infer: true }),
     );
     url.searchParams.set('lat', String(lat));
     url.searchParams.set('lon', String(lng));

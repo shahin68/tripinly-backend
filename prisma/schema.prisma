@@ -35,7 +35,7 @@ enum TripVisibility {
 enum AuthProvider {
   google
   apple
-  /// Local development only (APP_DEV_AUTH_ENABLED); never accepted in production.
+  /// Local development only (DEV_AUTH_ENABLED); never accepted in production.
   dev
 }
 
@@ -731,10 +731,10 @@ model DataExport {
 }
 
 /// The minimal consent record kept after account deletion (07-security-and-gdpr.md),
-/// purged after APP_CONSENT_PROOF_RETENTION_YEARS. No link to any user row.
+/// purged after CONSENT_PROOF_RETENTION_YEARS. No link to any user row.
 model ConsentProof {
   id           String              @id @default(uuid()) @db.Uuid
-  /// HMAC-SHA256 of the deleted user's id with APP_ENCRYPTION_KEY.
+  /// HMAC-SHA256 of the deleted user's id with ENCRYPTION_KEY.
   subjectHash  String
   documentType ConsentDocumentType
   version      String

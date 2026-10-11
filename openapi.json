@@ -144,7 +144,7 @@
     },
     "/v1/auth/dev": {
       "post": {
-        "description": "Only when APP_DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where APP_DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.",
+        "description": "Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.",
         "operationId": "Auth_dev",
         "parameters": [
           {
@@ -3311,7 +3311,7 @@
     },
     "/v1/auth/dev/accounts": {
       "delete": {
-        "description": "Only when APP_DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise, and where APP_DEV_AUTH_SECRET is set the X-Dev-Auth-Secret header must match. Pass exactly one of subject (a developer account) or username (any account). Runs the full account deletion without a fresh sign-in and frees the username immediately instead of holding it for 30 days. 404 when no account matches.",
+        "description": "Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise, and where DEV_AUTH_SECRET is set the X-Dev-Auth-Secret header must match. Pass exactly one of subject (a developer account) or username (any account). Runs the full account deletion without a fresh sign-in and frees the username immediately instead of holding it for 30 days. 404 when no account matches.",
         "operationId": "DevAccount_delete",
         "parameters": [
           {
