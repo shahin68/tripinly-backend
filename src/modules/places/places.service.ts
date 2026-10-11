@@ -17,6 +17,7 @@ import {
   parseTile,
   snapBbox,
 } from './bbox';
+import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
 import { PhotonClient } from './photon.client';
 import {
@@ -57,6 +58,18 @@ const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
 const NEARBY_TOP_UP_BELOW = 10;
 const SEARCH_LIMIT = 10;
+/** What a trip can head to: Photon's area layers, never addresses, streets or farms. */
+const DESTINATION_LAYERS = [
+  'country',
+  'state',
+  'county',
+  'city',
+  'district',
+] as const;
+/** Districts and counties after countries, regions and cities. */
+const BROAD_DESTINATION_TYPES = new Set(['country', 'state', 'city']);
+/** The same name this close is one destination (Vienna the city and the state). */
+const SAME_DESTINATION_METERS = 30_000;
 /** A tapped point takes the name of one of our public places this close. */
 const PLACE_AT_RADIUS_METERS = 25;
 const PLACE_PHOTO_LIMIT = 10;
@@ -278,6 +291,15 @@ export class PlacesService {
       query.lat !== undefined && query.lng !== undefined
         ? { lat: query.lat, lng: query.lng }
         : undefined;
+    if (query.scope === 'destination') {
+      const areas = await this.photon.search({
+        q: query.q,
+        lang,
+        near,
+        layers: DESTINATION_LAYERS,
+      });
+      return { items: destinations(areas), attribution: OSM_ATTRIBUTION };
+    }
     const [ours, photon] = await Promise.all([
       this.searchOurs(normalizePlaceName(query.q), lang, near),
       this.photon.search({ q: query.q, lang, near }),
@@ -723,4 +745,27 @@ function decodeScoreCursor(cursor: string): { score: number; id: string } {
 /** Suspended (or deleting) users' public content leaves discovery. */
 function ownerActive(ownerId: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`EXISTS (SELECT 1 FROM users u WHERE u.id = ${ownerId} AND u.status = 'active')`;
+}
+
+/**
+ * Photon's areas, most important first as Photon ranks them, with countries,
+ * regions and cities ahead of districts and counties, and each name only once
+ * per place.
+ */
+export function destinations(areas: SearchResultDto[]): SearchResultDto[] {
+  const ordered = [
+    ...areas.filter((area) => BROAD_DESTINATION_TYPES.has(area.type ?? '')),
+    ...areas.filter((area) => !BROAD_DESTINATION_TYPES.has(area.type ?? '')),
+  ];
+  return ordered.filter(
+    (area, index) =>
+      !ordered
+        .slice(0, index)
+        .some(
+          (earlier) =>
+            earlier.name === area.name &&
+            haversineMeters(earlier.location, area.location) <
+              SAME_DESTINATION_METERS,
+        ),
+  );
 }
