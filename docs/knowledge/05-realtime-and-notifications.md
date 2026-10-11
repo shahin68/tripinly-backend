@@ -32,7 +32,7 @@
 | `like.count_changed` | Any like on trip/marker/photo/comment | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
 | `member.added` / `member.removed` | | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }` |
 
-Domain events that don't go to a room as such: `trip.copied` (tripId = the source; data: copyId, ownerId) for a future notification, and `like.count_changed` for places (no trip).
+Domain events that don't go to a room as such: `trip.copied` (tripId = the source; data: copyId, ownerId) for a future notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification, and `like.count_changed` for places (no trip).
 
 ### User room
 

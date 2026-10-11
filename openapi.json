@@ -635,9 +635,216 @@
         ]
       }
     },
+    "/v1/users/{id}/follow": {
+      "put": {
+        "description": "No approval needed; idempotent. Two users who follow each other are friends. Yourself → 400 VALIDATION_FAILED (`fields.id = [\"cannotFollowSelf\"]`). Unknown, suspended or deleted users and a block either way → 404.",
+        "operationId": "Follows_follow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Follow a user",
+        "tags": [
+          "follows"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent, also when there was no follow. Yourself → 400 VALIDATION_FAILED.",
+        "operationId": "Follows_unfollow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unfollow a user",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/v1/me/friends": {
+      "get": {
+        "description": "By display name, then id. Leaves out suspended users and anyone with a block either way. Used by the trip member picker.",
+        "operationId": "Follows_friends",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My friends (people I follow who follow me back)",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/v1/me/following": {
+      "get": {
+        "description": "Most recently followed first.",
+        "operationId": "Follows_following",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "People I follow",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/v1/me/followers": {
+      "get": {
+        "description": "Most recent first.",
+        "operationId": "Follows_followers",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "People who follow me",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
     "/v1/users/{id}/block": {
       "post": {
-        "description": "Mutual in effect. Also removes each user from the other’s trips as an editor. Idempotent.",
+        "description": "Mutual in effect. Also removes follows both ways and each user from the other’s trips as an editor. Idempotent.",
         "operationId": "Blocks_block",
         "parameters": [
           {
@@ -4068,6 +4275,26 @@
           "user": {
             "$ref": "#/components/schemas/UserSummaryDto"
           },
+          "followerCount": {
+            "type": "number",
+            "description": "People who follow them (leaves out suspended users and anyone with a block with me)"
+          },
+          "followingCount": {
+            "type": "number",
+            "description": "People they follow (leaves out suspended users and anyone with a block with me)"
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "I follow them"
+          },
+          "followsMe": {
+            "type": "boolean",
+            "description": "They follow me"
+          },
+          "isFriend": {
+            "type": "boolean",
+            "description": "We follow each other; they appear in my friends list"
+          },
           "publicTripCount": {
             "type": "number",
             "description": "Public trips they own"
@@ -4087,8 +4314,33 @@
         },
         "required": [
           "user",
+          "followerCount",
+          "followingCount",
+          "isFollowing",
+          "followsMe",
+          "isFriend",
           "publicTripCount",
           "trips",
+          "nextCursor"
+        ]
+      },
+      "UserPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummaryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as cursor for the next page"
+          }
+        },
+        "required": [
+          "items",
           "nextCursor"
         ]
       },

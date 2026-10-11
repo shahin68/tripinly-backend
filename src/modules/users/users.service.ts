@@ -13,6 +13,7 @@ import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type User } from '../../generated/prisma/client';
 import { EntitlementService } from '../billing/entitlement.service';
 import { ConsentsService } from '../consents/consents.service';
+import { FollowsService } from './follows.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { toTripSummaries, tripSummaryInclude } from '../trips/trip.mapper';
 import { ageOn, MINIMUM_AGE, parseCalendarDate, toCalendarDate } from './age';
@@ -45,6 +46,7 @@ export class UsersService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly storage: StorageService,
     private readonly entitlements: EntitlementService,
+    private readonly follows: FollowsService,
   ) {}
 
   async getMe(userId: string): Promise<MeDto> {
@@ -209,8 +211,9 @@ export class UsersService {
       hiddenAt: null,
     };
     const position = cursor ? decodeCursor(cursor) : undefined;
-    const [publicTripCount, rows] = await Promise.all([
+    const [publicTripCount, followState, rows] = await Promise.all([
       this.prisma.trip.count({ where }),
+      this.follows.stateFor(viewerId, user.id),
       this.prisma.trip.findMany({
         where: {
           ...where,
@@ -241,6 +244,7 @@ export class UsersService {
     );
     return {
       user: toUserSummary(user),
+      ...followState,
       publicTripCount,
       trips: page.items,
       nextCursor: page.nextCursor,

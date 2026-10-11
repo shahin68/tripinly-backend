@@ -81,18 +81,28 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 ## Profiles
 
-- `GET /users/{username}` shows a user's public, visible trips. Unknown, not onboarded or suspended users, and users with a block either way, answer 404.
+- `GET /users/{username}` shows a user's public, visible trips, their follower and following counts, and whether the viewer follows them, they follow the viewer, and whether they are friends. Unknown, not onboarded or suspended users, and users with a block either way, answer 404.
+- The follower and following counts leave out suspended or deleting users and anyone with a block with the viewer.
+
+## Follows and friends
+
+- Anyone can follow anyone, without approval (one-way). Following yourself is not allowed. Unknown, suspended or deleting users and users with a block either way can't be followed (404, the block is not revealed).
+- Two users who follow each other are **friends**. The trip member picker lists friends (`GET /me/friends`); adding a member still works by username for anyone.
+- **Following never grants access.** Private trips stay members-only; a follower sees exactly what any other signed-in user sees.
+- Blocking removes follows in both directions; unblocking doesn't restore them.
+- Lists of friends, following and followers leave out suspended users and anyone with a block with me.
+- Account deletion removes the user's follows in both directions; the data export lists who they follow and who follows them.
 
 ## Blocking and reporting
 
-- Blocking is mutual in effect: neither side sees the other's profile, trips, markers, photos, comments or likes in lists; they can't comment on each other's content, add each other to trips or accept each other's invites. Blocking removes the blocked user from the blocker's trips as editor and vice versa.
+- Blocking is mutual in effect: neither side sees the other's profile, trips, markers, photos, comments or likes in lists; they can't comment on each other's content, add each other to trips or accept each other's invites. Blocking removes the blocked user from the blocker's trips as editor and vice versa, and removes follows in both directions.
 - Users can report a user, trip, marker, photo or comment with a reason. Admins review reports and can hide content, dismiss, or suspend a user.
 
 ## Account deletion
 
 When a user deletes their account, **everything about them is deleted**:
 
-- Profile, auth identities (revoke Apple tokens), refresh tokens, devices, consents record kept only as required by law (see `07-security-and-gdpr.md`), notifications, blocks, invite links.
+- Profile, auth identities (revoke Apple tokens), refresh tokens, devices, consents record kept only as required by law (see `07-security-and-gdpr.md`), notifications, blocks, follows (both directions), invite links.
 - **All trips they own** — including every day, marker, photo and comment in them, **even if other people are editors**.
 - **All their photos and comments everywhere**, including in other people's trips, and the stored image files.
 - **All their likes** (popularity counts are recomputed).

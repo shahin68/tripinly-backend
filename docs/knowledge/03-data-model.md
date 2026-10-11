@@ -77,6 +77,8 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 **blocks** — `blockerId`, `blockedId`. Unique pair. Queries check both directions.
 
+**follows** — `followerId` → users (`CASCADE`), `followeeId` → users (`CASCADE`), `createdAt`. Primary key (`followerId`, `followeeId`); index on `followeeId`; a CHECK keeps people from following themselves. One-way, no approval; two rows in opposite directions make two users friends. Blocking deletes the rows in both directions in the block transaction.
+
 **reports** — `reporterId` (nullable after reporter deletion), `targetType` (`user` | `trip` | `marker` | `photo` | `comment`), `targetId`, `reason` (`spam` | `harassment` | `nudity` | `violence` | `hate` | `other`), `details`, `status` (`open` | `actioned` | `dismissed`), `reviewedById` (`SET NULL`), `reviewedAt`, `action` (`dismiss` | `hide_content` | `suspend_user` | `delete_content` | `target_deleted`, the last when the target or its author was deleted). A partial unique index allows one open report per (`reporterId`, `targetType`, `targetId`).
 
 **admin_audit_logs** — `adminId` (`SET NULL`), `action`, `targetType`, `targetId` (for `suspend_user` the user, even when the report was about their content), `reportId`, `note`, `createdAt`. Written for every admin action.
@@ -108,7 +110,7 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 | copies others made (`copiedFrom…`) | keep, link set null |
 | reports filed | keep report, `reporterId = null` |
 | reports about the user or their deleted content | closed (`dismissed`, action `target_deleted`) |
-| notifications (received), notification settings, devices, tokens, identities, blocks, entitlements, invites created, data exports | delete |
+| notifications (received), notification settings, devices, tokens, identities, blocks, follows (both directions), entitlements, invites created, data exports | delete |
 | notifications others received that this user caused | delete; a grouped one (likes, collaborator changes) shared with other people drops the user from its list and passes to the next person |
 | consents | replaced by `consent_proofs` rows |
 | username | held in `username_holds` for 30 days |

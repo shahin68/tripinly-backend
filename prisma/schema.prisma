@@ -89,6 +89,10 @@ model User {
   dataExports          DataExport[]
   blocksGiven          Block[]               @relation("Blocker")
   blocksReceived       Block[]               @relation("Blocked")
+  /// Rows where this user follows someone.
+  following            Follow[]              @relation("Follower")
+  /// Rows where someone follows this user.
+  followers            Follow[]              @relation("Followee")
 
   @@map("users")
 }
@@ -409,6 +413,21 @@ model Block {
   @@unique([blockerId, blockedId])
   @@index([blockedId])
   @@map("blocks")
+}
+
+/// One-way follow, no approval. Two users who follow each other are friends.
+/// Blocking removes follows in both directions.
+model Follow {
+  followerId String   @db.Uuid
+  followeeId String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followeeId])
+  @@index([followeeId])
+  @@map("follows")
 }
 
 enum OsmImportStatus {

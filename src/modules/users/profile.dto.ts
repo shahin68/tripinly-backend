@@ -6,6 +6,29 @@ export class ProfileDto {
   @ApiProperty({ type: UserSummaryDto })
   user: UserSummaryDto;
 
+  @ApiProperty({
+    description:
+      'People who follow them (leaves out suspended users and anyone with a block with me)',
+  })
+  followerCount: number;
+
+  @ApiProperty({
+    description:
+      'People they follow (leaves out suspended users and anyone with a block with me)',
+  })
+  followingCount: number;
+
+  @ApiProperty({ description: 'I follow them' })
+  isFollowing: boolean;
+
+  @ApiProperty({ description: 'They follow me' })
+  followsMe: boolean;
+
+  @ApiProperty({
+    description: 'We follow each other; they appear in my friends list',
+  })
+  isFriend: boolean;
+
   @ApiProperty({ description: 'Public trips they own' })
   publicTripCount: number;
 

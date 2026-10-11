@@ -201,6 +201,9 @@ describe('Account deletion and export (integration)', () => {
           .popularity,
       ).toBe(3);
       await as(alice).post(`/v1/users/${bob.userId}/block`).expect(204);
+      // Alice and Carol follow each other.
+      await as(alice).put(`/v1/users/${carol.userId}/follow`).expect(204);
+      await as(carol).put(`/v1/users/${alice.userId}/follow`).expect(204);
       await as(alice)
         .put('/v1/me/devices/alice-phone-token-000000001')
         .send({ platform: 'android', locale: 'en' })
@@ -299,6 +302,9 @@ describe('Account deletion and export (integration)', () => {
         }),
         prisma.block.count({
           where: { OR: [{ blockerId: id }, { blockedId: id }] },
+        }),
+        prisma.follow.count({
+          where: { OR: [{ followerId: id }, { followeeId: id }] },
         }),
         prisma.device.count({ where: { userId: id } }),
         prisma.refreshToken.count({ where: { userId: id } }),
@@ -433,6 +439,9 @@ describe('Account deletion and export (integration)', () => {
         .post(`/v1/markers/${markerId}/comments`)
         .send({ body: 'Go early' })
         .expect(201);
+      const bob = await onboardedUser(app, 'bob');
+      await as(alice).put(`/v1/users/${bob.userId}/follow`).expect(204);
+      await as(bob).put(`/v1/users/${alice.userId}/follow`).expect(204);
       await as(alice).get('/v1/me/export').expect(404);
 
       const started = (await as(alice).post('/v1/me/export').expect(202))
@@ -459,6 +468,7 @@ describe('Account deletion and export (integration)', () => {
           'README.txt',
           'blocks.json',
           'comments.json',
+          'follows.json',
           'consents.json',
           'likes.json',
           'notifications.json',
@@ -479,7 +489,15 @@ describe('Account deletion and export (integration)', () => {
       expect(json('comments.json')).toEqual([
         expect.objectContaining({ body: 'Go early' }),
       ]);
-      expect(strFromU8(zip['README.txt'])).toContain('profile.json');
+      expect(json('follows.json')).toEqual({
+        following: [
+          expect.objectContaining({ userId: bob.userId, username: 'bob' }),
+        ],
+        followers: [
+          expect.objectContaining({ userId: bob.userId, username: 'bob' }),
+        ],
+      });
+      expect(strFromU8(zip['README.txt'])).toContain('follows.json');
 
       await eventually(() => email.sent.length === 1, 10_000, 'email');
       expect(email.sent[0]).toMatchObject({ to: 'alice@example.com' });

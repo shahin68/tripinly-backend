@@ -80,8 +80,8 @@ export class BlocksService {
   }
 
   /**
-   * Blocks `blockedId`. Also removes each user from the other's trips as an
-   * editor. Idempotent.
+   * Blocks `blockedId`. Also removes follows both ways and each user from the
+   * other's trips as an editor. Idempotent.
    */
   async block(blockerId: string, blockedId: string): Promise<void> {
     if (blockerId === blockedId) {
@@ -98,6 +98,15 @@ export class BlocksService {
         where: { blockerId_blockedId: { blockerId, blockedId } },
         create: { blockerId, blockedId },
         update: {},
+      });
+      // Blocking ends following in both directions.
+      await tx.follow.deleteMany({
+        where: {
+          OR: [
+            { followerId: blockerId, followeeId: blockedId },
+            { followerId: blockedId, followeeId: blockerId },
+          ],
+        },
       });
       const memberships = await tx.tripMember.findMany({
         where: {

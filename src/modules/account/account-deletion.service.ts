@@ -302,7 +302,7 @@ export class AccountDeletionService {
 
   /**
    * Consent proof, username hold and the user row in one transaction. The
-   * rest (identities, tokens, devices, blocks, notifications to them,
+   * rest (identities, tokens, devices, blocks, follows both ways, notifications to them,
    * entitlements, invites, exports, settings) goes with the row by cascade.
    */
   private async deleteUserRow(
