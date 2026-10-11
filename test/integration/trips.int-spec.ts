@@ -635,8 +635,11 @@ describe('Trips, days and members (integration)', () => {
       expect(page1.body.items[0]).toMatchObject({
         dayCount: 1,
         markerCount: 0,
+        editorCount: 0,
         coverThumbUrl: null,
       });
+      // The owner of "Shared" added this user; the owner isn't counted.
+      expect(page1.body.items[1]).toMatchObject({ editorCount: 1 });
       const page2 = await as(owner)
         .get(`/v1/me/trips?limit=2&cursor=${page1.body.nextCursor}`)
         .expect(200);

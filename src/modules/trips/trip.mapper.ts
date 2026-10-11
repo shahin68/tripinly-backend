@@ -132,7 +132,7 @@ export const TRIP_COVER_MARKER = {
 
 export type TripWithCounts = Trip & {
   owner: Summary;
-  _count: { days: number; markers: number };
+  _count: { days: number; markers: number; members: number };
   markers: {
     coverPhotoId: string | null;
     coverPhoto: { uploaderId: string } | null;
@@ -162,6 +162,7 @@ export function toTripSummaryDto(
     coverThumbUrl: thumbUrl(signer, coverPhotoId),
     dayCount: trip._count.days,
     markerCount: trip._count.markers,
+    editorCount: trip._count.members,
     likeCount: trip.likeCount,
     likedByMe: likedIds.has(trip.id),
     copyCount: trip.copyCount,
@@ -174,7 +175,13 @@ export function tripSummaryInclude(userId: string) {
   return {
     owner: { select: USER_SUMMARY_SELECT },
     members: { where: { userId }, select: { role: true } },
-    _count: { select: { days: true, markers: true } },
+    _count: {
+      select: {
+        days: true,
+        markers: true,
+        members: { where: { role: 'editor' } },
+      },
+    },
     markers: TRIP_COVER_MARKER,
   } satisfies Prisma.TripInclude;
 }

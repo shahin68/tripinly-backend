@@ -271,6 +271,12 @@ export class TripSummaryDto {
   @ApiProperty()
   markerCount: number;
 
+  @ApiProperty({
+    description:
+      'People the trip is shared with as editors (the owner not counted)',
+  })
+  editorCount: number;
+
   @ApiProperty()
   likeCount: number;
 
