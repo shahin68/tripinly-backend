@@ -5398,6 +5398,9 @@
           },
           "uploadHeaders": {
             "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
             "example": {
               "Content-Type": "image/jpeg",
               "Content-Length": "2400000"
