@@ -167,6 +167,7 @@ export class DataExportService {
     await addJson('likes.json', await this.likes(userId));
     await addJson('notifications.json', await this.notifications(userId));
     await addJson('blocks.json', await this.blocks(userId));
+    await addJson('follows.json', await this.follows(userId));
     await addJson('reports.json', await this.reports(userId));
 
     // Originals, already stripped of location and camera data at processing.
@@ -377,6 +378,34 @@ export class DataExportService {
       username: row.blocked.username,
       createdAt: iso(row.createdAt),
     }));
+  }
+
+  /** Who I follow and who follows me (ids and usernames). */
+  private async follows(userId: string) {
+    const [following, followers] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followerId: userId },
+        orderBy: { createdAt: 'asc' },
+        include: { followee: { select: { id: true, username: true } } },
+      }),
+      this.prisma.follow.findMany({
+        where: { followeeId: userId },
+        orderBy: { createdAt: 'asc' },
+        include: { follower: { select: { id: true, username: true } } },
+      }),
+    ]);
+    return {
+      following: following.map((row) => ({
+        userId: row.followee.id,
+        username: row.followee.username,
+        createdAt: iso(row.createdAt),
+      })),
+      followers: followers.map((row) => ({
+        userId: row.follower.id,
+        username: row.follower.username,
+        createdAt: iso(row.createdAt),
+      })),
+    };
   }
 
   private async reports(userId: string) {

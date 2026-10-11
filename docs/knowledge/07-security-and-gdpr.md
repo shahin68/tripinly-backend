@@ -47,7 +47,7 @@
 
 ## GDPR rights
 
-- **Access / portability:** `POST /me/export` builds a ZIP (`profile.json` with sign-in methods, devices without tokens, paid features and settings; `consents.json`; `trips.json` with days and markers; `comments.json`; `likes.json`; `notifications.json`; `blocks.json` (people the user blocked); `reports.json` (reports the user filed); `photos/` originals the user uploaded, already without EXIF; a localized `README.txt`), stores it in R2, emails a signed link valid 7 days, then deletes the ZIP. One at a time, one per 24 hours. `GET /me/export` returns the latest with a fresh link while it lasts.
+- **Access / portability:** `POST /me/export` builds a ZIP (`profile.json` with sign-in methods, devices without tokens, paid features and settings; `consents.json`; `trips.json` with days and markers; `comments.json`; `likes.json`; `notifications.json`; `blocks.json` (people the user blocked); `follows.json` (ids and usernames of the people the user follows and of their followers); `reports.json` (reports the user filed); `photos/` originals the user uploaded, already without EXIF; a localized `README.txt`), stores it in R2, emails a signed link valid 7 days, then deletes the ZIP. One at a time, one per 24 hours. `GET /me/export` returns the latest with a fresh link while it lasts.
 - **Erasure:** `DELETE /me` — see `02-domain-rules.md` and the `account-deletion` skill. Complete within 30 days (aim: minutes). A failed deletion job is retried every hour until it finishes. Deleting and exporting stay open while a consent is owed.
 - **Rectification:** profile editing.
 - **Withdraw consent:** withdrawing a required consent means the user must delete the account or stop using the app; the API blocks use with `CONSENT_REQUIRED`.

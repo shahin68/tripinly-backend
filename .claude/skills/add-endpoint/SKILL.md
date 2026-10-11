@@ -21,7 +21,7 @@ description: Use when adding or changing any Tripinly REST endpoint — DTOs, va
 6. **Side effects**: emit a domain event (`this.events.emit('marker.created', …)`) after the transaction commits. Don't call the gateway, FCM or email from the request path.
 7. **Lists**: cursor pagination (`{ items, nextCursor }`), stable ordering with a tiebreaker on `id`, max `limit` 50, blocked users filtered, hidden (`hiddenAt`) content filtered for non-admins.
 8. **Rate limit** writes that could be abused (comments, likes, reports, uploads, search).
-9. **App tuning values come from the server.** When the apps need a value that steers their behaviour (a cache or refresh time, a limit, a batch size, later feature flags), add it to `GET /app-config` (`AppConfigDto`) from an `APP_*` environment variable with a default, list it in `04-api-spec.md` "App settings" and `06-architecture-and-infra.md`, and never ask the app to hardcode it. Changing it must not need an app update (Shahin, 2026-10-10).
+9. **App tuning values come from the server.** When the apps need a value that steers their behaviour (a cache or refresh time, a limit, a batch size, later feature flags), add it to `GET /app-config` (`AppConfigDto`) from an `APP_*` environment variable with a default, list it in `04-api-spec.md` "App settings" and `06-architecture-and-infra.md`, and never ask the app to hardcode it. A server-side tuning value (a threshold or limit the server applies) is also an `APP_*` variable; secrets, URLs and service settings are not. Changing it must not need an app update (Shahin, 2026-10-10).
 
 ## Test
 

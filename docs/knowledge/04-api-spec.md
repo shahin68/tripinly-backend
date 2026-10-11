@@ -59,8 +59,13 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 |---|---|---|
 | GET | `/users/check-username?username=` | `{ username (normalized), available, reason? (invalid\|taken) }`. Allowed during onboarding |
 | GET | `/users/search?q=` | Prefix search (2–50 chars) on username and display name; onboarded users only, never yourself or anyone with a block either way. `{ items: [user summary] }`, max 20 |
-| GET | `/users/{username}?cursor=&limit=` | Public profile: `{ user, publicTripCount, trips[] (trip summaries, most recently changed first), nextCursor }`. Unknown, or a block either way → 404 |
-| POST | `/users/{id}/block` | 204, idempotent. Also removes each user from the other's trips as an editor |
+| GET | `/users/{username}?cursor=&limit=` | Public profile: `{ user, followerCount, followingCount, isFollowing (I follow them), followsMe, isFriend (both), publicTripCount, trips[] (trip summaries, most recently changed first), nextCursor }`. The counts leave out suspended or deleting users and anyone with a block with me. On my own profile the three flags are `false`. Unknown, or a block either way → 404 |
+| PUT | `/users/{id}/follow` | Follow → 204, no approval, idempotent. Myself → 400 `VALIDATION_FAILED` (`fields.id = ["cannotFollowSelf"]`); unknown, not onboarded, suspended or deleting, or a block either way → 404. Emits `user.followed` (no push yet) |
+| DELETE | `/users/{id}/follow` | Unfollow → 204, idempotent (also when not following). Myself → 400 like above |
+| GET | `/me/friends?cursor=&limit=` | People I follow who follow me back, by `displayName` then `id`: `{ items: [user summary], nextCursor }`. Suspended users and anyone with a block either way are left out. The trip member picker lists these |
+| GET | `/me/following?cursor=&limit=` | People I follow, most recently followed first; same shape and filters |
+| GET | `/me/followers?cursor=&limit=` | People who follow me, most recent first; same shape and filters |
+| POST | `/users/{id}/block` | 204, idempotent. Also removes follows both ways and each user from the other's trips as an editor |
 | DELETE | `/users/{id}/block` | 204, idempotent |
 | GET | `/me/blocks` | Users I blocked, cursor paginated |
 
@@ -130,7 +135,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/places/search?q=&lat=&lng=&scope=` | `{ items[], attribution }`: our places (`source: "place"`, with `id`) then Photon results (`source: "photon"`, no `id`; send name + location + `osmType`/`osmId` when adding the marker). `q` 1–100 chars (one letter searches Photon only); 60 requests/min per user. `scope=destination` (default `all`) returns only countries, regions, cities and districts from Photon, cities before districts, for a trip destination |
 | GET | `/places/nearby?lat=&lng=&radiusKm=&cursor=&limit=` | Popular places around the user (radius 0.1–50 km, default 5), each with `distanceMeters`; the first page is topped up with OSM sights when fewer than 10 are in range. Location not stored |
 | GET | `/places/popular?bbox=…&excludeTripId=&limit=` | Tripinly places only in the visible area (bbox side ≤ 5°), excluding places already in the trip |
-| GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `photoThumbUrls` (up to 10 from public trips, most liked first), `attribution` |
+| GET | `/places/{id}` | Place detail: source, OSM ids, tags (website, openingHours, cuisine, wikidata), `coverPhotoId`, `photoThumbUrls` (up to 10 public trip photos that may represent the place, see the Place shape, most outside likes first), `attribution` |
 | POST | `/places/{id}/add-to-trip` | Body: `dayId`, optional `time`, `position` → new marker (same rules as `POST /days/{id}/markers`) |
 
 ### Routing
@@ -183,7 +188,7 @@ Field names the client relies on (full schemas in OpenAPI):
 - **Trip summary** (My Trips, Explore, profiles): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner`, `role` (`owner`\|`editor`\|`viewer`), `coverThumbUrl`, `dayCount`, `markerCount`, `likeCount`, `likedByMe`, `copyCount`, `updatedAt`.
 - **Comment**: `id`, `markerId`, `body`, `author` (user summary), `likeCount`, `likedByMe`, `canDelete` (I wrote it or own the trip), `createdAt`.
 - **User summary**: `id`, `username`, `displayName`.
-- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverThumbUrl` (cover photo of the most liked marker there in a public trip, or null), `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
+- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverPhotoId` (uuid or null; cache the image by it), `coverThumbUrl` (or null): the public trip photo there with the most likes from people **outside its trip**, shown only when at least `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (2) such people liked it; likes by the uploader, the trip owner or the trip's members don't count. Leaves out hidden content, suspended owners and blocks either way. `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).
 
 

@@ -42,7 +42,7 @@ export class BlocksController {
   @ApiOperation({
     summary: 'Block a user',
     description:
-      'Mutual in effect. Also removes each user from the other’s trips as an editor. Idempotent.',
+      'Mutual in effect. Also removes follows both ways and each user from the other’s trips as an editor. Idempotent.',
   })
   @ApiNoContentResponse()
   block(

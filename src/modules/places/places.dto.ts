@@ -231,9 +231,18 @@ export class PlaceItemDto {
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description:
-      'Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h',
+      'Id of the cover photo (stable; cache the image by it), or null',
+  })
+  coverPhotoId: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h',
   })
   coverThumbUrl: string | null;
 
@@ -419,6 +428,7 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   'location',
   'isTripinly',
   'likeCount',
+  'coverPhotoId',
   'coverThumbUrl',
   'likedByMe',
 ] as const) {
@@ -442,7 +452,7 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   @ApiProperty({
     type: [String],
     description:
-      'Up to 10 photo thumbnails from public trips, most liked first',
+      'Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first',
   })
   photoThumbUrls: string[];
 

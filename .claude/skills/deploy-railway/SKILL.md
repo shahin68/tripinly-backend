@@ -31,6 +31,7 @@ The full list is in `docs/knowledge/06-architecture-and-infra.md`. Rules:
 - Set them in Railway per environment; use Railway reference variables for `DATABASE_URL` and `REDIS_URL`.
 - Staging and production use **separate** R2 buckets, Firebase projects, Resend domains/keys and Apple/Google client configuration where possible.
 - Never print variables in build logs.
+- Behaviour-tuning values (numbers adjusted like feature flags, e.g. `APP_PLACES_REFRESH_SECONDS`, `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES`) start with `APP_`; no other variable does (Shahin, 2026-10-11).
 - When adding a variable: add it to the config schema (boot fails if missing), to `06-architecture-and-infra.md`, and tell the user which value to set in Railway.
 
 ## Operations

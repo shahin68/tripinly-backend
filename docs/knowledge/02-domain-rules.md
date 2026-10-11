@@ -58,7 +58,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - A like doesn't count as a change to the trip (`updatedAt` stays), so it doesn't reorder My Trips.
 - Deleting a trip, marker, photo or comment deletes its likes (database triggers, including rows removed by cascade).
 - **Place popularity** = number of likes on **public** markers linked to that place (plus direct likes on the place from the place sheets). A place with popularity > 0 is a "Tripinly place"; OSM places with popularity 0 are background suggestions. Blocked relationships don't change global counts but blocked users' content is hidden from the viewer.
-- A place's card image (`coverThumbUrl`) is the cover photo of its most liked marker in a public trip; place detail shows up to 10 photos from public trips, most liked first. Photos across a block are left out.
+- **A trip photo may represent a place** (the place's card image `coverThumbUrl` / `coverPhotoId`, and the up to 10 photos on the place detail) only when at least **N distinct people outside its trip** have liked it: the uploader, the trip owner and the trip's members never count. N is `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (Shahin chose 2). So nobody can make their own photo a place's image with their own or their friends-in-the-trip likes. The cover is the qualifying photo with the most outside likes (then total likes, then newest), not the cover of the most liked marker; the detail lists qualifying photos in the same order. Photos must be ready, in a public, unhidden trip with an active owner, on an unhidden marker, and not hidden; photos uploaded by or in trips owned by someone with a block with the viewer are left out. Place `popularity` and like counts don't change with this rule.
 - Counters (`likeCount`, `commentCount`, `popularity`) move in the same transaction as the like or comment; a nightly job rebuilds them from source rows.
 - Explore ranks public trips of other people by likes and copies, with recency decay: `(likes + 2 × copies) / (age in days + 2)^1.5`. Only trips with at least one marker are listed; owners with a block either way are left out.
 
@@ -81,18 +81,28 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 ## Profiles
 
-- `GET /users/{username}` shows a user's public, visible trips. Unknown, not onboarded or suspended users, and users with a block either way, answer 404.
+- `GET /users/{username}` shows a user's public, visible trips, their follower and following counts, and whether the viewer follows them, they follow the viewer, and whether they are friends. Unknown, not onboarded or suspended users, and users with a block either way, answer 404.
+- The follower and following counts leave out suspended or deleting users and anyone with a block with the viewer.
+
+## Follows and friends
+
+- Anyone can follow anyone, without approval (one-way). Following yourself is not allowed. Unknown, suspended or deleting users and users with a block either way can't be followed (404, the block is not revealed).
+- Two users who follow each other are **friends**. The trip member picker lists friends (`GET /me/friends`); adding a member still works by username for anyone.
+- **Following never grants access.** Private trips stay members-only; a follower sees exactly what any other signed-in user sees.
+- Blocking removes follows in both directions; unblocking doesn't restore them.
+- Lists of friends, following and followers leave out suspended users and anyone with a block with me.
+- Account deletion removes the user's follows in both directions; the data export lists who they follow and who follows them.
 
 ## Blocking and reporting
 
-- Blocking is mutual in effect: neither side sees the other's profile, trips, markers, photos, comments or likes in lists; they can't comment on each other's content, add each other to trips or accept each other's invites. Blocking removes the blocked user from the blocker's trips as editor and vice versa.
+- Blocking is mutual in effect: neither side sees the other's profile, trips, markers, photos, comments or likes in lists; they can't comment on each other's content, add each other to trips or accept each other's invites. Blocking removes the blocked user from the blocker's trips as editor and vice versa, and removes follows in both directions.
 - Users can report a user, trip, marker, photo or comment with a reason. Admins review reports and can hide content, dismiss, or suspend a user.
 
 ## Account deletion
 
 When a user deletes their account, **everything about them is deleted**:
 
-- Profile, auth identities (revoke Apple tokens), refresh tokens, devices, consents record kept only as required by law (see `07-security-and-gdpr.md`), notifications, blocks, invite links.
+- Profile, auth identities (revoke Apple tokens), refresh tokens, devices, consents record kept only as required by law (see `07-security-and-gdpr.md`), notifications, blocks, follows (both directions), invite links.
 - **All trips they own** — including every day, marker, photo and comment in them, **even if other people are editors**.
 - **All their photos and comments everywhere**, including in other people's trips, and the stored image files.
 - **All their likes** (popularity counts are recomputed).

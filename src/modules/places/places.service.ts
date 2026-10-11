@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
+import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
@@ -111,6 +113,7 @@ export class PlacesService {
     private readonly matching: PlaceMatchingService,
     private readonly storage: StorageService,
     @Inject(REDIS) private readonly redis: Redis,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async inView(
@@ -385,15 +388,16 @@ export class PlacesService {
         cuisine: tags.cuisine ?? null,
         wikidata: tags.wikidata ?? null,
       },
-      photoThumbUrls: await this.publicPhotoThumbs(userId, place.id),
+      photoThumbUrls: await this.placePhotoThumbs(userId, place.id),
       attribution:
         place.source === 'osm' || place.osmId ? OSM_ATTRIBUTION : null,
     };
   }
 
   /**
-   * Fills each place's cover (the cover photo of its most liked marker in a
-   * public trip, left out across blocks) and likedByMe for this viewer.
+   * Fills each place's cover (its most liked photo that may represent it, see
+   * `representativePhotos`; left out across blocks) and likedByMe for this
+   * viewer.
    */
   async personalize<T extends PlaceItem>(
     userId: string,
@@ -403,43 +407,75 @@ export class PlacesService {
     if (ids.length === 0) return items;
     const [covers, liked] = await Promise.all([
       this.prisma.$queryRaw<{ placeId: string; photoId: string }[]>`
-        SELECT DISTINCT ON (m."placeId") m."placeId" AS "placeId", m."coverPhotoId" AS "photoId"
-        FROM markers m
-        JOIN trips t ON t.id = m."tripId"
-        JOIN photos ph ON ph.id = m."coverPhotoId"
-        WHERE m."placeId" = ANY(${ids}::uuid[]) AND m."hiddenAt" IS NULL
-          AND t.visibility = 'public' AND t."hiddenAt" IS NULL AND ph."hiddenAt" IS NULL
-          AND ${ownerActive(Prisma.sql`t."ownerId"`)}
-          AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
-          AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
-        ORDER BY m."placeId", m."likeCount" DESC, m."createdAt" DESC, m.id`,
+        SELECT DISTINCT ON (q."placeId") q."placeId" AS "placeId", q.id AS "photoId"
+        FROM (${this.representativePhotos(
+          userId,
+          Prisma.sql`m."placeId" = ANY(${ids}::uuid[])`,
+        )}) q
+        ORDER BY q."placeId", q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id`,
       likedAmong(this.prisma, userId, { type: 'place', ids }),
     ]);
     const coverOf = new Map(covers.map((row) => [row.placeId, row.photoId]));
-    return items.map((item) => ({
-      ...item,
-      coverThumbUrl: thumbUrl(this.storage, coverOf.get(item.id) ?? null),
-      likedByMe: liked.has(item.id),
-    }));
+    return items.map((item) => {
+      const photoId = coverOf.get(item.id) ?? null;
+      return {
+        ...item,
+        coverPhotoId: photoId,
+        coverThumbUrl: thumbUrl(this.storage, photoId),
+        likedByMe: liked.has(item.id),
+      };
+    });
   }
 
-  /** Up to 10 ready photos at the place from public trips, most liked first. */
-  private async publicPhotoThumbs(
+  /** Up to 10 photos that may represent the place, most outside likes first. */
+  private async placePhotoThumbs(
     userId: string,
     placeId: string,
   ): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT ph.id FROM photos ph
+      SELECT q.id FROM (${this.representativePhotos(
+        userId,
+        Prisma.sql`m."placeId" = ${placeId}::uuid`,
+      )}) q
+      ORDER BY q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id
+      LIMIT ${PLACE_PHOTO_LIMIT}`;
+    return rows.flatMap((row) => thumbUrl(this.storage, row.id) ?? []);
+  }
+
+  /**
+   * Ready photos in public trips that may represent a place: at least
+   * APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES people liked them who are neither the
+   * uploader, the trip owner nor a member of that trip, so nobody can make
+   * their own photo a place's image. Hidden content, suspended owners and
+   * blocks either way with the viewer (uploader or owner) are left out.
+   * Columns: id, placeId, outsideLikes, likeCount, createdAt.
+   */
+  private representativePhotos(
+    userId: string,
+    placeFilter: Prisma.Sql,
+  ): Prisma.Sql {
+    const minLikes = this.config.get('APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES', {
+      infer: true,
+    });
+    return Prisma.sql`
+      SELECT ph.id, m."placeId", outside.n AS "outsideLikes", ph."likeCount", ph."createdAt"
+      FROM photos ph
       JOIN markers m ON m.id = ph."markerId"
       JOIN trips t ON t.id = m."tripId"
-      WHERE m."placeId" = ${placeId}::uuid AND ph.status = 'ready' AND ph."hiddenAt" IS NULL
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS n FROM likes l
+        WHERE l."targetType" = 'photo' AND l."targetId" = ph.id
+          AND l."userId" <> ph."uploaderId" AND l."userId" <> t."ownerId"
+          AND NOT EXISTS (
+            SELECT 1 FROM trip_members tm WHERE tm."tripId" = t.id AND tm."userId" = l."userId")
+      ) outside
+      WHERE ${placeFilter} AND ph.status = 'ready' AND ph."hiddenAt" IS NULL
+        AND ph."likeCount" >= ${minLikes}
         AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
         AND ${ownerActive(Prisma.sql`t."ownerId"`)}
         AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
         AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
-      ORDER BY ph."likeCount" DESC, ph."createdAt" DESC, ph.id
-      LIMIT ${PLACE_PHOTO_LIMIT}`;
-    return rows.flatMap((row) => thumbUrl(this.storage, row.id) ?? []);
+        AND outside.n >= ${minLikes}`;
   }
 
   /**
@@ -714,6 +750,7 @@ export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
     location: { lat: row.lat, lng: row.lng },
     isTripinly: row.popularity > 0,
     likeCount: row.popularity,
+    coverPhotoId: null,
     coverThumbUrl: null,
     likedByMe: false,
   };

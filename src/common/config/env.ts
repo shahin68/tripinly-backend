@@ -108,6 +108,15 @@ export const envSchema = z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://photon.komoot.io'),
+    /**
+     * People outside a trip (not the uploader, owner or members) who must like
+     * a photo before it can represent a place (cover, place detail photos).
+     */
+    APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .default(2),
     // Routing: openrouteservice. Without a key, routes are straight lines
     // (degraded) and best route uses straight-line distance.
     ORS_API_KEY: optionalString,
