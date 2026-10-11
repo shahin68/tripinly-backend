@@ -27,7 +27,7 @@ export interface FirebaseServiceAccount {
 }
 
 /**
- * FIREBASE_SERVICE_ACCOUNT_JSON holds the service account JSON downloaded from the
+ * APP_FIREBASE_SERVICE_ACCOUNT_JSON holds the service account JSON downloaded from the
  * Firebase console, as is or base64-encoded. Returns undefined if it doesn't parse.
  */
 export function parseServiceAccount(

@@ -48,10 +48,10 @@ export class AppleIdentityVerifier {
     config: ConfigService<Env, true>,
     @Optional() @Inject(APPLE_JWKS) keySet?: JWTVerifyGetKey,
   ) {
-    const bundleId = config.get('APPLE_BUNDLE_ID', { infer: true });
-    const teamId = config.get('APPLE_TEAM_ID', { infer: true });
-    const keyId = config.get('APPLE_KEY_ID', { infer: true });
-    const privateKey = config.get('APPLE_PRIVATE_KEY', { infer: true });
+    const bundleId = config.get('APP_APPLE_BUNDLE_ID', { infer: true });
+    const teamId = config.get('APP_APPLE_TEAM_ID', { infer: true });
+    const keyId = config.get('APP_APPLE_KEY_ID', { infer: true });
+    const privateKey = config.get('APP_APPLE_PRIVATE_KEY', { infer: true });
     if (bundleId && teamId && keyId && privateKey) {
       this.apple = {
         bundleId,

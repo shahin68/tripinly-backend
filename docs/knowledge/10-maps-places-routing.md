@@ -4,18 +4,18 @@ This file records the map architecture decided with the product owner. It overri
 
 ## The stack
 
-| Part | Choice | Runs where | Cost |
-|---|---|---|---|
-| Map display | **Google Maps SDK** (Android + iOS) with Google's own POI icons **hidden** via map style | Client | Free on mobile |
-| Places shown on the map | **Our own `places` table**: Tripinly places (added/liked by users) + **OpenStreetMap POIs imported by us** | Backend (Postgres/PostGIS) | Free |
-| Place search (search box) | 1) our `places` table (POIs by name), 2) **Photon** (OSM geocoder) for addresses, streets, cities | Backend proxies both | Free (public Photon at first, self-host later) |
-| Routing (route lines, travel times, matrix) | **openrouteservice (ORS)** | Backend calls it | Free plan to start, paid/self-host later |
-| Places along a route | PostGIS query on our `places` table against the ORS route line | Backend | Free |
-| Premium best route | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later) | Backend | Free/low |
+| Part                                        | Choice                                                                                                     | Runs where                 | Cost                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------- |
+| Map display                                 | **Google Maps SDK** (Android + iOS) with Google's own POI icons **hidden** via map style                   | Client                     | Free on mobile                                 |
+| Places shown on the map                     | **Our own `places` table**: Tripinly places (added/liked by users) + **OpenStreetMap POIs imported by us** | Backend (Postgres/PostGIS) | Free                                           |
+| Place search (search box)                   | 1) our `places` table (POIs by name), 2) **Photon** (OSM geocoder) for addresses, streets, cities          | Backend proxies both       | Free (public Photon at first, self-host later) |
+| Routing (route lines, travel times, matrix) | **openrouteservice (ORS)**                                                                                 | Backend calls it           | Free plan to start, paid/self-host later       |
+| Places along a route                        | PostGIS query on our `places` table against the ORS route line                                             | Backend                    | Free                                           |
+| Premium best route                          | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later)            | Backend                    | Free/low                                       |
 
 ## Legal rules (non-negotiable)
 
-1. **Never store Google Maps content**: no Google place IDs, names, coordinates, photos, ratings or route polylines from Google APIs in our database. The client uses Google only to *draw* the map.
+1. **Never store Google Maps content**: no Google place IDs, names, coordinates, photos, ratings or route polylines from Google APIs in our database. The client uses Google only to _draw_ the map.
 2. The client **hides Google POI icons** so users can only tap our places (which we're allowed to store).
 3. Our data on a Google map is fine. Google data on a non-Google map is not — we don't do either with Google data.
 4. **OpenStreetMap data (ODbL):** we may store and display it forever with the attribution **"© OpenStreetMap contributors"** visible in the app (client shows it on map screens) and in the app's legal/about screen. Don't offer bulk downloads/exports of the places database to the public (that would trigger ODbL share-alike on the database). A user's own data export may include places they used.
@@ -46,7 +46,7 @@ Stored per place: `name`, `names` (json of `name:<lang>` for localization), `cat
 
 `?bbox=minLng,minLat,maxLng,maxLat&zoom=15&categories=cafe,attraction&limit=100`
 
-1. **Tripinly places first**: places with `popularity > 0` (from public markers/likes), ranked by popularity, with a flag `isTripinly: true`, `likeCount`, optional cover (`coverPhotoId`, `coverThumbUrl`): the public trip photo there with the most **outside likes**, shown only when at least `PLACE_PHOTO_MIN_OUTSIDE_LIKES` (default 2) people liked it who are not its uploader, the trip owner or a member of that trip. Place detail `photoThumbUrls` follows the same rule. `popularity` and `likeCount` are not affected by this rule.
+1. **Tripinly places first**: places with `popularity > 0` (from public markers/likes), ranked by popularity, with a flag `isTripinly: true`, `likeCount`, optional cover (`coverPhotoId`, `coverThumbUrl`): the public trip photo there with the most **outside likes**, shown only when at least `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (default 2) people liked it who are not its uploader, the trip owner or a member of that trip. Place detail `photoThumbUrls` follows the same rule. `popularity` and `likeCount` are not affected by this rule.
 2. **Fill with OSM places** (`popularity = 0`) up to `limit`, only when `zoom >= 14`; spread them over cells fixed on the map (a quarter of a map tile at the zoom, anchored at 0°/0°, so panning keeps the same picks) and take the top items per cell by a category priority: attraction/museum/historic before cafe/restaurant/bar, Wikidata entries first.
 3. At `zoom < 14`, return Tripinly places, pre-clustered server-side when there are more than `limit`: one cell per map tile at the zoom (fixed on the map), a cell with one place returns the place, others a cluster `{ count, location }` (centre of its places). While they fit in `limit` and `zoom >= 10`, notable OSM places (with a Wikidata entry) fill up to `limit`, spread like step 2.
 4. Reject oversized bboxes relative to zoom: a side longer than `2880 / 2^floor(zoom)` degrees (about eight tiles; 0.18° at zoom 14) → 400 `BBOX_TOO_LARGE` with `details.maxSpanDegrees`.
@@ -74,14 +74,18 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 
 ## Routing — openrouteservice
 
-Host: `https://api.heigit.org/openrouteservice` (`ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
+Host: `https://api.heigit.org/openrouteservice` (`APP_ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
 
 ### `GET /routes?from=lat,lng&to=lat,lng&mode=walking&categories=…`
+
 and
+
 ### `GET /days/{id}/route?mode=walking&categories=…`
+
 (route through the day's markers in their current order; requires `view` on the trip)
 
 Returns:
+
 ```json
 {
   "route": { "polyline": "<encoded polyline, precision 5>", "distanceMeters": 3200, "durationSeconds": 2400,
@@ -92,6 +96,7 @@ Returns:
 ```
 
 **Along-the-way query** (PostGIS):
+
 - Buffer by mode: walking 250 m, cycling 500 m, driving 1500 m (configurable).
 - Simplify the route line first for long routes (`ST_Simplify` in a metric projection, tolerance ~20 m walking / 100 m driving).
 - `ST_DWithin(place.location, routeLine, buffer)`, active places only, requested categories.
@@ -102,6 +107,7 @@ Returns:
 **Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
 
 **Free vs premium:**
+
 - Showing a route line for a day, and along-the-way places: **free for everyone** (ORS cost is low). If ORS quota becomes a problem, fall back to straight segments between markers for free users and tell the product owner.
 - **Best route (reorder a day):** free = straight-line ordering (no provider call); premium = ORS matrix (`/v2/matrix/{profile}`, durations) + our ordering (nearest neighbour + 2-opt, first marker fixed) + `savedMinutes`.
 - Limits: ≤ 25 markers per optimization, ≤ 50 waypoints per day route.
@@ -109,7 +115,7 @@ Returns:
 
 **Resilience:** ORS timeouts (5 s), 429s and 5xx (retried once) → `ROUTING_UNAVAILABLE` (503) for route requests; the optimize endpoint falls back to straight-line with `mode: "straight_line"` and `degraded: true`.
 
-**Quota:** ORS calls are counted per UTC day in Redis (`ORS_DIRECTIONS_DAILY_QUOTA`, default 2000; `ORS_MATRIX_DAILY_QUOTA`, default 500, the free plan). A warning is logged at 80%; past 100% (or with no `ORS_API_KEY`) route requests return straight segments between the points with `degraded: true` and times from typical speeds (5, 15, 40 km/h), and optimize falls back to straight line. Report quota exhaustion to the product owner.
+**Quota:** ORS calls are counted per UTC day in Redis (`APP_ORS_DIRECTIONS_DAILY_QUOTA`, default 2000; `APP_ORS_MATRIX_DAILY_QUOTA`, default 500, the free plan). A warning is logged at 80%; past 100% (or with no `APP_ORS_API_KEY`) route requests return straight segments between the points with `degraded: true` and times from typical speeds (5, 15, 40 km/h), and optimize falls back to straight line. Report quota exhaustion to the product owner.
 
 ## Nearby (unchanged idea, new data)
 

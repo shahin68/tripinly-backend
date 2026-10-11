@@ -38,7 +38,8 @@ export class RefreshTokenService {
     private readonly prisma: PrismaService,
     config: ConfigService<Env, true>,
   ) {
-    this.ttlMs = config.get('JWT_REFRESH_TTL_DAYS', { infer: true }) * DAY_MS;
+    this.ttlMs =
+      config.get('APP_JWT_REFRESH_TTL_DAYS', { infer: true }) * DAY_MS;
   }
 
   /** Starts a new token family (a new sign-in). */

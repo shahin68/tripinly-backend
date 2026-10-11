@@ -47,8 +47,8 @@ export class AuthController {
     private readonly apple: AppleIdentityVerifier,
     config: ConfigService<Env, true>,
   ) {
-    this.devAuthEnabled = config.get('DEV_AUTH_ENABLED', { infer: true });
-    this.devAuthSecret = config.get('DEV_AUTH_SECRET', { infer: true });
+    this.devAuthEnabled = config.get('APP_DEV_AUTH_ENABLED', { infer: true });
+    this.devAuthSecret = config.get('APP_DEV_AUTH_SECRET', { infer: true });
   }
 
   @Post('google')
@@ -91,7 +91,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Development sign-in without a provider',
     description:
-      'Only when DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.',
+      'Only when APP_DEV_AUTH_ENABLED=true (local and staging, never production); 404 otherwise. Where APP_DEV_AUTH_SECRET is set (staging), the X-Dev-Auth-Secret header must match.',
   })
   @ApiHeader({ name: 'X-Dev-Auth-Secret', required: false })
   @ApiOkResponse({ type: AuthTokensDto })

@@ -37,13 +37,15 @@ Reject any field that looks like a Google place ID (`ChIJ…` / `googlePlaceId`)
 Follow the algorithm in `10-maps-places-routing.md` (Tripinly places first; OSM fill at zoom ≥ 14, notable-only (Wikidata) at zoom 10–13 while hot spots are few, spread over map-fixed cells by category priority; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
 
 Response item:
+
 ```json
 { "id": "…", "name": "…", "category": "cafe", "location": {"lat":…, "lng":…},
   "isTripinly": true, "likeCount": 1200, "coverPhotoId": "uuid|null", "coverThumbUrl": "…|null", "likedByMe": false }
 ```
+
 or `{ "cluster": true, "count": 37, "location": {…} }`. Include `"attribution": "© OpenStreetMap contributors"` at the top level.
 
-Place covers and detail photos come only from photos with at least `PLACE_PHOTO_MIN_OUTSIDE_LIKES` likes by people outside the photo's trip (`PlacesService.representativePhotos`, rule in `02-domain-rules.md`); never pick a place image by marker likes or `popularity`.
+Place covers and detail photos come only from photos with at least `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` likes by people outside the photo's trip (`PlacesService.representativePhotos`, rule in `02-domain-rules.md`); never pick a place image by marker likes or `popularity`.
 
 ## Map squares — `GET /places/tiles`
 
@@ -53,7 +55,7 @@ Localized `name`: pick `names["name:<Accept-Language>"]` if present, else `name`
 
 ## Search — `GET /places/search`
 
-Parallel: pg_trgm similarity on our places (active only, boosted by popularity and proximity to `lat/lng`) + Photon (`${PHOTON_BASE_URL}/api?q=&lat=&lon=&lang=&limit=8`, 2 s timeout). Merge ours first, drop Photon items whose OSM id already exists in our results. Photon failure → return ours only (never fail the request). Don't log `q` with coordinates.
+Parallel: pg_trgm similarity on our places (active only, boosted by popularity and proximity to `lat/lng`) + Photon (`${APP_PHOTON_BASE_URL}/api?q=&lat=&lon=&lang=&limit=8`, 2 s timeout). Merge ours first, drop Photon items whose OSM id already exists in our results. Photon failure → return ours only (never fail the request). Don't log `q` with coordinates.
 
 ## Nearby — `GET /places/nearby`
 

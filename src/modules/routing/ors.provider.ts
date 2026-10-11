@@ -85,13 +85,13 @@ export class OrsProvider extends RoutingProvider {
     path: string,
     payload: unknown,
   ): Promise<unknown> {
-    const key = this.config.get('ORS_API_KEY', { infer: true });
+    const key = this.config.get('APP_ORS_API_KEY', { infer: true });
     if (!key) throw new RoutingUnavailableError('not_configured');
     await this.countCall(kind);
 
     // Appended, not resolved: the base carries a path (`/openrouteservice`)
     // that `new URL('/v2/…', base)` would drop.
-    const base = this.config.get('ORS_BASE_URL', { infer: true });
+    const base = this.config.get('APP_ORS_BASE_URL', { infer: true });
     const url = `${base.replace(/\/+$/, '')}${path}`;
     for (let attempt = 1; ; attempt++) {
       const started = Date.now();
@@ -127,8 +127,8 @@ export class OrsProvider extends RoutingProvider {
   private async countCall(kind: Kind): Promise<void> {
     const quota =
       kind === 'directions'
-        ? this.config.get('ORS_DIRECTIONS_DAILY_QUOTA', { infer: true })
-        : this.config.get('ORS_MATRIX_DAILY_QUOTA', { infer: true });
+        ? this.config.get('APP_ORS_DIRECTIONS_DAILY_QUOTA', { infer: true })
+        : this.config.get('APP_ORS_MATRIX_DAILY_QUOTA', { infer: true });
     const counter = `ors:calls:${kind}:${new Date().toISOString().slice(0, 10)}`;
     let used: number;
     try {

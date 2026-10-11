@@ -3,19 +3,19 @@
 // trip and marker with a realtime event, photo upload through the worker,
 // then deletes the test account again.
 //
-//   DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>
+//   APP_DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>
 //
-// Needs DEV_AUTH_ENABLED and the same DEV_AUTH_SECRET on the staging api.
+// Needs APP_DEV_AUTH_ENABLED and the same APP_DEV_AUTH_SECRET on the staging api.
 // Prints no tokens or signed URLs.
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { io } from 'socket.io-client';
 
 const base = (process.argv[2] ?? '').replace(/\/$/, '');
-const secret = process.env.DEV_AUTH_SECRET;
+const secret = process.env.APP_DEV_AUTH_SECRET;
 if (!/^https?:\/\//.test(base) || !secret) {
   console.error(
-    'Usage: DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>',
+    'Usage: APP_DEV_AUTH_SECRET=... node scripts/smoke-test.mjs https://<api-domain>',
   );
   process.exit(2);
 }

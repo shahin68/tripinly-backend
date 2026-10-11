@@ -16,42 +16,42 @@
 
 ### Event catalogue (trip room)
 
-| Event | When | Data |
-|---|---|---|
-| `trip.updated` | Title, dates, destination, visibility changed | changed fields |
-| `trip.deleted` | Trip deleted | — (clients leave the room) |
-| `day.created` / `day.deleted` | | day |
-| `marker.created` / `marker.updated` / `marker.deleted` | | marker (with cover thumbnail URL) |
-| `markers.reordered` | Order change or best route applied | dayId, ordered IDs |
-| `photo.processing` | Upload confirmed | photo stub |
-| `photo.ready` / `photo.failed` | Thumbnail job finished | photo with URLs |
-| `photo.deleted` | | photoId, markerId, new cover ID |
-| `marker.cover_changed` | Cover chosen, or set automatically by the first ready photo | markerId, photoId |
-| `photos.reordered` | Gallery reordered | markerId, ordered photo IDs |
-| `comment.created` / `comment.deleted` | | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId |
-| `like.count_changed` | Any like on trip/marker/photo/comment | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
-| `member.added` / `member.removed` | | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }` |
+| Event                                                  | When                                                        | Data                                                                                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `trip.updated`                                         | Title, dates, destination, visibility changed               | changed fields                                                                                                                    |
+| `trip.deleted`                                         | Trip deleted                                                | — (clients leave the room)                                                                                                        |
+| `day.created` / `day.deleted`                          |                                                             | day                                                                                                                               |
+| `marker.created` / `marker.updated` / `marker.deleted` |                                                             | marker (with cover thumbnail URL)                                                                                                 |
+| `markers.reordered`                                    | Order change or best route applied                          | dayId, ordered IDs                                                                                                                |
+| `photo.processing`                                     | Upload confirmed                                            | photo stub                                                                                                                        |
+| `photo.ready` / `photo.failed`                         | Thumbnail job finished                                      | photo with URLs                                                                                                                   |
+| `photo.deleted`                                        |                                                             | photoId, markerId, new cover ID                                                                                                   |
+| `marker.cover_changed`                                 | Cover chosen, or set automatically by the first ready photo | markerId, photoId                                                                                                                 |
+| `photos.reordered`                                     | Gallery reordered                                           | markerId, ordered photo IDs                                                                                                       |
+| `comment.created` / `comment.deleted`                  |                                                             | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId                                              |
+| `like.count_changed`                                   | Any like on trip/marker/photo/comment                       | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
+| `member.added` / `member.removed`                      |                                                             | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }`                                                       |
 
 Domain events that don't go to a room as such: `trip.copied` (tripId = the source; data: copyId, ownerId) for a future notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification, and `like.count_changed` for places (no trip).
 
 ### User room
 
-| Event | Data |
-|---|---|
-| `notification.created` | notification (as in `GET /notifications`, in the user's saved language). Batched and grouped entries are sent again with the same `id` and a higher `count`: replace by id |
-| `trips.changed` | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted |
-| `account.suspended` | `{}` — an admin suspended the account; the server disconnects every socket of the user right after, and HTTP calls answer 403 `ACCOUNT_SUSPENDED`. Account deletion disconnects the same way, without an event |
+| Event                  | Data                                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notification.created` | notification (as in `GET /notifications`, in the user's saved language). Batched and grouped entries are sent again with the same `id` and a higher `count`: replace by id                                     |
+| `trips.changed`        | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted                                                                                           |
+| `account.suspended`    | `{}` — an admin suspended the account; the server disconnects every socket of the user right after, and HTTP calls answer 403 `ACCOUNT_SUSPENDED`. Account deletion disconnects the same way, without an event |
 
 ## Push notifications (FCM)
 
 Triggered from domain events by the notifications module, executed as BullMQ jobs.
 
-| Type | Recipient | Rule |
-|---|---|---|
-| `comment_on_marker` | Trip owner and the marker's creator (if different), not the commenter | One push per comment |
-| `added_to_trip` | The added user | Includes trip title and who added them |
-| `trip_changed_by_collaborator` | Trip owner and editors except the actor | **Batched:** collect for 10 minutes per trip per recipient, then one push ("Jonas added 3 markers to Vienna") |
-| `likes_grouped` | Owner of the liked item | **Grouped:** at most one push per recipient per hour summarizing new likes ("12 people liked your photos in Vienna") |
+| Type                           | Recipient                                                             | Rule                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `comment_on_marker`            | Trip owner and the marker's creator (if different), not the commenter | One push per comment                                                                                                 |
+| `added_to_trip`                | The added user                                                        | Includes trip title and who added them                                                                               |
+| `trip_changed_by_collaborator` | Trip owner and editors except the actor                               | **Batched:** collect for 10 minutes per trip per recipient, then one push ("Jonas added 3 markers to Vienna")        |
+| `likes_grouped`                | Owner of the liked item                                               | **Grouped:** at most one push per recipient per hour summarizing new likes ("12 people liked your photos in Vienna") |
 
 - The API turns domain events into `plan` jobs on the `notifications` queue; the worker picks recipients, writes rows and sends. Recipients never include the actor, anyone with a block either way with the actor, inactive accounts, or anyone who can't view the trip.
 - Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded. The summary names the latest actor ("Jonas added 3 places", "Jonas made 5 changes", "Jonas and others made 5 changes").
@@ -61,7 +61,7 @@ Triggered from domain events by the notifications module, executed as BullMQ job
 - Respect `notification-settings` per type; still create the in-app notification even if push is off.
 - Localize using the recipient's device `locale` (fallback user locale, then `en`). Templates live in the i18n files, keyed `push.<type>.title` / `.body` with ICU plural support.
 - Payload: a `notification` (title, body) plus `data: { type, notificationId, deepLink }`. Deep links: `tripinly://markers/{id}` (comments), `tripinly://trips/{id}` (everything else about one trip), `tripinly://notifications` (likes across several trips).
-- Pushes are skipped while `FIREBASE_SERVICE_ACCOUNT_JSON` is unset; in-app notifications and realtime still work.
+- Pushes are skipped while `APP_FIREBASE_SERVICE_ACCOUNT_JSON` is unset; in-app notifications and realtime still work.
 - Remove device tokens that FCM reports as unregistered.
 - Never include private trip content in a push to someone who isn't a member.
 
@@ -69,13 +69,13 @@ Triggered from domain events by the notifications module, executed as BullMQ job
 
 Transactional only, via Resend, localized templates:
 
-| Email | When |
-|---|---|
-| `data_export_ready` | Export job finished; contains a signed download link valid 7 days |
+| Email                        | When                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `data_export_ready`          | Export job finished; contains a signed download link valid 7 days                                      |
 | `account_deletion_confirmed` | Deletion finished (sent to the provider email captured before deletion, then the address is discarded) |
 
 No marketing email in v1.
 
 - Queued with `EmailService.send(template, to, locale, params)` on the `email` queue; the worker renders (`i18n/<lang>/email.json`, HTML plus a text part) and sends through Resend with the job id as idempotency key. Five attempts with backoff.
 - The address exists only in the job, which is removed when it finishes or fails; logs name the template, never the address.
-- Skipped with a warning while `RESEND_API_KEY` is unset. `EMAIL_FROM` must be an address on a domain verified in Resend.
+- Skipped with a warning while `APP_RESEND_API_KEY` is unset. `APP_EMAIL_FROM` must be an address on a domain verified in Resend.

@@ -39,12 +39,14 @@ export class StorageService implements OnModuleDestroy {
   private readonly client: S3Client | null;
 
   constructor(config: ConfigService<Env, true>) {
-    const bucket = config.get('R2_BUCKET', { infer: true });
-    const accessKeyId = config.get('R2_ACCESS_KEY_ID', { infer: true });
-    const secretAccessKey = config.get('R2_SECRET_ACCESS_KEY', { infer: true });
+    const bucket = config.get('APP_R2_BUCKET', { infer: true });
+    const accessKeyId = config.get('APP_R2_ACCESS_KEY_ID', { infer: true });
+    const secretAccessKey = config.get('APP_R2_SECRET_ACCESS_KEY', {
+      infer: true,
+    });
     const endpoint =
-      config.get('R2_ENDPOINT', { infer: true }) ??
-      `https://${config.get('R2_ACCOUNT_ID', { infer: true })}.r2.cloudflarestorage.com`;
+      config.get('APP_R2_ENDPOINT', { infer: true }) ??
+      `https://${config.get('APP_R2_ACCOUNT_ID', { infer: true })}.r2.cloudflarestorage.com`;
     if (!bucket || !accessKeyId || !secretAccessKey) {
       this.config = null;
       this.client = null;

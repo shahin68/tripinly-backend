@@ -29,7 +29,7 @@ const metres = ([lng1, lat1]: number[], [lng2, lat2]: number[]) => {
 };
 
 /**
- * A fake openrouteservice on ORS_BASE_URL (set by global-setup). Directions
+ * A fake openrouteservice on APP_ORS_BASE_URL (set by global-setup). Directions
  * return a line through the waypoints with a midpoint on every leg, 1.2 ×
  * the straight distance, at 1.25 m/s.
  */

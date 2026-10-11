@@ -34,7 +34,7 @@ export class AuthService {
     config: ConfigService<Env, true>,
   ) {
     this.encryptionKey = Buffer.from(
-      config.get('ENCRYPTION_KEY', { infer: true }),
+      config.get('APP_ENCRYPTION_KEY', { infer: true }),
       'base64',
     );
   }

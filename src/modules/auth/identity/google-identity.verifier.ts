@@ -8,7 +8,7 @@ import type { VerifiedIdentity } from './verified-identity';
 
 const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 
-/** Verifies Google ID tokens: signature, `iss`, `exp` and `aud` ∈ GOOGLE_CLIENT_IDS. */
+/** Verifies Google ID tokens: signature, `iss`, `exp` and `aud` ∈ APP_GOOGLE_CLIENT_IDS. */
 @Injectable()
 export class GoogleIdentityVerifier {
   private readonly logger = new Logger(GoogleIdentityVerifier.name);
@@ -16,7 +16,9 @@ export class GoogleIdentityVerifier {
   private readonly client = new OAuth2Client();
 
   constructor(config: ConfigService<Env, true>) {
-    this.audiences = (config.get('GOOGLE_CLIENT_IDS', { infer: true }) ?? '')
+    this.audiences = (
+      config.get('APP_GOOGLE_CLIENT_IDS', { infer: true }) ?? ''
+    )
       .split(',')
       .map((id) => id.trim())
       .filter(Boolean);

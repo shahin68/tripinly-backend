@@ -46,7 +46,7 @@ export const loggerModule = LoggerModule.forRootAsync({
       config.get('NODE_ENV', { infer: true }) === 'development';
     return {
       pinoHttp: {
-        level: config.get('LOG_LEVEL', { infer: true }),
+        level: config.get('APP_LOG_LEVEL', { infer: true }),
         redact: { paths: REDACT_PATHS, censor: '[redacted]' },
         genReqId: (req: IncomingMessage, res: ServerResponse) => {
           const id = resolveRequestId(req);

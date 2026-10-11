@@ -7,12 +7,13 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Identity
 
 **users**
+
 - `username` (unique, lowercase, null until onboarding), `usernameChangedAt` (last change after onboarding; one change per 30 days), `displayName`, `birthDate` (date), `locale` (BCP 47, e.g. `hu-HU`)
 - `defaultTripVisibility` (`public` | `private`, default `public`)
 - `role` (`user` | `admin`), `status` (`active` | `suspended` | `deleting`)
 - `onboardedAt` (null until profile + consents complete)
 
-**auth_identities** — user → users, `provider` (`google` | `apple` | `dev`; `dev` only exists where `DEV_AUTH_ENABLED`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
+**auth_identities** — user → users, `provider` (`google` | `apple` | `dev`; `dev` only exists where `APP_DEV_AUTH_ENABLED`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
 
 **refresh_tokens** — user → users, `tokenHash`, `familyId`, `expiresAt`, `revokedAt`, `replacedById`, `deviceLabel`, `authenticatedAt` (the Google/Apple sign-in that started the family, copied on every rotation; account deletion needs one in the last 10 minutes).
 
@@ -27,6 +28,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Trips
 
 **trips**
+
 - owner → users, `title`, `startDate`, `endDate` (both nullable; with a start date, `endDate = startDate + days − 1`, kept in sync on every day or date change), `destinationName`, `destinationLat`, `destinationLng` (optional destination: all three or none, enforced by a CHECK), `visibility`
 - `copiedFromTripId` → trips (nullable, `ON DELETE SET NULL`)
 - `likeCount`, `copyCount` (denormalized, maintained in the same transaction or by job)
@@ -41,6 +43,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 ## Places and markers
 
 **places**
+
 - `name`, `normalizedName`, `searchText` (normalized name plus every `name:<lang>` variant, for search), `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `lat`, `lng`, `location geography(Point)` (generated)
 - `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) (nulls don't collide). A `user` place created from a Photon result carries the OSM ids, so the import later recognises it (and leaves it alone).
 - `osmRegion` (Geofabrik region of the last import that saw it; used to deactivate what a region no longer has)
@@ -53,6 +56,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 **osm_import_runs** — `region`, `status` (`running` | `succeeded` | `degraded` = deactivation skipped because the extract shrank > 20% | `failed`), `extractAt` (the extract's Last-Modified), `seen`, `inserted`, `updated`, `deactivated`, `error` (short operator message), `startedAt`, `finishedAt`.
 
 **markers**
+
 - day → trip_days, `tripId` (denormalized for access checks), place → places (`RESTRICT`: places with markers are never deleted)
 - `name`, `lat`, `lng`, `location geography(Point)` (generated), `time` (nullable `HH:mm`), `position` (0-based, contiguous per day)
 - `coverPhotoId` → photos (nullable, unique, `SET NULL`): always a ready photo of this marker
@@ -61,6 +65,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `likeCount`, `commentCount`, `hiddenAt`
 
 **photos**
+
 - marker → markers (`CASCADE`), `tripId` (denormalized, `CASCADE`), `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
 - Storage keys derive from the id: `photos/{id}/original` (re-encoded without metadata once processed), `photos/{id}/thumb.webp` (256 px square), `photos/{id}/display.webp` (≤ 1600 px). Deleting the prefix `photos/{id}/` deletes every file.
 - `width`, `height` (upright, after EXIF rotation), `mimeType`, `bytes` (declared at upload)
@@ -87,7 +92,7 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 **data_exports** — user → users (`CASCADE`), `status` (`pending` | `ready` | `failed` | `expired`), `bytes`, `readyAt`, `expiresAt` (7 days after ready; the hourly sweep deletes the file and marks it `expired`). The file is `exports/{userId}/{id}.zip`. A partial unique index allows one `pending` export per user.
 
-**consent_proofs** — the minimal record kept after account deletion (`07-security-and-gdpr.md`): `subjectHash` (HMAC-SHA256 of the deleted user id with `ENCRYPTION_KEY`), `documentType`, `version`, `locale`, `grantedAt`, `withdrawnAt`, `retainUntil` (deletion + `CONSENT_PROOF_RETENTION_YEARS`; a daily job purges rows past it). No link to any user row.
+**consent_proofs** — the minimal record kept after account deletion (`07-security-and-gdpr.md`): `subjectHash` (HMAC-SHA256 of the deleted user id with `APP_ENCRYPTION_KEY`), `documentType`, `version`, `locale`, `grantedAt`, `withdrawnAt`, `retainUntil` (deletion + `APP_CONSENT_PROOF_RETENTION_YEARS`; a daily job purges rows past it). No link to any user row.
 
 ## Notifications and billing
 
@@ -99,21 +104,21 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 ## Deletion behaviour (FK summary)
 
-| Relation | On user deletion |
-|---|---|
-| trips owned | delete (cascades days, markers, photos, comments, likes on them, invites) |
-| trip_members rows | delete |
-| markers created in others' trips | keep, `createdById = null` |
-| photos uploaded anywhere | delete rows and storage objects |
-| comments written anywhere | delete |
-| likes given | delete, recompute counts |
-| copies others made (`copiedFrom…`) | keep, link set null |
-| reports filed | keep report, `reporterId = null` |
-| reports about the user or their deleted content | closed (`dismissed`, action `target_deleted`) |
-| notifications (received), notification settings, devices, tokens, identities, blocks, follows (both directions), entitlements, invites created, data exports | delete |
-| notifications others received that this user caused | delete; a grouped one (likes, collaborator changes) shared with other people drops the user from its list and passes to the next person |
-| consents | replaced by `consent_proofs` rows |
-| username | held in `username_holds` for 30 days |
+| Relation                                                                                                                                                     | On user deletion                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| trips owned                                                                                                                                                  | delete (cascades days, markers, photos, comments, likes on them, invites)                                                               |
+| trip_members rows                                                                                                                                            | delete                                                                                                                                  |
+| markers created in others' trips                                                                                                                             | keep, `createdById = null`                                                                                                              |
+| photos uploaded anywhere                                                                                                                                     | delete rows and storage objects                                                                                                         |
+| comments written anywhere                                                                                                                                    | delete                                                                                                                                  |
+| likes given                                                                                                                                                  | delete, recompute counts                                                                                                                |
+| copies others made (`copiedFrom…`)                                                                                                                           | keep, link set null                                                                                                                     |
+| reports filed                                                                                                                                                | keep report, `reporterId = null`                                                                                                        |
+| reports about the user or their deleted content                                                                                                              | closed (`dismissed`, action `target_deleted`)                                                                                           |
+| notifications (received), notification settings, devices, tokens, identities, blocks, follows (both directions), entitlements, invites created, data exports | delete                                                                                                                                  |
+| notifications others received that this user caused                                                                                                          | delete; a grouped one (likes, collaborator changes) shared with other people drops the user from its list and passes to the next person |
+| consents                                                                                                                                                     | replaced by `consent_proofs` rows                                                                                                       |
+| username                                                                                                                                                     | held in `username_holds` for 30 days                                                                                                    |
 
 Storage-object deletion runs as a job after the database transaction commits. Account deletion runs as the resumable `account` / `delete` job (`account-deletion` skill); `actorId` on notifications is still `SET NULL` as a backstop.
 

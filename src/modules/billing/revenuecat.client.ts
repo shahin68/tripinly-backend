@@ -12,7 +12,7 @@ export class RevenueCatClient {
   private readonly apiKey?: string;
 
   constructor(config: ConfigService<Env, true>) {
-    this.apiKey = config.get('REVENUECAT_API_KEY', { infer: true });
+    this.apiKey = config.get('APP_REVENUECAT_API_KEY', { infer: true });
   }
 
   /**
@@ -23,7 +23,7 @@ export class RevenueCatClient {
   async deleteSubscriber(appUserId: string): Promise<boolean> {
     if (!this.apiKey) {
       this.logger.warn(
-        'RevenueCat customer deletion skipped: REVENUECAT_API_KEY is not set',
+        'RevenueCat customer deletion skipped: APP_REVENUECAT_API_KEY is not set',
       );
       return false;
     }

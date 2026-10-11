@@ -18,7 +18,7 @@ import {
 import { devSignIn, resetState, type Session } from '../utils/auth-helpers';
 import { createTestApp } from '../utils/create-test-app';
 
-const APPLE_BUNDLE_ID = 'com.tripinly.test';
+const APP_APPLE_BUNDLE_ID = 'com.tripinly.test';
 
 describe('Auth (integration)', () => {
   let app: INestApplication;
@@ -60,7 +60,7 @@ describe('Auth (integration)', () => {
 
   function appleToken(
     claims: Record<string, unknown>,
-    audience = APPLE_BUNDLE_ID,
+    audience = APP_APPLE_BUNDLE_ID,
   ) {
     return new SignJWT(claims)
       .setProtectedHeader({ alg: 'ES256', kid: 'test' })
@@ -192,7 +192,7 @@ describe('Auth (integration)', () => {
       expect(identity.provider).toBe('apple');
       expect(identity.user.displayName).toBe('Anna Nagy');
       expect(identity.appleRefreshToken).not.toContain('apple-refresh-token');
-      const key = Buffer.from(process.env.ENCRYPTION_KEY!, 'base64');
+      const key = Buffer.from(process.env.APP_ENCRYPTION_KEY!, 'base64');
       expect(decrypt(identity.appleRefreshToken!, key)).toBe(
         'apple-refresh-token',
       );
@@ -371,7 +371,9 @@ describe('Auth (integration)', () => {
 
     it('reports expired tokens as TOKEN_EXPIRED', async () => {
       const session = await devSignIn(app, 'expired-user');
-      const secret = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET);
+      const secret = new TextEncoder().encode(
+        process.env.APP_JWT_ACCESS_SECRET,
+      );
       const past = Math.floor(Date.now() / 1000) - 3600;
       const expired = await new SignJWT({ role: 'user', onb: false })
         .setProtectedHeader({ alg: 'HS256' })

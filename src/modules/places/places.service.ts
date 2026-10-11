@@ -444,7 +444,7 @@ export class PlacesService {
 
   /**
    * Ready photos in public trips that may represent a place: at least
-   * PLACE_PHOTO_MIN_OUTSIDE_LIKES people liked them who are neither the
+   * APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES people liked them who are neither the
    * uploader, the trip owner nor a member of that trip, so nobody can make
    * their own photo a place's image. Hidden content, suspended owners and
    * blocks either way with the viewer (uploader or owner) are left out.
@@ -454,7 +454,7 @@ export class PlacesService {
     userId: string,
     placeFilter: Prisma.Sql,
   ): Prisma.Sql {
-    const minLikes = this.config.get('PLACE_PHOTO_MIN_OUTSIDE_LIKES', {
+    const minLikes = this.config.get('APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES', {
       infer: true,
     });
     return Prisma.sql`

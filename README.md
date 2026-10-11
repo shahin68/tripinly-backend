@@ -19,20 +19,20 @@ npm run db:seed                   # placeholder Terms/Privacy so onboarding can 
 npm run start:dev                 # http://localhost:3000/v1/health, docs at /v1/docs
 ```
 
-Without Google or Apple accounts, sign in with `POST /v1/auth/dev` (`{"subject":"alice"}`); it is enabled by `DEV_AUTH_ENABLED=true` in `.env.local.example` and refused in production.
+Without Google or Apple accounts, sign in with `POST /v1/auth/dev` (`{"subject":"alice"}`); it is enabled by `APP_DEV_AUTH_ENABLED=true` in `.env.local.example` and refused in production.
 
 The worker runs with `npm run build && npm run start:worker`. `docker compose up` builds the image and runs migrations, api and worker together.
 
 ## Checks
 
-| Command | What it does |
-|---|---|
-| `npm run format:check` / `npm run format` | Prettier |
-| `npm run lint` | oxlint (type-aware) |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Unit tests (`src/**/*.spec.ts`) |
-| `npm run test:integration` | Integration tests (`test/integration`) against real PostGIS and Redis started with Testcontainers. Set `TEST_DATABASE_URL` and `TEST_REDIS_URL` to reuse running services instead. |
-| `npm run build && npm run openapi` | Regenerates `openapi.json`; CI fails if it is stale |
+| Command                                   | What it does                                                                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run format:check` / `npm run format` | Prettier                                                                                                                                                                           |
+| `npm run lint`                            | oxlint (type-aware)                                                                                                                                                                |
+| `npm run typecheck`                       | `tsc --noEmit`                                                                                                                                                                     |
+| `npm test`                                | Unit tests (`src/**/*.spec.ts`)                                                                                                                                                    |
+| `npm run test:integration`                | Integration tests (`test/integration`) against real PostGIS and Redis started with Testcontainers. Set `TEST_DATABASE_URL` and `TEST_REDIS_URL` to reuse running services instead. |
+| `npm run build && npm run openapi`        | Regenerates `openapi.json`; CI fails if it is stale                                                                                                                                |
 
 ## Database
 

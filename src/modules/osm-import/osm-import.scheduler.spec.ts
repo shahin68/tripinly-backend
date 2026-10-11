@@ -23,9 +23,9 @@ function setup(previous: 'none' | 'failed' | 'delayed' | 'waiting') {
     add: jest.fn().mockResolvedValue(undefined),
   };
   const values: Partial<Env> = {
-    OSM_IMPORT_ENABLED: true,
-    OSM_IMPORT_REGIONS: [REGION],
-    OSM_IMPORT_CRON: '0 3 1 * *',
+    APP_OSM_IMPORT_ENABLED: true,
+    APP_OSM_IMPORT_REGIONS: [REGION],
+    APP_OSM_IMPORT_CRON: '0 3 1 * *',
   };
   const config = { get: (key: keyof Env) => values[key] };
   const prisma = { osmImportRun: { count: jest.fn().mockResolvedValue(0) } };

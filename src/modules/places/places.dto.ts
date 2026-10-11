@@ -242,7 +242,7 @@ export class PlaceItemDto {
     type: String,
     nullable: true,
     description:
-      'The most liked public trip photo here that at least PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h',
+      'The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h',
   })
   coverThumbUrl: string | null;
 

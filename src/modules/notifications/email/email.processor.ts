@@ -24,7 +24,9 @@ export class EmailProcessor extends WorkerHost {
     const { template, to, locale, params } = job.data as SendEmailJob;
     if (!this.provider.enabled) {
       // Never log the address; the template is enough to notice the gap.
-      this.logger.warn(`Email ${template} skipped: RESEND_API_KEY is not set`);
+      this.logger.warn(
+        `Email ${template} skipped: APP_RESEND_API_KEY is not set`,
+      );
       return { sent: false };
     }
     const email = this.renderer.render(
