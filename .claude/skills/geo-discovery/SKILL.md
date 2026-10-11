@@ -39,9 +39,11 @@ Follow the algorithm in `10-maps-places-routing.md` (Tripinly places first; OSM 
 Response item:
 ```json
 { "id": "…", "name": "…", "category": "cafe", "location": {"lat":…, "lng":…},
-  "isTripinly": true, "likeCount": 1200, "coverThumbUrl": "…|null", "likedByMe": false }
+  "isTripinly": true, "likeCount": 1200, "coverPhotoId": "uuid|null", "coverThumbUrl": "…|null", "likedByMe": false }
 ```
 or `{ "cluster": true, "count": 37, "location": {…} }`. Include `"attribution": "© OpenStreetMap contributors"` at the top level.
+
+Place covers and detail photos come only from photos with at least `PLACE_PHOTO_MIN_OUTSIDE_LIKES` likes by people outside the photo's trip (`PlacesService.representativePhotos`, rule in `02-domain-rules.md`); never pick a place image by marker likes or `popularity`.
 
 ## Map squares — `GET /places/tiles`
 

@@ -20,6 +20,7 @@ describe('validateEnv', () => {
       APP_PHOTO_MAX_EDGE_PX: 2560,
       APP_PHOTO_JPEG_QUALITY: 85,
       APP_PHOTO_PARALLEL_UPLOADS: 2,
+      PLACE_PHOTO_MIN_OUTSIDE_LIKES: 2,
     });
   });
 
@@ -137,6 +138,16 @@ describe('validateEnv', () => {
 
   it('coerces numbers from strings', () => {
     expect(validateEnv({ ...valid, PORT: '8080' }).PORT).toBe(8080);
+  });
+
+  it('needs at least one outside like for place photos', () => {
+    expect(
+      validateEnv({ ...valid, PLACE_PHOTO_MIN_OUTSIDE_LIKES: '3' })
+        .PLACE_PHOTO_MIN_OUTSIDE_LIKES,
+    ).toBe(3);
+    expect(() =>
+      validateEnv({ ...valid, PLACE_PHOTO_MIN_OUTSIDE_LIKES: '0' }),
+    ).toThrow(EnvValidationError);
   });
 
   it('rejects missing and malformed variables, naming them without values', () => {

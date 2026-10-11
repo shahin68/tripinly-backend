@@ -174,6 +174,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         location: { lat: 48.206, lng: 16.371 },
         isTripinly: true,
         likeCount: 9,
+        coverPhotoId: null,
         coverThumbUrl: null,
         likedByMe: false,
       });
@@ -764,6 +765,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         location: { lat: 48.2104, lng: 16.3655 },
         isTripinly: false,
         likeCount: 0,
+        coverPhotoId: null,
         coverThumbUrl: null,
         likedByMe: false,
         source: 'osm',

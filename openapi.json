@@ -4839,10 +4839,16 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover photo (stable; cache the image by it), or null"
+          },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
+            "description": "The most liked public trip photo here that at least PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -4855,6 +4861,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "coverPhotoId",
           "coverThumbUrl",
           "likedByMe"
         ]
@@ -5099,10 +5106,16 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover photo (stable; cache the image by it), or null"
+          },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
+            "description": "The most liked public trip photo here that at least PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5119,6 +5132,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "coverPhotoId",
           "coverThumbUrl",
           "likedByMe",
           "distanceMeters"
@@ -5236,10 +5250,16 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover photo (stable; cache the image by it), or null"
+          },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Cover photo of the most liked marker here in a public trip; signed, valid ≥ 1 h"
+            "description": "The most liked public trip photo here that at least PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5272,7 +5292,7 @@
             "$ref": "#/components/schemas/PlaceTagsDto"
           },
           "photoThumbUrls": {
-            "description": "Up to 10 photo thumbnails from public trips, most liked first",
+            "description": "Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first",
             "type": "array",
             "items": {
               "type": "string"
@@ -5292,6 +5312,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "coverPhotoId",
           "coverThumbUrl",
           "likedByMe",
           "source",
