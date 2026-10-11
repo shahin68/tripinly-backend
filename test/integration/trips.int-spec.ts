@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import {
   devSignIn,
@@ -500,6 +501,96 @@ describe('Trips, days and members (integration)', () => {
         .post(`/v1/trips/${trip.id}/members`)
         .send({ username: 'stranger' })
         .expect(404);
+    });
+  });
+
+  describe('POST /v1/trips/{id}/members/batch', () => {
+    it('adds many editors at once and keeps people already in the trip', async () => {
+      await onboardedUser(app, 'friend2');
+      const trip = await createTrip({ memberUsernames: ['editor'] });
+      const added = await as(owner)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: ['Stranger', 'editor', 'friend2', 'owner'] })
+        .expect(200);
+      expect(
+        added.body.items.map(
+          (m: { user: { username: string } }) => m.user.username,
+        ),
+      ).toEqual(['stranger', 'editor', 'friend2']);
+      expect(
+        await prisma.tripMember.count({ where: { tripId: trip.id } }),
+      ).toBe(4);
+      await as(owner)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: ['stranger'] })
+        .expect(200);
+      expect(
+        await prisma.tripMember.count({ where: { tripId: trip.id } }),
+      ).toBe(4);
+    });
+
+    it('is all or nothing, owner only, and validates the list', async () => {
+      const trip = await createTrip();
+      await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
+      const refused = await as(owner)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: ['editor', 'nobody_here', 'stranger'] })
+        .expect(400);
+      expect(refused.body.error.details.fields).toEqual({
+        'usernames.1': ['notFound'],
+        'usernames.2': ['blocked'],
+      });
+      expect(
+        await prisma.tripMember.count({ where: { tripId: trip.id } }),
+      ).toBe(1);
+
+      await as(owner)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: [] })
+        .expect(400);
+      await as(owner)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: Array.from({ length: 201 }, (_, i) => `u${i}`) })
+        .expect(400);
+      await as(editor)
+        .post(`/v1/trips/${trip.id}/members/batch`)
+        .send({ usernames: ['editor'] })
+        .expect(403);
+    });
+
+    it('stops at APP_TRIP_MAX_MEMBERS', async () => {
+      const config = app.get(ConfigService);
+      const get = config.get.bind(config);
+      const spy = jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string, options?: unknown) =>
+          key === 'APP_TRIP_MAX_MEMBERS' ? 2 : get(key, options as never),
+        );
+      try {
+        const trip = await createTrip();
+        const limited = await as(owner)
+          .post(`/v1/trips/${trip.id}/members/batch`)
+          .send({ usernames: ['editor', 'stranger'] })
+          .expect(422);
+        expect(limited.body.error).toMatchObject({
+          code: 'LIMIT_REACHED',
+          details: { resource: 'members', max: 2 },
+        });
+        await as(owner)
+          .post(`/v1/trips/${trip.id}/members/batch`)
+          .send({ usernames: ['editor'] })
+          .expect(200);
+        await as(owner)
+          .post(`/v1/trips/${trip.id}/members`)
+          .send({ username: 'stranger' })
+          .expect(422);
+        await as(owner)
+          .post('/v1/trips')
+          .send({ title: 'T', memberUsernames: ['editor', 'stranger'] })
+          .expect(422);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

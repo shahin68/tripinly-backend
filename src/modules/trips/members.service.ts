@@ -7,8 +7,7 @@ import { BlocksService, userBlockedError } from '../moderation/blocks.service';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
 import { normalizeUsername } from '../users/username';
 import { TripAccessService } from './trip-access.service';
-import { TripLimits } from './trip-limits';
-import { limitReached, lockTrip } from './trips.service';
+import { limitReached, lockTrip, TripsService } from './trips.service';
 import type { TripMemberDto } from './trips.dto';
 
 @Injectable()
@@ -18,6 +17,7 @@ export class MembersService {
     private readonly access: TripAccessService,
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
+    private readonly trips: TripsService,
   ) {}
 
   /** Owner adds an editor by username. Idempotent for existing members. */
@@ -67,8 +67,8 @@ export class MembersService {
       });
       if (existing) return { member: existing, created: false };
       const count = await tx.tripMember.count({ where: { tripId } });
-      if (count >= TripLimits.MEMBERS_PER_TRIP) {
-        throw limitReached('members', TripLimits.MEMBERS_PER_TRIP);
+      if (count >= this.trips.maxMembers()) {
+        throw limitReached('members', this.trips.maxMembers());
       }
       const member = await tx.tripMember.create({
         data: { tripId, userId: memberId, role: 'editor', addedById },
@@ -92,6 +92,67 @@ export class MembersService {
       );
     }
     return dto;
+  }
+
+  /**
+   * Owner adds several editors at once, all-or-nothing: unknown or blocked
+   * usernames fail the whole request with per-entry errors, like trip
+   * creation. People already in the trip are kept as they are.
+   */
+  async addMany(
+    userId: string,
+    tripId: string,
+    usernames: string[],
+  ): Promise<TripMemberDto[]> {
+    await this.access.assert(userId, tripId, 'manage');
+    const ids = await this.trips.resolveUsernames(
+      userId,
+      usernames,
+      'usernames',
+    );
+    const max = this.trips.maxMembers();
+    const { members, createdIds } = await this.prisma.$transaction(
+      async (tx) => {
+        await lockTrip(tx, tripId);
+        const existing = await tx.tripMember.findMany({
+          where: { tripId },
+          select: { userId: true },
+        });
+        const present = new Set(existing.map((member) => member.userId));
+        const newIds = ids.filter((id) => !present.has(id));
+        if (present.size + newIds.length > max) {
+          throw limitReached('members', max);
+        }
+        await tx.tripMember.createMany({
+          data: newIds.map((id) => ({
+            tripId,
+            userId: id,
+            role: 'editor' as const,
+            addedById: userId,
+          })),
+        });
+        const members = await tx.tripMember.findMany({
+          where: { tripId, userId: { in: ids } },
+          include: { user: { select: USER_SUMMARY_SELECT } },
+        });
+        return { members, createdIds: new Set(newIds) };
+      },
+    );
+    const byId = new Map(
+      members.map((member) => [
+        member.userId,
+        { user: toUserSummary(member.user), role: member.role },
+      ]),
+    );
+    const dtos = ids.flatMap((id) => byId.get(id) ?? []);
+    for (const dto of dtos) {
+      if (!createdIds.has(dto.user.id)) continue;
+      this.events.emit(
+        DomainEvents.MEMBER_ADDED,
+        domainEvent(DomainEvents.MEMBER_ADDED, userId, { member: dto }, tripId),
+      );
+    }
+    return dtos;
   }
 
   /** Owner removes an editor, or an editor leaves. The owner can't be removed. */

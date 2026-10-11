@@ -83,6 +83,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup; account deletion deletes the customer, worker) and the webhook's shared Authorization value (with the webhook). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |
+| `APP_TRIP_MAX_MEMBERS` | Most people in one trip, owner included (default 50, at least 2). Applies to trip creation, adding members (one or many) and invite links |
 | `APP_PLACES_REFRESH_SECONDS` | Sent to the apps by `GET /app-config`: how old a map square's places may get before the app reloads them in the background (default 300, at least 10) |
 | `APP_PHOTO_MAX_EDGE_PX`, `APP_PHOTO_JPEG_QUALITY`, `APP_PHOTO_PARALLEL_UPLOADS` | Sent to the apps by `GET /app-config`: how the app shrinks and encodes photos before uploading (default 2560 px, 1024–4096; quality 85, 50–100) and how many it uploads at once (default 2, 1–4) |
 

@@ -72,7 +72,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Trips
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips` | `title`, optional `startDate`/`endDate` (one day per date, max 20; `endDate` needs `startDate`; no dates → one "Day 1"), optional `destination` `{ name (1–200), location { lat, lng } }` (e.g. a city from `/places/search`), `visibility` (default: my `defaultTripVisibility`), `memberUsernames` (≤ 20, added as editors; unknown → 400 `fields["memberUsernames.<i>"] = ["notFound"]`, ones I blocked → `["blocked"]`). Max 200 owned trips |
+| POST | `/trips` | `title`, optional `startDate`/`endDate` (one day per date, max 20; `endDate` needs `startDate`; no dates → one "Day 1"), optional `destination` `{ name (1–200), location { lat, lng } }` (e.g. a city from `/places/search`), `visibility` (default: my `defaultTripVisibility`), `memberUsernames` (≤ 200 per request, added as editors; unknown → 400 `fields["memberUsernames.<i>"] = ["notFound"]`, ones I blocked → `["blocked"]`). Max 200 owned trips |
 | GET | `/trips/{id}` | Trip with days, markers (cover thumbnail URLs), members, `copiedFrom` summary |
 | PATCH | `/trips/{id}` | Owner: `title`, `visibility`, `destination` (null removes it), `startDate` (null removes both dates, days stay), `endDate` (resizes: adds empty days, removes trailing days only if empty, else 400 `fields.endDate = ["daysNotEmpty"]`) |
 | DELETE | `/trips/{id}` | Owner |
@@ -90,7 +90,8 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 ### Members and invites
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/trips/{id}/members` | Owner adds by `username` → member `{ user, role }`; idempotent. Someone I blocked → 403 `USER_BLOCKED`; someone who blocked me or unknown → 404. Max 50 members |
+| POST | `/trips/{id}/members` | Owner adds by `username` → member `{ user, role }`; idempotent. Someone I blocked → 403 `USER_BLOCKED`; someone who blocked me or unknown → 404. At most `APP_TRIP_MAX_MEMBERS` people (default 50, owner included), else 422 `LIMIT_REACHED` |
+| POST | `/trips/{id}/members/batch` | Owner adds several editors at once (e.g. friends picked in a row): `{ usernames: [1..200] }` → 200 `{ items: [{ user, role }] }`, the requested people in request order (the owner's own username is skipped). All or nothing: unknown or blocked-me → 400 `fields["usernames.<i>"] = ["notFound"]`, people I blocked → `["blocked"]`. People already in the trip stay as they are and get no new notification. Over `APP_TRIP_MAX_MEMBERS` → 422 `LIMIT_REACHED`. Each newly added person gets the usual `member.added` event and push |
 | DELETE | `/trips/{id}/members/{userId}` | Owner removes, or editor removes self (leave). The owner can't be removed (403) |
 | POST | `/trips/{id}/invites` | Owner creates invite link → `{ id, url, token, expiresAt, createdAt }` (the token is shown only here). Valid 7 days, reusable, max 20 active |
 | GET | `/trips/{id}/invites` | Owner lists active invites (`id`, `expiresAt`, `createdAt`) so they can be revoked |

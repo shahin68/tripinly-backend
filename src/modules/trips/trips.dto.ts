@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsObject,
@@ -18,6 +19,7 @@ import type { Page } from '../../common/pagination/pagination';
 import { LocationDto, MarkerDto } from '../markers/markers.dto';
 import { UserSummaryDto } from '../users/user-summary';
 import { VISIBILITIES, type VisibilityValue } from '../users/users.dto';
+import { MAX_USERNAMES_PER_REQUEST } from './trip-limits';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -85,12 +87,13 @@ export class CreateTripDto {
 
   @ApiPropertyOptional({
     type: [String],
-    maxItems: 20,
-    description: 'Added as editors',
+    maxItems: MAX_USERNAMES_PER_REQUEST,
+    description:
+      'Added as editors. The trip holds at most APP_TRIP_MAX_MEMBERS people (default 50), owner included',
   })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(20)
+  @ArrayMaxSize(MAX_USERNAMES_PER_REQUEST)
   @IsString({ each: true })
   @MaxLength(60, { each: true })
   memberUsernames?: string[];
@@ -314,6 +317,26 @@ export class AddMemberDto {
   @IsString()
   @MaxLength(60)
   username: string;
+}
+
+export class AddMembersDto {
+  @ApiProperty({
+    type: [String],
+    minItems: 1,
+    maxItems: MAX_USERNAMES_PER_REQUEST,
+    example: ['anna.n', 'jonas.k'],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_USERNAMES_PER_REQUEST)
+  @IsString({ each: true })
+  @MaxLength(60, { each: true })
+  usernames: string[];
+}
+
+export class TripMembersDto {
+  @ApiProperty({ type: [TripMemberDto] })
+  items: TripMemberDto[];
 }
 
 export class MemberParamsDto {

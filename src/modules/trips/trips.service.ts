@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   addDays,
@@ -7,6 +8,7 @@ import {
   toCalendarDate,
 } from '../../common/dates/calendar-date';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
+import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
@@ -74,7 +76,13 @@ export class TripsService {
     private readonly events: EventEmitter2,
     private readonly storage: StorageService,
     private readonly photoJobs: PhotoJobsService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
+
+  /** Most people in one trip, owner included (APP_TRIP_MAX_MEMBERS). */
+  maxMembers(): number {
+    return this.config.get('APP_TRIP_MAX_MEMBERS', { infer: true });
+  }
 
   async create(userId: string, input: CreateTripDto): Promise<TripDto> {
     const { startDate, endDate, dayCount } = this.resolveNewDates(input);
@@ -82,10 +90,14 @@ export class TripsService {
       where: { id: userId },
       select: { defaultTripVisibility: true },
     });
-    const editorIds = await this.resolveInitialMembers(
+    const editorIds = await this.resolveUsernames(
       userId,
       input.memberUsernames ?? [],
+      'memberUsernames',
     );
+    if (editorIds.length + 1 > this.maxMembers()) {
+      throw limitReached('members', this.maxMembers());
+    }
 
     const tripId = await this.prisma.$transaction(async (tx) => {
       // Serialize a user's trip creation so the limit holds under concurrency.
@@ -581,10 +593,14 @@ export class TripsService {
     };
   }
 
-  /** Editors from usernames, all-or-nothing, with per-entry validation errors. */
-  private async resolveInitialMembers(
+  /**
+   * Users the owner may add, from usernames: all-or-nothing, with per-entry
+   * validation errors under `<field>.<index>`. The owner is skipped.
+   */
+  async resolveUsernames(
     ownerId: string,
     usernames: string[],
+    field: string,
   ): Promise<string[]> {
     if (usernames.length === 0) return [];
     const normalized = usernames.map(normalizeUsername);
@@ -619,17 +635,14 @@ export class TripsService {
       const id = byName.get(name);
       if (id === ownerId) return;
       if (!id || (blocked.has(id) && !iBlocked.has(id))) {
-        fields[`memberUsernames.${index}`] = ['notFound'];
+        fields[`${field}.${index}`] = ['notFound'];
       } else if (iBlocked.has(id)) {
-        fields[`memberUsernames.${index}`] = ['blocked'];
+        fields[`${field}.${index}`] = ['blocked'];
       } else {
         ids.add(id);
       }
     });
     if (Object.keys(fields).length > 0) throw AppException.validation(fields);
-    if (ids.size + 1 > TripLimits.MEMBERS_PER_TRIP) {
-      throw limitReached('members', TripLimits.MEMBERS_PER_TRIP);
-    }
     return [...ids];
   }
 }

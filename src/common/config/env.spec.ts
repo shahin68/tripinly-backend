@@ -21,6 +21,7 @@ describe('validateEnv', () => {
       APP_PHOTO_JPEG_QUALITY: 85,
       APP_PHOTO_PARALLEL_UPLOADS: 2,
       APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: 2,
+      APP_TRIP_MAX_MEMBERS: 50,
     });
   });
 
