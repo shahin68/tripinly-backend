@@ -61,7 +61,7 @@ Response: `{ "places": [ … ], "clusters": [ { "count": 37, "location": { … }
 
 The old `/places/popular` endpoint becomes a thin variant of this (Tripinly places only, excluding a trip's own places).
 
-## Search — `GET /places/search?q=&lat=&lng=`
+## Search — `GET /places/search?q=&lat=&lng=&scope=`
 
 - Query our `places` (pg_trgm similarity on `name`/`names`, category-aware, biased by distance to `lat/lng` if given) **and** Photon (`/api?q=&lat=&lon=&lang=`) in parallel.
 - Our places match on `searchText` (normalized name + all `name:<lang>` variants) with trigram word similarity, plus a small popularity boost and a proximity boost when `lat/lng` are given; 10 results. A one-letter query skips our places (trigrams need two characters) and returns Photon's prefix matches only.
@@ -69,6 +69,7 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 - Merge: our places first (`source: "place"`, with IDs and popularity); Photon results returned as `{ source: "photon", id: null, name, location, type, address, osmType, osmId }`, dropping those whose OSM ids are already in our results. `address` is street, city and country, for telling results apart.
 - If the user picks a Photon result, the client sends its name + location (+ osm ids) when creating the marker; the backend matches or creates the place.
 - Lat/lng used only for ranking; not stored or logged.
+- `scope=destination` (a trip's destination): Photon only, restricted to its area layers (`layer=country,state,county,city,district`, so no addresses, streets, POIs or farms), in Photon's importance order with countries, regions and cities ahead of counties and districts. The same name within 30 km appears once (Vienna the city, not also the state). Our places are skipped.
 - Rate limit per user. Debounce is the client's job (≥ 300 ms, ≥ 2 chars).
 
 ## Routing — openrouteservice

@@ -1354,6 +1354,20 @@
             }
           },
           {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "`all`: our places, then Photon addresses and cities. `destination`: only countries, regions, cities and districts (Photon), most important first, for a trip destination",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "all",
+                "destination"
+              ]
+            }
+          },
+          {
             "name": "lat",
             "required": false,
             "in": "query",

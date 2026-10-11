@@ -534,6 +534,61 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(photon.requests[0].get('q')).toBe('w');
     });
 
+    it('answers a destination search with areas only, cities before districts', async () => {
+      await insertPlace(app, {
+        name: 'Café Vienna',
+        lat: 48.2085,
+        lng: 16.3721,
+      });
+      const area = (
+        name: string,
+        type: string,
+        [lng, lat]: [number, number],
+        osmId: number,
+      ) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: {
+          osm_type: 'R',
+          osm_id: osmId,
+          name,
+          type,
+          country: 'Austria',
+        },
+      });
+      photon.features = [
+        area('Vienna', 'district', [16.37, 48.21], 1),
+        area('Vienna', 'city', [16.3725, 48.2083], 109166),
+        area('Vienna', 'state', [16.37, 48.22], 2),
+        area('Vienna', 'city', [-77.26, 38.9], 3),
+      ];
+
+      const { body } = await as(alice)
+        .get('/v1/places/search?q=vienn&scope=destination')
+        .set('Accept-Language', 'en')
+        .expect(200);
+
+      // No cafés, and Vienna once (the city), then Vienna in Virginia.
+      expect(
+        body.items.map((item: { osmId: string; source: string }) => [
+          item.source,
+          item.osmId,
+        ]),
+      ).toEqual([
+        ['photon', '109166'],
+        ['photon', '3'],
+      ]);
+      expect(photon.requests[0].getAll('layer')).toEqual([
+        'country',
+        'state',
+        'county',
+        'city',
+        'district',
+      ]);
+
+      await as(alice).get('/v1/places/search?q=vienn&scope=street').expect(400);
+    });
+
     it('validates the query', async () => {
       const { body } = await as(alice)
         .get('/v1/places/search?q=%20&lat=48.2')

@@ -24,6 +24,8 @@ export interface PhotonQuery {
   q: string;
   lang: string;
   near?: { lat: number; lng: number };
+  /** Only these Photon layers (e.g. `city`, `country`); all when absent. */
+  layers?: readonly string[];
 }
 
 /**
@@ -37,7 +39,12 @@ export class PhotonClient {
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
-  async search({ q, lang, near }: PhotonQuery): Promise<SearchResultDto[]> {
+  async search({
+    q,
+    lang,
+    near,
+    layers,
+  }: PhotonQuery): Promise<SearchResultDto[]> {
     const url = new URL(
       '/api',
       this.config.get('PHOTON_BASE_URL', { infer: true }),
@@ -45,6 +52,7 @@ export class PhotonClient {
     url.searchParams.set('q', q);
     url.searchParams.set('limit', String(PHOTON_LIMIT));
     if (PHOTON_LANGUAGES.has(lang)) url.searchParams.set('lang', lang);
+    for (const layer of layers ?? []) url.searchParams.append('layer', layer);
     if (near) {
       url.searchParams.set('lat', String(near.lat));
       url.searchParams.set('lon', String(near.lng));

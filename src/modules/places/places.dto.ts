@@ -158,6 +158,9 @@ export class NearbyQueryDto {
   limit?: number;
 }
 
+export const SEARCH_SCOPES = ['all', 'destination'] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
+
 export class SearchQueryDto {
   @ApiProperty({
     minLength: 1,
@@ -172,6 +175,16 @@ export class SearchQueryDto {
   @IsString()
   @Length(1, 100)
   q: string;
+
+  @ApiPropertyOptional({
+    enum: SEARCH_SCOPES,
+    default: 'all',
+    description:
+      '`all`: our places, then Photon addresses and cities. `destination`: only countries, regions, cities and districts (Photon), most important first, for a trip destination',
+  })
+  @IsOptional()
+  @IsIn(SEARCH_SCOPES)
+  scope?: SearchScope;
 
   @ApiPropertyOptional({
     example: 48.2082,
