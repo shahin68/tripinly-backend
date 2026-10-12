@@ -71,7 +71,15 @@ export class FollowsService {
     if (followerId === followeeId) {
       throw AppException.validation({ id: ['cannotFollowSelf'] });
     }
-    await this.prisma.follow.deleteMany({ where: { followerId, followeeId } });
+    const { count } = await this.prisma.follow.deleteMany({
+      where: { followerId, followeeId },
+    });
+    if (count > 0) {
+      this.events.emit(
+        DomainEvents.USER_UNFOLLOWED,
+        domainEvent(DomainEvents.USER_UNFOLLOWED, followerId, { followeeId }),
+      );
+    }
   }
 
   /** People I follow, most recently followed first. */
