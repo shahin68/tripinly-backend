@@ -270,12 +270,44 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       ).toEqual([]);
     });
 
-    it('fills the map with notable OSM places below zoom 14 while hot spots are few', async () => {
+    it('picks the best-known OSM place first', async () => {
+      await insertPlace(app, {
+        name: 'Corner café',
+        category: 'cafe',
+        lat: 48.2051,
+        lng: 16.3701,
+      });
+      await insertPlace(app, {
+        name: 'Café Sacher',
+        category: 'cafe',
+        lat: 48.2052,
+        lng: 16.3702,
+        prominence: 70,
+      });
+
+      const { body } = await as(alice)
+        .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+        .expect(200);
+
+      expect(names(body.places)).toEqual(['Café Sacher', 'Corner café']);
+    });
+
+    it('fills the map with well-known OSM places below zoom 14 while hot spots are few', async () => {
       await insertPlace(app, {
         name: 'Stephansdom',
         lat: 48.2085,
         lng: 16.3731,
         tags: { wikidata: 'Q167592' },
+        prominence: 84,
+      });
+      // A Wikidata entry alone isn't fame: every listed monument has one.
+      await insertPlace(app, {
+        name: 'Listed doorway',
+        category: 'historic',
+        lat: 48.2087,
+        lng: 16.3735,
+        tags: { wikidata: 'Q99999999' },
+        prominence: 12,
       });
       await insertPlace(app, {
         name: 'Corner café',

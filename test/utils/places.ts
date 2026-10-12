@@ -10,6 +10,7 @@ export interface PlaceSeed {
   category?: PlaceCategory;
   source?: 'osm' | 'user';
   popularity?: number;
+  prominence?: number;
   isActive?: boolean;
   names?: Record<string, string>;
   tags?: Record<string, string>;
@@ -42,6 +43,7 @@ export async function insertPlace(
       osmId: source === 'osm' ? BigInt(seed.osmId ?? nextOsmId++) : undefined,
       osmRegion: source === 'osm' ? 'test/region' : undefined,
       popularity: seed.popularity ?? 0,
+      prominence: seed.prominence ?? 0,
       isActive: seed.isActive ?? true,
       tags: seed.tags ?? {},
     },

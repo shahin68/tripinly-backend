@@ -9,7 +9,7 @@
 | **postgres** | PostgreSQL 16 with PostGIS | Railway Postgres with PostGIS (use a PostGIS-enabled image/template; run `CREATE EXTENSION IF NOT EXISTS postgis` in the first migration) |
 | **redis** | Queues, Socket.IO adapter, rate limits, short caches, idempotency records | Railway Redis |
 
-External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import).
+External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places).
 
 Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> best_route_realtime [days]` (0 days revokes).
 
@@ -17,7 +17,7 @@ Nightly counter rebuild: BullMQ queue `social`, job `recount` at 03:40 UTC in th
 
 Account work: BullMQ queue `account` in the worker, one job at a time. `delete` (one per user, job id `delete-{userId}`, resumable, 10 attempts), `export` (3 attempts, then the export is marked `failed`), `sweep` hourly at :17 (retries failed deletions, re-queues lost ones, expires 7-day-old exports, gives up on exports pending over 6 hours) and `purge-consent-proofs` daily at 04:10 UTC. Export ZIPs are built in the OS temp dir and uploaded in one PUT (up to 5 GB).
 
-OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). `npm run osm:import [-- region…] [--file extract.osm.pbf]` runs an import directly, e.g. for the first load of an environment.
+OSM import tooling: `osmium` (osmium-tool, installed in the Docker image) filters and exports `.osm.pbf` extracts; a streaming transform loads batches into a temp staging table, then upserts into `places`. BullMQ queue `osm-import` in the worker (one job at a time, monthly schedule per region, retries after 10/20/40 minutes). After the upsert, a separate statement sets each place's prominence and QRank (streamed from `QRANK_URL`, filtered to the extract's Wikidata items) without touching `importedAt`. `npm run osm:import [-- region…] [--file extract.osm.pbf] [--qrank qrank.csv.gz]` runs an import directly, e.g. for the first load of an environment; a local extract downloads nothing, so it needs `--qrank` for ranks.
 
 ## Repository layout
 
@@ -80,6 +80,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_ENABLED` | `true` on the worker to schedule imports and queue the initial load of never-imported regions. Default `false` (an import downloads hundreds of MB) |
 | `OSM_IMPORT_CRON` | Monthly refresh schedule, UTC. Default `0 3 2 * *` |
 | `GEOFABRIK_BASE_URL` | Default `https://download.geofabrik.de` |
+| `QRANK_URL` | Default `https://qrank.toolforge.org/download/qrank.csv.gz` |
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup; account deletion deletes the customer, worker) and the webhook's shared Authorization value (with the webhook). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |

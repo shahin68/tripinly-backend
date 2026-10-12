@@ -174,6 +174,11 @@ export const envSchema = z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://download.geofabrik.de'),
+    /** QRank (Wikidata items ranked by Wikipedia page views, CC0), read by every OSM import. */
+    QRANK_URL: z
+      .string()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .default('https://qrank.toolforge.org/download/qrank.csv.gz'),
     /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
     OSM_IMPORT_TMP_DIR: optionalString,
     /** Enables POST /v1/auth/dev for local development and staging. Refused in production. */

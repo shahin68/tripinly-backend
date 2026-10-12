@@ -55,6 +55,8 @@ const DEFAULT_IN_VIEW_LIMIT = 100;
 const OSM_FILL_CELLS_PER_TILE = 4;
 /** From this zoom on, the overview adds notable OSM places while hot spots are few. */
 const OSM_NOTABLE_MIN_ZOOM = 10;
+/** Below zoom 14 only places this well known fill the map (about 4,000 page views a year, or more). */
+const OSM_NOTABLE_MIN_PROMINENCE = 60;
 /** Popular spots have no zoom; this keeps the query to a region. */
 const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
@@ -511,7 +513,7 @@ export class PlacesService {
 
   /**
    * Zoom < 14: Tripinly places, clustered per map tile when there are more than `limit`;
-   * from zoom 10, notable OSM places (with a Wikidata entry) fill up to `limit`.
+   * from zoom 10, well-known OSM places fill up to `limit`.
    */
   private async inViewOverview(
     bbox: Bbox,
@@ -575,7 +577,8 @@ export class PlacesService {
   /**
    * OSM places not yet liked on any trip, spread over cells fixed on the map (so
    * panning keeps the same picks): each cell's best place first, sights before
-   * parks before food, Wikidata entries first. `notableOnly` keeps Wikidata entries.
+   * parks before food, the best known first. `notableOnly` keeps well-known places.
+   * With no likes a place's score is its prominence (10-maps-places-routing.md).
    */
   private async osmFill(
     bbox: Bbox,
@@ -586,21 +589,21 @@ export class PlacesService {
   ): Promise<PlaceRow[]> {
     if (limit <= 0) return [];
     const notable = notableOnly
-      ? Prisma.sql`AND p.tags ? 'wikidata'`
+      ? Prisma.sql`AND p.prominence >= ${OSM_NOTABLE_MIN_PROMINENCE}`
       : Prisma.empty;
     return this.prisma.$queryRaw<PlaceRow[]>`
       SELECT id, name, names, category, lat, lng, popularity FROM (
         SELECT ${PLACE_COLUMNS},
                row_number() OVER (
                  PARTITION BY ${mapCell(tileSize(zoom) / OSM_FILL_CELLS_PER_TILE)}
-                 ORDER BY ${categoryPriority()}, (p.tags ? 'wikidata') DESC, p.id
+                 ORDER BY ${categoryPriority()}, p.prominence DESC, p.id
                ) AS rank_in_cell,
-               ${categoryPriority()} AS priority, (p.tags ? 'wikidata') AS notable
+               ${categoryPriority()} AS priority, p.prominence
         FROM places p
         WHERE p."isActive" AND p.source = 'osm' AND p.popularity = 0
           AND ${inBbox(bbox)} ${inCategories(categories)} ${notable}
       ) spread
-      ORDER BY rank_in_cell, priority, notable DESC, id
+      ORDER BY rank_in_cell, priority, prominence DESC, id
       LIMIT ${limit}`;
   }
 

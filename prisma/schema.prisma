@@ -338,6 +338,12 @@ model Place {
   importedAt     DateTime?
   /// Likes on public markers here + direct place likes (denormalized).
   popularity     Int                                   @default(0)
+  /// 0–100, set by the OSM import from QRank and OSM tags: how well known the place is (10-maps-places-routing.md).
+  prominence     Int                                   @default(0) @db.SmallInt
+  /// QRank of the place's Wikidata item (Wikipedia page views), when it has one.
+  qrank          Int?
+  /// Hash of the wikidata, wikimedia_commons and image tags, so image syncs can spot changes.
+  imageTagsHash  String?
   createdAt      DateTime                              @default(now())
   updatedAt      DateTime                              @updatedAt
 
