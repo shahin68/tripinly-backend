@@ -33,6 +33,8 @@ export const DomainEvents = {
   USER_BLOCKED: 'user.blocked',
   /** Someone followed a user; data `{ followeeId }`. Not a trip event; no push yet. */
   USER_FOLLOWED: 'user.followed',
+  /** Someone stopped following a user; data `{ followeeId }`. Not a trip event. */
+  USER_UNFOLLOWED: 'user.unfollowed',
   /** A user was suspended or started account deletion; data `{ userId, reason }`. Not a trip event. */
   ACCOUNT_CLOSED: 'account.closed',
 } as const;

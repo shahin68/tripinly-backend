@@ -175,6 +175,29 @@ export class RealtimeListener implements OnModuleDestroy {
     });
   }
 
+  /** Both people's counts and lists changed, so both hear it (on every device). */
+  @OnDomainEvents(DomainEvents.USER_FOLLOWED, DomainEvents.USER_UNFOLLOWED)
+  onFollowChanged(event: DomainEvent<{ followeeId: string }>): Promise<void> {
+    return this.safely(event, () => {
+      const followerId = event.actorId;
+      const { followeeId } = event.data;
+      const message: RealtimeMessage = {
+        event: UserEvents.FOLLOWS_CHANGED,
+        tripId: null,
+        actorId: followerId,
+        at: event.at,
+        data: {
+          followerId,
+          followeeId,
+          following: event.event === DomainEvents.USER_FOLLOWED,
+        },
+      };
+      this.publisher.toUser(followerId, message);
+      this.publisher.toUser(followeeId, message);
+      return Promise.resolve();
+    });
+  }
+
   /**
    * Suspension or deletion: their live sockets close at once. A suspended
    * user is told first so the app can explain why.

@@ -237,6 +237,32 @@ describe('Realtime (integration)', () => {
     });
   });
 
+  describe('follows', () => {
+    it('tells both people when one follows or unfollows the other, once', async () => {
+      const ownerSocket = await open(owner);
+      const strangerSocket = await open(stranger);
+      const expected = {
+        followerId: stranger.userId,
+        followeeId: owner.userId,
+      };
+
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      for (const socket of [ownerSocket, strangerSocket]) {
+        const event = await socket.waitFor('follows.changed');
+        expect(event.data).toEqual({ ...expected, following: true });
+      }
+
+      await as(stranger).delete(`/v1/users/${owner.userId}/follow`).expect(204);
+      await ownerSocket.waitFor('follows.changed', (event) => {
+        return (event.data as { following: boolean }).following === false;
+      });
+      await sleep(300);
+      // The repeated follow changed nothing, so it sent nothing.
+      expect(ownerSocket.events('follows.changed')).toHaveLength(2);
+    });
+  });
+
   describe('access changes', () => {
     it('evicts non-members when a trip turns private', async () => {
       const strangerSocket = await subscribed(stranger, publicTrip.id);

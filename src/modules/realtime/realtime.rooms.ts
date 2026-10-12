@@ -7,6 +7,7 @@ export const tripRoom = (tripId: string): string => `trip:${tripId}`;
 /** Events sent to a user's own room. */
 export const UserEvents = {
   TRIPS_CHANGED: 'trips.changed',
+  FOLLOWS_CHANGED: 'follows.changed',
   NOTIFICATION_CREATED: 'notification.created',
   ACCOUNT_SUSPENDED: 'account.suspended',
 } as const;
