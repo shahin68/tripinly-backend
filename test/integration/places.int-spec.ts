@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { REDIS } from '../../src/common/redis/redis.module';
@@ -270,12 +271,89 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       ).toEqual([]);
     });
 
-    it('fills the map with notable OSM places below zoom 14 while hot spots are few', async () => {
+    it('picks the best-known OSM place first', async () => {
+      await insertPlace(app, {
+        name: 'Corner café',
+        category: 'cafe',
+        lat: 48.2051,
+        lng: 16.3701,
+      });
+      await insertPlace(app, {
+        name: 'Café Sacher',
+        category: 'cafe',
+        lat: 48.2052,
+        lng: 16.3702,
+        prominence: 70,
+      });
+
+      const { body } = await as(alice)
+        .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+        .expect(200);
+
+      expect(names(body.places)).toEqual(['Café Sacher', 'Corner café']);
+    });
+
+    it('ranks places by likes from APP_PLACE_RANK_MIN_LIKES on, below it by prominence', async () => {
+      const at = (
+        lat: number,
+        name: string,
+        popularity: number,
+        prominence = 0,
+      ) =>
+        insertPlace(app, { name, lat, lng: 16.3701, popularity, prominence });
+      await at(48.2051, 'Liked twice', 2);
+      await at(48.2052, 'Liked once', 1);
+      await at(48.2053, 'Stephansdom', 0, 90);
+      const inView = async () =>
+        names(
+          (
+            await as(alice)
+              .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+              .expect(200)
+          ).body.places,
+        );
+
+      expect(await inView()).toEqual([
+        'Liked twice',
+        'Liked once',
+        'Stephansdom',
+      ]);
+
+      const config = app.get(ConfigService);
+      const get = config.get.bind(config);
+      jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string, options?: unknown) =>
+          key === 'APP_PLACE_RANK_MIN_LIKES' ? 2 : get(key, options as never),
+        );
+      try {
+        await app.get<Redis>(REDIS).incr(IN_VIEW_CACHE_VERSION_KEY);
+        expect(await inView()).toEqual([
+          'Liked twice',
+          'Stephansdom',
+          'Liked once',
+        ]);
+      } finally {
+        jest.restoreAllMocks();
+      }
+    });
+
+    it('fills the map with well-known OSM places below zoom 14 while hot spots are few', async () => {
       await insertPlace(app, {
         name: 'Stephansdom',
         lat: 48.2085,
         lng: 16.3731,
         tags: { wikidata: 'Q167592' },
+        prominence: 84,
+      });
+      // A Wikidata entry alone isn't fame: every listed monument has one.
+      await insertPlace(app, {
+        name: 'Listed doorway',
+        category: 'historic',
+        lat: 48.2087,
+        lng: 16.3735,
+        tags: { wikidata: 'Q99999999' },
+        prominence: 12,
       });
       await insertPlace(app, {
         name: 'Corner café',

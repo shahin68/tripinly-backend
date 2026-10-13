@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { OsmType, PlaceCategory } from '../../generated/prisma/client';
 import { normalizePlaceName } from '../places/normalize-name';
 import { representativePoint, type Geometry } from './geometry';
@@ -78,7 +79,17 @@ export function categoryFor(tags: Tags): PlaceCategory | null {
 }
 
 /** Tags kept on the place; everything else (phone, addresses, notes) is dropped. */
-const KEPT_TAGS = ['website', 'opening_hours', 'cuisine', 'wikidata'] as const;
+const KEPT_TAGS = [
+  'website',
+  'opening_hours',
+  'cuisine',
+  'wikidata',
+  'wikipedia',
+  'wikimedia_commons',
+  'image',
+] as const;
+/** The tags that link a place to its images (Wikidata P18, a Commons file or an image URL). */
+const IMAGE_TAGS = ['wikidata', 'wikimedia_commons', 'image'] as const;
 /** `name:de`, `name:en`, `name:zh-Hant`, but not `name:etymology` or `name:left`. */
 const LOCALIZED_NAME = /^name:[a-z]{2,3}(-[A-Za-z]{2,8})?$/;
 const MAX_NAME_LENGTH = 200;
@@ -93,6 +104,11 @@ export interface StagedPlace {
   names: Record<string, string>;
   category: PlaceCategory;
   tags: Record<string, string>;
+  /** The tag part of the place's prominence, 0–50 ([tagProminence] × 100). */
+  tagProminence: number;
+  /** Q-ids of the `wikidata` tag, for the QRank join. */
+  wikidataIds: string[];
+  imageTagsHash: string | null;
   lat: number;
   lng: number;
 }
@@ -168,7 +184,67 @@ export function transformFeature(feature: Feature): StagedPlace | null {
     names,
     category,
     tags: kept,
+    tagProminence: Math.round(100 * tagProminence(tags, names)),
+    wikidataIds: wikidataIds(tags.wikidata),
+    imageTagsHash: imageTagsHash(tags),
     lat: point.lat,
     lng: point.lng,
   };
+}
+
+/** Small markers on the ground: never famous, whatever else their tags say. */
+const MINOR_HISTORIC = [
+  'wayside_shrine',
+  'wayside_cross',
+  'boundary_stone',
+  'milestone',
+  'stolperstein',
+];
+const MINOR_MEMORIAL = ['stolperstein', 'plaque'];
+const MAJOR_HISTORIC = ['castle', 'palace', 'monastery', 'cathedral'];
+const MAX_TAG_PROMINENCE = 0.5;
+
+/**
+ * How well known OSM's tags say a place is, 0–0.5: UNESCO heritage, a
+ * Wikipedia article, a tourist attraction, a castle, palace or cathedral and
+ * names in other languages count; stolpersteine, plaques, wayside shrines and
+ * boundary stones are 0. A `wikidata` tag alone counts for nothing, since
+ * every listed monument has one. QRank (page views) is the main signal; this
+ * only lifts well-tagged places that have none.
+ */
+export function tagProminence(
+  tags: Tags,
+  names: Record<string, string>,
+): number {
+  if (
+    MINOR_HISTORIC.includes(tags.historic) ||
+    MINOR_MEMORIAL.includes(tags.memorial)
+  ) {
+    return 0;
+  }
+  let score = 0;
+  if (tags.heritage === '1') score += 0.4;
+  if (tags.wikipedia) score += 0.2;
+  if (tags.tourism === 'attraction') score += 0.1;
+  if (MAJOR_HISTORIC.includes(tags.historic) || tags.building === 'cathedral') {
+    score += 0.2;
+  }
+  score += Math.min(0.1, 0.02 * Object.keys(names).length);
+  return Math.min(MAX_TAG_PROMINENCE, score);
+}
+
+/** `Q1` or `Q1;Q2` → the valid Q-ids. */
+export function wikidataIds(tag: string | undefined): string[] {
+  if (!tag) return [];
+  return tag
+    .split(';')
+    .map((id) => id.trim())
+    .filter((id) => /^Q[1-9]\d*$/.test(id));
+}
+
+/** Changes whenever one of the image tags does; null when the place has none. */
+export function imageTagsHash(tags: Tags): string | null {
+  const values = IMAGE_TAGS.map((key) => tags[key] ?? '');
+  if (values.every((value) => !value)) return null;
+  return createHash('sha1').update(values.join('\n')).digest('hex');
 }

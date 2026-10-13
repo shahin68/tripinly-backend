@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Readable, Transform } from 'node:stream';
+import { createGunzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { promisify } from 'node:util';
@@ -29,6 +30,10 @@ const run = promisify(execFile);
 /** Deactivation is skipped when a run sees this much less than the previous one. */
 export const MAX_SEEN_DROP = 0.2;
 const STAGING_BATCH = 5_000;
+const QRANK_BATCH = 5_000;
+/** Wikimedia's User-Agent policy asks for a contact (Shahin's OK, 2026-10-11). */
+const QRANK_USER_AGENT = 'Tripinly-OSM-import/1.0 (tripinly@gmail.com)';
+const MAX_INT = 2_147_483_647;
 const UPSERT_BATCH = 10_000;
 const OSMIUM_TIMEOUT_MS = 60 * 60 * 1000;
 /** Any value works as long as every import uses it; pg advisory locks are per database. */
@@ -45,8 +50,13 @@ export interface OsmImportResult {
 }
 
 export interface OsmImportOptions {
-  /** A local .osm.pbf (or .osm) to import instead of downloading the region. */
+  /**
+   * A local .osm.pbf (or .osm) to import instead of downloading the region.
+   * Such a run downloads nothing: without [qrankFile] places keep their QRank.
+   */
   sourceFile?: string;
+  /** A local qrank.csv.gz to rank places with instead of downloading it. */
+  qrankFile?: string;
 }
 
 /**
@@ -107,6 +117,8 @@ export class OsmImportService {
       this.logger.log(`OSM import of ${region}: ${seen} places staged, saving`);
 
       const { inserted, updated } = await upsert(db, region);
+      const hasQrank = await this.stageQrank(db, region, options);
+      await rank(db, hasQrank);
 
       const previous = await this.prisma.osmImportRun.findFirst({
         where: {
@@ -294,6 +306,70 @@ export class OsmImportService {
     return Number(rows[0].count);
   }
 
+  /**
+   * Stages the QRank of every Wikidata item the extract links to, streamed
+   * from the gzipped CSV (`Entity,QRank`, about 100 MB). Returns false when
+   * there's none to use, so places keep the ranks they have.
+   */
+  private async stageQrank(
+    db: Client,
+    region: string,
+    options: OsmImportOptions,
+  ): Promise<boolean> {
+    if (options.sourceFile && !options.qrankFile) return false;
+    const { rows } = await db.query<{ id: string }>(
+      'SELECT DISTINCT unnest(wikidata_ids) AS id FROM osm_staging',
+    );
+    if (rows.length === 0) return true;
+    const wanted = new Set(rows.map((row) => row.id));
+    try {
+      const input = options.qrankFile
+        ? createReadStream(options.qrankFile)
+        : await this.downloadQrank();
+      const csv = createGunzip();
+      // pipe() doesn't pass errors on; a broken download must end the read.
+      input.on('error', (error: Error) => csv.destroy(error));
+      const lines = createInterface({
+        input: input.pipe(csv),
+        crlfDelay: Infinity,
+      });
+      let batch: [string, number][] = [];
+      for await (const line of lines) {
+        const comma = line.indexOf(',');
+        const id = line.slice(0, comma);
+        if (!wanted.has(id)) continue;
+        const qrank = Number(line.slice(comma + 1));
+        if (!Number.isFinite(qrank)) continue;
+        batch.push([id, Math.min(MAX_INT, Math.round(qrank))]);
+        if (batch.length >= QRANK_BATCH) {
+          await insertQrank(db, batch);
+          batch = [];
+        }
+      }
+      if (batch.length) await insertQrank(db, batch);
+      return true;
+    } catch (error) {
+      await db.query('TRUNCATE qrank_staging');
+      this.logger.warn(
+        `OSM import of ${region}: QRank unavailable (${describeError(error)}); places keep their ranks`,
+      );
+      return false;
+    }
+  }
+
+  private async downloadQrank(): Promise<Readable> {
+    const response = await fetch(
+      this.config.get('QRANK_URL', { infer: true }),
+      {
+        headers: { 'User-Agent': QRANK_USER_AGENT },
+      },
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(`QRank download failed with HTTP ${response.status}`);
+    }
+    return Readable.fromWeb(response.body as WebReadableStream<Uint8Array>);
+  }
+
   private async clearInViewCache(): Promise<void> {
     try {
       await this.redis.incr(IN_VIEW_CACHE_VERSION_KEY);
@@ -315,22 +391,50 @@ async function createStaging(db: Client): Promise<void> {
       names jsonb NOT NULL,
       category text NOT NULL,
       tags jsonb NOT NULL,
+      tag_prominence smallint NOT NULL,
+      wikidata_ids text[] NOT NULL,
+      image_tags_hash text,
       lat double precision NOT NULL,
       lng double precision NOT NULL,
       PRIMARY KEY (osm_type, osm_id)
     )`);
-  await db.query('TRUNCATE osm_staging');
+  await db.query(`
+    CREATE TEMP TABLE IF NOT EXISTS qrank_staging (
+      id text PRIMARY KEY,
+      qrank integer NOT NULL
+    )`);
+  await db.query('TRUNCATE osm_staging, qrank_staging');
+}
+
+async function insertQrank(
+  db: Client,
+  ranks: [string, number][],
+): Promise<void> {
+  await db.query(
+    `INSERT INTO qrank_staging (id, qrank)
+     SELECT * FROM unnest($1::text[], $2::int[])
+     ON CONFLICT (id) DO NOTHING`,
+    [ranks.map(([id]) => id), ranks.map(([, qrank]) => qrank)],
+  );
 }
 
 async function insertStaging(db: Client, places: StagedPlace[]): Promise<void> {
   await db.query(
-    `INSERT INTO osm_staging (osm_type, osm_id, name, normalized_name, search_text, names, category, tags, lat, lng)
-     SELECT * FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[],
-                          $6::jsonb[], $7::text[], $8::jsonb[], $9::float8[], $10::float8[])
+    `INSERT INTO osm_staging (osm_type, osm_id, name, normalized_name, search_text, names, category, tags,
+                              tag_prominence, wikidata_ids, image_tags_hash, lat, lng)
+     SELECT o.osm_type, o.osm_id, o.name, o.normalized_name, o.search_text, o.names, o.category, o.tags,
+            o.tag_prominence, ARRAY(SELECT jsonb_array_elements_text(o.wikidata_ids)), o.image_tags_hash,
+            o.lat, o.lng
+     FROM unnest($1::text[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::jsonb[], $7::text[],
+                 $8::jsonb[], $9::smallint[], $10::jsonb[], $11::text[], $12::float8[], $13::float8[])
+          AS o(osm_type, osm_id, name, normalized_name, search_text, names, category, tags,
+               tag_prominence, wikidata_ids, image_tags_hash, lat, lng)
      ON CONFLICT (osm_type, osm_id) DO UPDATE SET
        name = EXCLUDED.name, normalized_name = EXCLUDED.normalized_name,
        search_text = EXCLUDED.search_text, names = EXCLUDED.names,
        category = EXCLUDED.category, tags = EXCLUDED.tags,
+       tag_prominence = EXCLUDED.tag_prominence, wikidata_ids = EXCLUDED.wikidata_ids,
+       image_tags_hash = EXCLUDED.image_tags_hash,
        lat = EXCLUDED.lat, lng = EXCLUDED.lng`,
     [
       places.map((p) => p.osmType),
@@ -341,6 +445,9 @@ async function insertStaging(db: Client, places: StagedPlace[]): Promise<void> {
       places.map((p) => JSON.stringify(p.names)),
       places.map((p) => p.category),
       places.map((p) => JSON.stringify(p.tags)),
+      places.map((p) => p.tagProminence),
+      places.map((p) => JSON.stringify(p.wikidataIds)),
+      places.map((p) => p.imageTagsHash),
       places.map((p) => p.lat),
       places.map((p) => p.lng),
     ],
@@ -395,6 +502,46 @@ async function upsert(
     updated += Number(result.rows[0].updated);
   }
   return { inserted, updated };
+}
+
+/**
+ * Sets prominence, QRank and the image tags hash of the extract's places:
+ * prominence = 100 × max(QRank part, tag part), where QRank q gives
+ * min(1, log10(1 + q) / 6), so a million page views a year is 100. Without
+ * [hasQrank] places keep their QRank. User places carrying the same OSM ids
+ * get the kept tags too, never a new name, popularity or id. A separate
+ * statement from [upsert], so `importedAt` only moves when OSM changed.
+ */
+async function rank(db: Client, hasQrank: boolean): Promise<void> {
+  const { rows } = await db.query<{ max: string | null }>(
+    'SELECT max(seq) AS max FROM osm_staging',
+  );
+  const maxSeq = Number(rows[0].max ?? 0);
+  for (let from = 0; from < maxSeq; from += UPSERT_BATCH) {
+    await db.query(
+      `UPDATE places p SET qrank = n.qrank, prominence = n.prominence,
+         "imageTagsHash" = n.image_tags_hash, tags = n.tags, "updatedAt" = now()
+       FROM (
+         SELECT r.id, r.qrank, r.image_tags_hash, r.tags,
+                greatest(r.tag_prominence,
+                         CASE WHEN r.qrank IS NULL THEN 0
+                              ELSE round(100 * least(1, log(1 + r.qrank) / 6)) END)::smallint AS prominence
+         FROM (
+           SELECT pl.id, s.tag_prominence, s.image_tags_hash,
+                  CASE WHEN pl.source = 'user' THEN s.tags ELSE pl.tags END AS tags,
+                  CASE WHEN $3 THEN (SELECT max(q.qrank) FROM qrank_staging q WHERE q.id = ANY(s.wikidata_ids))
+                       ELSE pl.qrank END AS qrank
+           FROM osm_staging s
+           JOIN places pl ON pl."osmType" = s.osm_type::"OsmType" AND pl."osmId" = s.osm_id
+           WHERE s.seq > $1 AND s.seq <= $2
+         ) r
+       ) n
+       WHERE p.id = n.id
+         AND (p.qrank, p.prominence, p."imageTagsHash", p.tags)
+             IS DISTINCT FROM (n.qrank, n.prominence, n.image_tags_hash, n.tags)`,
+      [from, from + UPSERT_BATCH, hasQrank],
+    );
+  }
 }
 
 /** OSM places of this region missing from the extract stop showing; markers keep them. */

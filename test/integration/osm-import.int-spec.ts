@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,6 +44,23 @@ describe('OSM import (integration)', () => {
     writeFileSync(path, edit(readFileSync(FIXTURE, 'utf8')));
     return path;
   };
+  /** A qrank.csv.gz with these ranks. */
+  const qrank = (name: string, ranks: Record<string, number>): string => {
+    const path = join(workDir, `${name}.csv.gz`);
+    const rows = Object.entries(ranks).map(([id, rank]) => `${id},${rank}`);
+    writeFileSync(path, gzipSync(['Entity,QRank', ...rows, ''].join('\n')));
+    return path;
+  };
+  const ranks = () =>
+    prisma.place.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        name: true,
+        qrank: true,
+        prominence: true,
+        imageTagsHash: true,
+      },
+    });
   const withoutNode = (xml: string, id: number) =>
     xml.replace(new RegExp(`  <node id="${id}" [^]*?</node>\\n`), '');
 
@@ -163,7 +181,83 @@ describe('OSM import (integration)', () => {
     expect(after.popularity).toBe(7);
   });
 
-  it('leaves user places that carry the same OSM ids alone', async () => {
+  it('ranks places by QRank and by their tags', async () => {
+    // Stephansdom's tag lists two items; the better known one counts.
+    const twoItems = variant('two-items', (xml) =>
+      xml.replace('v="Q167679"', 'v="Q1;Q167679"'),
+    );
+    await imports.runRegion(REGION, {
+      sourceFile: twoItems,
+      qrankFile: qrank('ranks', { Q1: 5, Q167679: 250_000, Q42: 9 }),
+    });
+
+    const byName = new Map((await ranks()).map((p) => [p.name, p]));
+    // 100 × log10(1 + 250,000) / 6
+    expect(byName.get('Stephansdom')).toEqual(
+      expect.objectContaining({
+        qrank: 250_000,
+        prominence: 90,
+        imageTagsHash: expect.any(String),
+      }),
+    );
+    // No Wikidata item: two names in other languages give 2 × 2.
+    expect(byName.get('Café Central')).toEqual(
+      expect.objectContaining({
+        qrank: null,
+        prominence: 4,
+        imageTagsHash: null,
+      }),
+    );
+  });
+
+  it('updates ranks without counting the place as changed', async () => {
+    await imports.runRegion(REGION, {
+      sourceFile: FIXTURE,
+      qrankFile: qrank('before', { Q167679: 250_000 }),
+    });
+    const before = await prisma.place.findFirstOrThrow({
+      where: { name: 'Stephansdom' },
+    });
+
+    const result = await imports.runRegion(REGION, {
+      sourceFile: FIXTURE,
+      qrankFile: qrank('after', { Q167679: 999 }),
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({ inserted: 0, updated: 0 }),
+    );
+    const after = await prisma.place.findUniqueOrThrow({
+      where: { id: before.id },
+    });
+    expect(after).toEqual(
+      expect.objectContaining({ qrank: 999, prominence: 50 }),
+    );
+    expect(after.importedAt).toEqual(before.importedAt);
+  });
+
+  it('keeps the ranks it has when QRank cannot be read', async () => {
+    await imports.runRegion(REGION, {
+      sourceFile: FIXTURE,
+      qrankFile: qrank('ranks', { Q167679: 250_000 }),
+    });
+    const broken = join(workDir, 'broken.csv.gz');
+    writeFileSync(broken, 'not gzip');
+
+    const result = await imports.runRegion(REGION, {
+      sourceFile: FIXTURE,
+      qrankFile: broken,
+    });
+    // A run from a local extract alone downloads nothing either.
+    await imports.runRegion(REGION, { sourceFile: FIXTURE });
+
+    expect(result.status).toBe('succeeded');
+    expect(
+      await prisma.place.findFirstOrThrow({ where: { name: 'Stephansdom' } }),
+    ).toEqual(expect.objectContaining({ qrank: 250_000, prominence: 90 }));
+  });
+
+  it('gives user places that carry the same OSM ids the tags, nothing else', async () => {
     const userPlace = await prisma.place.create({
       data: {
         name: 'Our café',
@@ -184,7 +278,15 @@ describe('OSM import (integration)', () => {
     );
     expect(
       await prisma.place.findUniqueOrThrow({ where: { id: userPlace.id } }),
-    ).toEqual(userPlace);
+    ).toEqual({
+      ...userPlace,
+      tags: {
+        website: 'https://example.com',
+        opening_hours: 'Mo-Su 08:00-21:00',
+      },
+      prominence: 4,
+      updatedAt: expect.any(Date),
+    });
   });
 
   it('deactivates places that left the region, never deleting them', async () => {

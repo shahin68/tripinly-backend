@@ -17,15 +17,21 @@ class OsmImportScriptModule {}
  *   npm run osm:import                        # every OSM_IMPORT_REGIONS region
  *   npm run osm:import -- europe/austria      # one region
  *   npm run osm:import -- --file vienna.osm.pbf europe/austria   # a local extract
+ *   npm run osm:import -- --file vienna.osm.pbf --qrank qrank.csv.gz europe/austria
+ *
+ * A local extract downloads nothing, so its places keep their QRank unless
+ * `--qrank` names a local qrank.csv.gz.
  */
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const fileIndex = args.indexOf('--file');
-  const sourceFile = fileIndex === -1 ? undefined : args[fileIndex + 1];
-  const regionArgs = args.filter(
-    (_arg, index) =>
-      fileIndex === -1 || (index !== fileIndex && index !== fileIndex + 1),
-  );
+  const option = (name: string): string | undefined => {
+    const index = args.indexOf(name);
+    if (index === -1) return undefined;
+    return args.splice(index, 2)[1];
+  };
+  const sourceFile = option('--file');
+  const qrankFile = option('--qrank');
+  const regionArgs = args;
 
   const app = await NestFactory.createApplicationContext(
     OsmImportScriptModule,
@@ -47,7 +53,10 @@ async function main(): Promise<void> {
   const imports = app.get(OsmImportService);
   try {
     for (const region of regions) {
-      const result = await imports.runRegion(region, { sourceFile });
+      const result = await imports.runRegion(region, {
+        sourceFile,
+        qrankFile,
+      });
       process.stdout.write(`${JSON.stringify(result)}\n`);
     }
   } finally {

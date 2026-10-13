@@ -55,6 +55,8 @@ const DEFAULT_IN_VIEW_LIMIT = 100;
 const OSM_FILL_CELLS_PER_TILE = 4;
 /** From this zoom on, the overview adds notable OSM places while hot spots are few. */
 const OSM_NOTABLE_MIN_ZOOM = 10;
+/** Below zoom 14 only places this well known fill the map (about 4,000 page views a year, or more). */
+const OSM_NOTABLE_MIN_PROMINENCE = 60;
 /** Popular spots have no zoom; this keeps the query to a region. */
 const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
@@ -490,9 +492,10 @@ export class PlacesService {
     limit: number,
     lang: string,
   ): Promise<InViewResponseDto> {
+    const minLikes = this.rankMinLikes();
     const tripinly = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
-      WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit}`;
     const osm = await this.osmFill(
@@ -500,6 +503,7 @@ export class PlacesService {
       zoom,
       categories,
       limit - tripinly.length,
+      minLikes,
       false,
     );
     return {
@@ -511,7 +515,7 @@ export class PlacesService {
 
   /**
    * Zoom < 14: Tripinly places, clustered per map tile when there are more than `limit`;
-   * from zoom 10, notable OSM places (with a Wikidata entry) fill up to `limit`.
+   * from zoom 10, well-known OSM places fill up to `limit`.
    */
   private async inViewOverview(
     bbox: Bbox,
@@ -520,9 +524,10 @@ export class PlacesService {
     limit: number,
     lang: string,
   ): Promise<InViewResponseDto> {
+    const minLikes = this.rankMinLikes();
     const rows = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
-      WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit + 1}`;
     if (rows.length <= limit) {
@@ -534,6 +539,7 @@ export class PlacesService {
               zoom,
               categories,
               limit - rows.length,
+              minLikes,
               true,
             )
           : [];
@@ -553,7 +559,7 @@ export class PlacesService {
                 'lat', p.lat, 'lng', p.lng, 'popularity', p.popularity)
               ORDER BY p.popularity DESC, p.id))[1] AS top
       FROM places p
-      WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
       GROUP BY ${mapCell(tileSize(zoom))}
       ORDER BY count(*) DESC`;
 
@@ -573,35 +579,44 @@ export class PlacesService {
   }
 
   /**
-   * OSM places not yet liked on any trip, spread over cells fixed on the map (so
-   * panning keeps the same picks): each cell's best place first, sights before
-   * parks before food, Wikidata entries first. `notableOnly` keeps Wikidata entries.
+   * Places with fewer than `minLikes` likes (OSM places, and liked user places),
+   * spread over cells fixed on the map (so panning keeps the same picks): each
+   * cell's best place first, sights before parks before food, the best known
+   * first. `notableOnly` keeps well-known places. Below `minLikes` a place's
+   * score is its prominence (10-maps-places-routing.md).
    */
   private async osmFill(
     bbox: Bbox,
     zoom: number,
     categories: PlaceCategory[] | undefined,
     limit: number,
+    minLikes: number,
     notableOnly: boolean,
   ): Promise<PlaceRow[]> {
     if (limit <= 0) return [];
     const notable = notableOnly
-      ? Prisma.sql`AND p.tags ? 'wikidata'`
+      ? Prisma.sql`AND p.prominence >= ${OSM_NOTABLE_MIN_PROMINENCE}`
       : Prisma.empty;
     return this.prisma.$queryRaw<PlaceRow[]>`
       SELECT id, name, names, category, lat, lng, popularity FROM (
         SELECT ${PLACE_COLUMNS},
                row_number() OVER (
                  PARTITION BY ${mapCell(tileSize(zoom) / OSM_FILL_CELLS_PER_TILE)}
-                 ORDER BY ${categoryPriority()}, (p.tags ? 'wikidata') DESC, p.id
+                 ORDER BY ${categoryPriority()}, p.prominence DESC, p.id
                ) AS rank_in_cell,
-               ${categoryPriority()} AS priority, (p.tags ? 'wikidata') AS notable
+               ${categoryPriority()} AS priority, p.prominence
         FROM places p
-        WHERE p."isActive" AND p.source = 'osm' AND p.popularity = 0
+        WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+          AND p.popularity < ${minLikes}
           AND ${inBbox(bbox)} ${inCategories(categories)} ${notable}
       ) spread
-      ORDER BY rank_in_cell, priority, notable DESC, id
+      ORDER BY rank_in_cell, priority, prominence DESC, id
       LIMIT ${limit}`;
+  }
+
+  /** Likes a place needs to rank above prominence on the map (APP_PLACE_RANK_MIN_LIKES). */
+  private rankMinLikes(): number {
+    return this.config.get('APP_PLACE_RANK_MIN_LIKES', { infer: true });
   }
 
   private async searchOurs(
