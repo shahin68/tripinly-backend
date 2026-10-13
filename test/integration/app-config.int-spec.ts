@@ -19,6 +19,8 @@ describe('App config (integration)', () => {
       photoMaxEdgePx: 2560,
       photoJpegQuality: 85,
       photoParallelUploads: 2,
+      pinLargeMinProminence: 95,
+      pinMediumMinProminence: 60,
     });
   });
 });

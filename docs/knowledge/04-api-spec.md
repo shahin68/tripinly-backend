@@ -174,7 +174,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Ops
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads }`. See "App settings" below |
+| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads, pinLargeMinProminence, pinMediumMinProminence }`. See "App settings" below |
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
 | GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
@@ -189,7 +189,7 @@ Field names the client relies on (full schemas in OpenAPI):
 - **Trip summary** (My Trips, Explore, profiles): `id`, `title`, `startDate`, `endDate`, `visibility`, `owner`, `role` (`owner`\|`editor`\|`viewer`), `coverThumbUrl`, `dayCount`, `markerCount`, `likeCount`, `likedByMe`, `copyCount`, `updatedAt`.
 - **Comment**: `id`, `markerId`, `body`, `author` (user summary), `likeCount`, `likedByMe`, `canDelete` (I wrote it or own the trip), `createdAt`.
 - **User summary**: `id`, `username`, `displayName`.
-- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `coverPhotoId` (uuid or null; cache the image by it), `coverThumbUrl` (or null): the public trip photo there with the most likes from people **outside its trip**, shown only when at least `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (2) such people liked it; likes by the uploader, the trip owner or the trip's members don't count. Leaves out hidden content, suspended owners and blocks either way. `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
+- **Place** (in-view, popular, nearby, along-the-way): `id`, `name` (localized from OSM `name:<lang>` by `Accept-Language`), `category`, `location`, `isTripinly`, `likeCount`, `prominence` (0–100, how well known the place is, from QRank and OSM tags; 0 when unknown; the app sizes map pins by it), `coverPhotoId` (uuid or null; cache the image by it), `coverThumbUrl` (or null): the public trip photo there with the most likes from people **outside its trip**, shown only when at least `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (2) such people liked it; likes by the uploader, the trip owner or the trip's members don't count. Leaves out hidden content, suspended owners and blocks either way. `likedByMe`. Nearby adds `distanceMeters`. Search results: `source`, `id` (null for Photon), `name`, `category` (null for Photon), `location`, `isTripinly`, `likeCount`, `type` and `address` (Photon), `osmType`, `osmId`. Every places response carries `attribution: "© OpenStreetMap contributors"`.
 - **Me**: profile fields, `onboarding` state, `defaultTripVisibility`, `locale`, `entitlements[]` (e.g. `best_route_realtime`).
 
 
@@ -203,6 +203,8 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | `photoMaxEdgePx` | Longest edge, in pixels, the app shrinks a photo to before uploading (1024–4096) | 2560 |
 | `photoJpegQuality` | JPEG quality the app encodes photos with before uploading (50–100) | 85 |
 | `photoParallelUploads` | Photos the app uploads at the same time (1–4) | 2 |
+| `pinLargeMinProminence` | A place's `prominence` from which its map pin is drawn largest (0–100) | 95 |
+| `pinMediumMinProminence` | A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest (0–100) | 60 |
 
 ## Stable error codes (starter set)
 

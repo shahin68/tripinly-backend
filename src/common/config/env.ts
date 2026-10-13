@@ -61,6 +61,20 @@ export const envSchema = z
       .min(1)
       .max(4)
       .default(2),
+    /** Prominence from which a place gets the largest map pin. */
+    APP_PIN_LARGE_MIN_PROMINENCE: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .default(95),
+    /** Prominence from which a place gets the middle-sized map pin. */
+    APP_PIN_MEDIUM_MIN_PROMINENCE: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .default(60),
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),

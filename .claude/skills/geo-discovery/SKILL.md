@@ -34,7 +34,7 @@ Reject any field that looks like a Google place ID (`ChIJ…` / `googlePlaceId`)
 
 ## In-view — `GET /places/in-view`
 
-Follow the algorithm in `10-maps-places-routing.md` (places with at least `APP_PLACE_RANK_MIN_LIKES` likes first, by popularity; then a fill of the places below it at zoom ≥ 14, well-known only (prominence ≥ 60) at zoom 10–13 while hot spots are few, spread over map-fixed cells by category priority, most prominent first; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
+Follow the algorithm in `10-maps-places-routing.md` (places with at least `APP_PLACE_RANK_MIN_LIKES` likes first, by popularity; then a fill of the places below it at zoom ≥ 14, well-known only (prominence ≥ 60) at zoom 10–13 while hot spots are few; well-known places always by prominence alone so a place shown at one zoom stays at closer zooms, the rest spread over map-fixed cells by category priority, most prominent first; every Place carries `prominence`; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
 
 Response item:
 ```json
