@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { REDIS } from '../../src/common/redis/redis.module';
@@ -290,6 +291,51 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         .expect(200);
 
       expect(names(body.places)).toEqual(['Café Sacher', 'Corner café']);
+    });
+
+    it('ranks places by likes from APP_PLACE_RANK_MIN_LIKES on, below it by prominence', async () => {
+      const at = (
+        lat: number,
+        name: string,
+        popularity: number,
+        prominence = 0,
+      ) =>
+        insertPlace(app, { name, lat, lng: 16.3701, popularity, prominence });
+      await at(48.2051, 'Liked twice', 2);
+      await at(48.2052, 'Liked once', 1);
+      await at(48.2053, 'Stephansdom', 0, 90);
+      const inView = async () =>
+        names(
+          (
+            await as(alice)
+              .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+              .expect(200)
+          ).body.places,
+        );
+
+      expect(await inView()).toEqual([
+        'Liked twice',
+        'Liked once',
+        'Stephansdom',
+      ]);
+
+      const config = app.get(ConfigService);
+      const get = config.get.bind(config);
+      jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string, options?: unknown) =>
+          key === 'APP_PLACE_RANK_MIN_LIKES' ? 2 : get(key, options as never),
+        );
+      try {
+        await app.get<Redis>(REDIS).incr(IN_VIEW_CACHE_VERSION_KEY);
+        expect(await inView()).toEqual([
+          'Liked twice',
+          'Stephansdom',
+          'Liked once',
+        ]);
+      } finally {
+        jest.restoreAllMocks();
+      }
     });
 
     it('fills the map with well-known OSM places below zoom 14 while hot spots are few', async () => {
