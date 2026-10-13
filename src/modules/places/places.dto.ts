@@ -230,6 +230,14 @@ export class PlaceItemDto {
   likeCount: number;
 
   @ApiProperty({
+    minimum: 0,
+    maximum: 100,
+    description:
+      'How well known the place is, 0–100, from QRank (Wikimedia page views) and OSM tags; 0 when unknown. Size map pins by it (thresholds in GET /v1/app-config)',
+  })
+  prominence: number;
+
+  @ApiProperty({
     type: String,
     format: 'uuid',
     nullable: true,
@@ -428,6 +436,7 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   'location',
   'isTripinly',
   'likeCount',
+  'prominence',
   'coverPhotoId',
   'coverThumbUrl',
   'likedByMe',

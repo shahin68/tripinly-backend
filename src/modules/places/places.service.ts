@@ -93,10 +93,11 @@ export interface PlaceRow {
   lat: number;
   lng: number;
   popularity: number;
+  prominence: number;
 }
 
 /** Columns every place list selects (PlaceRow). */
-export const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity`;
+export const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity, p.prominence`;
 
 /**
  * Map, search and discovery reads over our places (geo-discovery skill).
@@ -363,6 +364,7 @@ export class PlacesService {
         lat: true,
         lng: true,
         popularity: true,
+        prominence: true,
         source: true,
         isActive: true,
         osmType: true,
@@ -556,7 +558,8 @@ export class PlacesService {
       SELECT count(*)::int AS count, avg(p.lat) AS lat, avg(p.lng) AS lng,
              (array_agg(json_build_object(
                 'id', p.id, 'name', p.name, 'names', p.names, 'category', p.category,
-                'lat', p.lat, 'lng', p.lng, 'popularity', p.popularity)
+                'lat', p.lat, 'lng', p.lng, 'popularity', p.popularity,
+                'prominence', p.prominence)
               ORDER BY p.popularity DESC, p.id))[1] AS top
       FROM places p
       WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
@@ -579,11 +582,14 @@ export class PlacesService {
   }
 
   /**
-   * Places with fewer than `minLikes` likes (OSM places, and liked user places),
-   * spread over cells fixed on the map (so panning keeps the same picks): each
-   * cell's best place first, sights before parks before food, the best known
-   * first. `notableOnly` keeps well-known places. Below `minLikes` a place's
-   * score is its prominence (10-maps-places-routing.md).
+   * Places with fewer than `minLikes` likes (OSM places, and liked user places).
+   * Well-known places (prominence ≥ OSM_NOTABLE_MIN_PROMINENCE) come first, the
+   * best known first, so a place shown at one zoom stays at every closer zoom:
+   * a map square's top places are also the top places of the smaller squares
+   * inside it. The rest are spread over cells fixed on the map (so panning keeps
+   * the same picks): each cell's best place first, sights before parks before
+   * food, the best known first. `notableOnly` keeps the well-known places only
+   * (10-maps-places-routing.md).
    */
   private async osmFill(
     bbox: Bbox,
@@ -598,19 +604,22 @@ export class PlacesService {
       ? Prisma.sql`AND p.prominence >= ${OSM_NOTABLE_MIN_PROMINENCE}`
       : Prisma.empty;
     return this.prisma.$queryRaw<PlaceRow[]>`
-      SELECT id, name, names, category, lat, lng, popularity FROM (
+      SELECT id, name, names, category, lat, lng, popularity, prominence FROM (
         SELECT ${PLACE_COLUMNS},
                row_number() OVER (
                  PARTITION BY ${mapCell(tileSize(zoom) / OSM_FILL_CELLS_PER_TILE)}
                  ORDER BY ${categoryPriority()}, p.prominence DESC, p.id
                ) AS rank_in_cell,
-               ${categoryPriority()} AS priority, p.prominence
+               ${categoryPriority()} AS priority
         FROM places p
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
           AND p.popularity < ${minLikes}
           AND ${inBbox(bbox)} ${inCategories(categories)} ${notable}
       ) spread
-      ORDER BY rank_in_cell, priority, prominence DESC, id
+      ORDER BY
+        CASE WHEN prominence >= ${OSM_NOTABLE_MIN_PROMINENCE} THEN prominence END DESC NULLS LAST,
+        CASE WHEN prominence >= ${OSM_NOTABLE_MIN_PROMINENCE} THEN id END,
+        rank_in_cell, priority, prominence DESC, id
       LIMIT ${limit}`;
   }
 
@@ -765,6 +774,7 @@ export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
     location: { lat: row.lat, lng: row.lng },
     isTripinly: row.popularity > 0,
     likeCount: row.popularity,
+    prominence: row.prominence,
     coverPhotoId: null,
     coverThumbUrl: null,
     likedByMe: false,

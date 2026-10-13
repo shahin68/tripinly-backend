@@ -175,6 +175,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         location: { lat: 48.206, lng: 16.371 },
         isTripinly: true,
         likeCount: 9,
+        prominence: 0,
         coverPhotoId: null,
         coverThumbUrl: null,
         likedByMe: false,
@@ -336,6 +337,41 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       } finally {
         jest.restoreAllMocks();
       }
+    });
+
+    it('keeps a well-known place at every closer zoom, with its prominence', async () => {
+      const famous: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        famous.push(`Famous ${i}`);
+        await insertPlace(app, {
+          name: `Famous ${i}`,
+          lat: 48.2051 + i * 0.0001,
+          lng: 16.3701,
+          prominence: 90 - i,
+        });
+      }
+      // Lesser sights, each in its own cell of the street-level spread.
+      for (const [lat, lng] of [
+        [48.201, 16.362],
+        [48.203, 16.366],
+        [48.207, 16.374],
+        [48.209, 16.378],
+      ]) {
+        await insertPlace(app, { name: `Sight ${lat}`, lat, lng });
+      }
+      const at = async (zoom: number) =>
+        (
+          await as(alice)
+            .get(`/v1/places/in-view?bbox=${VIEW}&zoom=${zoom}&limit=10`)
+            .expect(200)
+        ).body.places as (PlaceBody & { prominence: number })[];
+
+      const city = await at(12);
+      const street = await at(15);
+
+      expect(names(city)).toEqual(famous);
+      expect(names(street)).toEqual(famous);
+      expect(street[0].prominence).toBe(90);
     });
 
     it('fills the map with well-known OSM places below zoom 14 while hot spots are few', async () => {
@@ -843,6 +879,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         location: { lat: 48.2104, lng: 16.3655 },
         isTripinly: false,
         likeCount: 0,
+        prominence: 0,
         coverPhotoId: null,
         coverThumbUrl: null,
         likedByMe: false,

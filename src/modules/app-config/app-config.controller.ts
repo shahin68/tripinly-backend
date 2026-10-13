@@ -30,6 +30,13 @@ export class AppConfigController {
       photoParallelUploads: this.config.get('APP_PHOTO_PARALLEL_UPLOADS', {
         infer: true,
       }),
+      pinLargeMinProminence: this.config.get('APP_PIN_LARGE_MIN_PROMINENCE', {
+        infer: true,
+      }),
+      pinMediumMinProminence: this.config.get('APP_PIN_MEDIUM_MIN_PROMINENCE', {
+        infer: true,
+      }),
+      mapMaxPins: this.config.get('APP_MAP_MAX_PINS', { infer: true }),
     };
   }
 }

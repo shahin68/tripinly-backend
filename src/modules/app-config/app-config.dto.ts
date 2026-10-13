@@ -31,4 +31,25 @@ export class AppConfigDto {
     description: 'How many photos the app uploads at the same time.',
   })
   photoParallelUploads!: number;
+
+  @ApiProperty({
+    example: 95,
+    description:
+      "A place's `prominence` from which its map pin is drawn largest.",
+  })
+  pinLargeMinProminence!: number;
+
+  @ApiProperty({
+    example: 60,
+    description:
+      "A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest.",
+  })
+  pinMediumMinProminence!: number;
+
+  @ApiProperty({
+    example: 150,
+    description:
+      'Most place pins the app draws on the map at once: liked places first, then the best known.',
+  })
+  mapMaxPins!: number;
 }

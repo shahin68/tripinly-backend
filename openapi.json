@@ -3748,13 +3748,31 @@
             "type": "number",
             "example": 2,
             "description": "How many photos the app uploads at the same time."
+          },
+          "pinLargeMinProminence": {
+            "type": "number",
+            "example": 95,
+            "description": "A place's `prominence` from which its map pin is drawn largest."
+          },
+          "pinMediumMinProminence": {
+            "type": "number",
+            "example": 60,
+            "description": "A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest."
+          },
+          "mapMaxPins": {
+            "type": "number",
+            "example": 150,
+            "description": "Most place pins the app draws on the map at once: liked places first, then the best known."
           }
         },
         "required": [
           "placesRefreshSeconds",
           "photoMaxEdgePx",
           "photoJpegQuality",
-          "photoParallelUploads"
+          "photoParallelUploads",
+          "pinLargeMinProminence",
+          "pinMediumMinProminence",
+          "mapMaxPins"
         ]
       },
       "GoogleSignInDto": {
@@ -4921,6 +4939,12 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "prominence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How well known the place is, 0–100, from QRank (Wikimedia page views) and OSM tags; 0 when unknown. Size map pins by it (thresholds in GET /v1/app-config)"
+          },
           "coverPhotoId": {
             "type": "string",
             "format": "uuid",
@@ -4943,6 +4967,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "prominence",
           "coverPhotoId",
           "coverThumbUrl",
           "likedByMe"
@@ -5188,6 +5213,12 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "prominence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How well known the place is, 0–100, from QRank (Wikimedia page views) and OSM tags; 0 when unknown. Size map pins by it (thresholds in GET /v1/app-config)"
+          },
           "coverPhotoId": {
             "type": "string",
             "format": "uuid",
@@ -5214,6 +5245,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "prominence",
           "coverPhotoId",
           "coverThumbUrl",
           "likedByMe",
@@ -5332,6 +5364,12 @@
             "type": "number",
             "description": "Popularity: likes on public markers here + place likes"
           },
+          "prominence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How well known the place is, 0–100, from QRank (Wikimedia page views) and OSM tags; 0 when unknown. Size map pins by it (thresholds in GET /v1/app-config)"
+          },
           "coverPhotoId": {
             "type": "string",
             "format": "uuid",
@@ -5394,6 +5432,7 @@
           "location",
           "isTripinly",
           "likeCount",
+          "prominence",
           "coverPhotoId",
           "coverThumbUrl",
           "likedByMe",
