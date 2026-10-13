@@ -75,6 +75,8 @@ export const envSchema = z
       .min(0)
       .max(100)
       .default(60),
+    /** Most place pins the app draws on the map at once, the best known and most liked first. */
+    APP_MAP_MAX_PINS: z.coerce.number().int().min(20).max(1000).default(150),
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),

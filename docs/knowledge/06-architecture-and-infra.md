@@ -88,6 +88,7 @@ Adding anything else: state the reason.
 | `APP_TRIP_MAX_MEMBERS` | Most people in one trip, owner included (default 50, at least 2). Applies to trip creation, adding members (one or many) and invite links |
 | `APP_PLACES_REFRESH_SECONDS` | Sent to the apps by `GET /app-config`: how old a map square's places may get before the app reloads them in the background (default 300, at least 10) |
 | `APP_PIN_LARGE_MIN_PROMINENCE`, `APP_PIN_MEDIUM_MIN_PROMINENCE` | Sent to the apps by `GET /app-config` (`pinLargeMinProminence`, `pinMediumMinProminence`): a place's `prominence` from which its map pin is drawn largest (default 95) and middle-sized (default 60); below it, smallest. 0–100 |
+| `APP_MAP_MAX_PINS` | Sent to the apps by `GET /app-config` (`mapMaxPins`): most place pins the app draws as map markers at once, liked places first, then the best known (default 150, 20–1000) |
 | `APP_PHOTO_MAX_EDGE_PX`, `APP_PHOTO_JPEG_QUALITY`, `APP_PHOTO_PARALLEL_UPLOADS` | Sent to the apps by `GET /app-config`: how the app shrinks and encodes photos before uploading (default 2560 px, 1024–4096; quality 85, 50–100) and how many it uploads at once (default 2, 1–4) |
 
 All validated at startup (`src/common/config/env.ts`); the app refuses to boot if one is missing. Each variable is added to the schema by the stage that first uses it, so local development never needs keys for features that don't exist yet.

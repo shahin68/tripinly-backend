@@ -21,6 +21,7 @@ describe('App config (integration)', () => {
       photoParallelUploads: 2,
       pinLargeMinProminence: 95,
       pinMediumMinProminence: 60,
+      mapMaxPins: 150,
     });
   });
 });

@@ -174,7 +174,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Ops
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads, pinLargeMinProminence, pinMediumMinProminence }`. See "App settings" below |
+| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads, pinLargeMinProminence, pinMediumMinProminence, mapMaxPins }`. See "App settings" below |
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
 | GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
@@ -205,6 +205,7 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | `photoParallelUploads` | Photos the app uploads at the same time (1–4) | 2 |
 | `pinLargeMinProminence` | A place's `prominence` from which its map pin is drawn largest (0–100) | 95 |
 | `pinMediumMinProminence` | A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest (0–100) | 60 |
+| `mapMaxPins` | Most place pins the app draws on the map at once (map markers keep their screen size, so each costs the app): liked places first, then the best known (20–1000) | 150 |
 
 ## Stable error codes (starter set)
 

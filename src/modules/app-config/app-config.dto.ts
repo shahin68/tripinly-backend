@@ -45,4 +45,11 @@ export class AppConfigDto {
       "A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest.",
   })
   pinMediumMinProminence!: number;
+
+  @ApiProperty({
+    example: 150,
+    description:
+      'Most place pins the app draws on the map at once: liked places first, then the best known.',
+  })
+  mapMaxPins!: number;
 }

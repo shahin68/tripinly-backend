@@ -3758,6 +3758,11 @@
             "type": "number",
             "example": 60,
             "description": "A place's `prominence` from which its map pin is drawn middle-sized; below it, smallest."
+          },
+          "mapMaxPins": {
+            "type": "number",
+            "example": 150,
+            "description": "Most place pins the app draws on the map at once: liked places first, then the best known."
           }
         },
         "required": [
@@ -3766,7 +3771,8 @@
           "photoJpegQuality",
           "photoParallelUploads",
           "pinLargeMinProminence",
-          "pinMediumMinProminence"
+          "pinMediumMinProminence",
+          "mapMaxPins"
         ]
       },
       "GoogleSignInDto": {
