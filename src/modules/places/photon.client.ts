@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../common/config/env';
 import type { SearchResultDto } from './places.dto';
 
-const PHOTON_TIMEOUT_MS = 2_000;
+/** The public Photon can be slow at busy times; past this, search shows our places only. */
+const PHOTON_TIMEOUT_MS = 4_000;
 const PHOTON_LIMIT = 8;
 /** How far from a tapped point an address may be to name it. */
 const REVERSE_RADIUS_KM = 0.1;
@@ -30,8 +31,9 @@ export interface PhotonQuery {
 
 /**
  * Photon (OSM geocoder) for addresses, streets and cities. Results carry no
- * id: the client sends name + location (+ OSM ids) when adding a marker. Any
- * failure returns no results; search then shows our places only.
+ * id: the client sends name + location (+ OSM ids) when adding a marker. A
+ * quick failure (network error or a 5xx) is retried once; any other failure
+ * or a timeout returns no results, and search then shows our places only.
  */
 @Injectable()
 export class PhotonClient {
@@ -58,12 +60,7 @@ export class PhotonClient {
       url.searchParams.set('lon', String(near.lng));
     }
     try {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Tripinly/1.0', Accept: 'application/json' },
-        signal: AbortSignal.timeout(PHOTON_TIMEOUT_MS),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = (await response.json()) as { features?: unknown };
+      const body = await fetchPhoton(url);
       return Array.isArray(body.features)
         ? body.features.flatMap(
             (feature: PhotonFeature) => toResult(feature) ?? [],
@@ -71,9 +68,7 @@ export class PhotonClient {
         : [];
     } catch (error) {
       // No query text or coordinates in logs.
-      this.logger.warn(
-        `Photon search failed: ${error instanceof Error ? error.name : 'unknown error'}`,
-      );
+      this.logger.warn(`Photon search failed: ${describe(error)}`);
       return [];
     }
   }
@@ -98,21 +93,52 @@ export class PhotonClient {
     url.searchParams.set('radius', String(REVERSE_RADIUS_KM));
     if (PHOTON_LANGUAGES.has(lang)) url.searchParams.set('lang', lang);
     try {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Tripinly/1.0', Accept: 'application/json' },
-        signal: AbortSignal.timeout(PHOTON_TIMEOUT_MS),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = (await response.json()) as { features?: unknown };
+      const body = await fetchPhoton(url);
       const [feature] = Array.isArray(body.features) ? body.features : [];
       return feature ? toResult(feature as PhotonFeature) : null;
     } catch (error) {
       // No coordinates in logs.
-      this.logger.warn(
-        `Photon reverse failed: ${error instanceof Error ? error.name : 'unknown error'}`,
-      );
+      this.logger.warn(`Photon reverse failed: ${describe(error)}`);
       return null;
     }
+  }
+}
+
+/**
+ * GETs a Photon URL within `PHOTON_TIMEOUT_MS`. A network error or a 5xx is
+ * tried once more; a timeout or a 4xx (e.g. a rate limit) is not.
+ */
+async function fetchPhoton(url: URL): Promise<{ features?: unknown }> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Tripinly/1.0', Accept: 'application/json' },
+        signal: AbortSignal.timeout(PHOTON_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new PhotonHttpError(response.status);
+      return (await response.json()) as { features?: unknown };
+    } catch (error) {
+      const retryable =
+        error instanceof PhotonHttpError
+          ? error.status >= 500
+          : (error as { name?: unknown } | null)?.name !== 'TimeoutError';
+      if (attempt > 1 || !retryable) throw error;
+    }
+  }
+}
+
+/** The failure's kind (and HTTP status), never the query or coordinates. */
+function describe(error: unknown): string {
+  if (error instanceof PhotonHttpError) return error.message;
+  const name = (error as { name?: unknown } | null)?.name;
+  return typeof name === 'string' ? name : 'unknown error';
+}
+
+class PhotonHttpError extends Error {
+  override name = 'PhotonHttpError';
+
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
   }
 }
 
