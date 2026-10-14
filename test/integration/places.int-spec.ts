@@ -621,10 +621,13 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         lng: 16.3958,
       });
       photon.mode = 'error';
+      photon.requests.length = 0;
       const failed = await as(alice)
         .get('/v1/places/search?q=riesenrad')
         .expect(200);
       expect(names(failed.body.items)).toEqual(['Wiener Riesenrad']);
+      // A 5xx is tried once more.
+      expect(photon.requests).toHaveLength(2);
 
       photon.mode = 'hang';
       const started = Date.now();
@@ -632,7 +635,8 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         .get('/v1/places/search?q=riesenrad')
         .expect(200);
       expect(names(slow.body.items)).toEqual(['Wiener Riesenrad']);
-      expect(Date.now() - started).toBeLessThan(4_000);
+      // The 4 s timeout isn't retried.
+      expect(Date.now() - started).toBeLessThan(6_000);
     });
 
     it('answers a single letter with Photon results only', async () => {

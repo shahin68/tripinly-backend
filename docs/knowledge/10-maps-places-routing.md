@@ -72,7 +72,7 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 
 - Query our `places` (pg_trgm similarity on `name`/`names`, category-aware, biased by distance to `lat/lng` if given) **and** Photon (`/api?q=&lat=&lon=&lang=`) in parallel.
 - Our places match on `searchText` (normalized name + all `name:<lang>` variants) with trigram word similarity, plus a small popularity boost and a proximity boost when `lat/lng` are given; 10 results. A one-letter query skips our places (trigrams need two characters) and returns Photon's prefix matches only.
-- Photon: `limit=8`, 2 s timeout, `lang` only for en/de/fr (Photon has no other languages; Hungarian gets local names). Failure or timeout → our places only.
+- Photon: `limit=8`, 4 s timeout, `lang` only for en/de/fr (Photon has no other languages; Hungarian gets local names). A network error or a 5xx is retried once; a timeout, a 4xx (rate limit) or a second failure → our places only, and the log says which (`Photon search failed: TimeoutError` / `HTTP 429` …). Destination search has only Photon, so it comes back empty then. The public komoot instance has no uptime promise: self-host Photon before launch (Shahin, 2026-10-14).
 - Merge: our places first (`source: "place"`, with IDs and popularity); Photon results returned as `{ source: "photon", id: null, name, location, type, address, osmType, osmId }`, dropping those whose OSM ids are already in our results. `address` is street, city and country, for telling results apart.
 - If the user picks a Photon result, the client sends its name + location (+ osm ids) when creating the marker; the backend matches or creates the place.
 - Lat/lng used only for ranking; not stored or logged.
