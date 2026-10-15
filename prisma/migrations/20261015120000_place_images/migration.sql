@@ -8,6 +8,9 @@ ALTER TYPE "ReportTargetType" ADD VALUE 'place_image';
 
 ALTER TYPE "ReportReason" ADD VALUE 'copyright' BEFORE 'other';
 
+-- The image tags the last image sync applied, so it only revisits changed places.
+ALTER TABLE "places" ADD COLUMN "imagesSyncedHash" TEXT;
+
 CREATE TABLE "place_images" (
     "id" UUID NOT NULL,
     "placeId" UUID NOT NULL,

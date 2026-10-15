@@ -200,6 +200,11 @@ export const envSchema = z
       .string()
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://qrank.toolforge.org/download/qrank.csv.gz'),
+    /**
+     * The worker copies Wikimedia Commons images of places into storage (daily
+     * sync, weekly recheck) only when true; it also needs storage configured.
+     */
+    PLACE_IMAGES_SYNC_ENABLED: booleanFlag,
     /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
     OSM_IMPORT_TMP_DIR: optionalString,
     /** Enables POST /v1/auth/dev for local development and staging. Refused in production. */

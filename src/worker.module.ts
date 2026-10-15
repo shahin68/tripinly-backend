@@ -7,11 +7,12 @@ import { EmailWorkerModule } from './modules/notifications/email/email-worker.mo
 import { NotificationsWorkerModule } from './modules/notifications/notifications-worker.module';
 import { OsmImportWorkerModule } from './modules/osm-import/osm-import-worker.module';
 import { PhotosWorkerModule } from './modules/photos/photos-worker.module';
+import { PlaceImagesWorkerModule } from './modules/places/place-images-worker.module';
 import { RealtimeWorkerModule } from './modules/realtime/realtime-worker.module';
 import { SocialWorkerModule } from './modules/social/social-worker.module';
 
 /**
- * The worker process: BullMQ processors (thumbnails, OSM import, counters,
+ * The worker process: BullMQ processors (thumbnails, OSM import, place images, counters,
  * notifications and push, email, account deletion and data export).
  */
 @Module({
@@ -22,6 +23,7 @@ import { SocialWorkerModule } from './modules/social/social-worker.module';
     QueueModule,
     OsmImportWorkerModule,
     PhotosWorkerModule,
+    PlaceImagesWorkerModule,
     SocialWorkerModule,
     RealtimeWorkerModule,
     NotificationsWorkerModule,

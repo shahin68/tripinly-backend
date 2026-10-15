@@ -344,6 +344,8 @@ model Place {
   qrank          Int?
   /// Hash of the wikidata, wikimedia_commons and image tags, so image syncs can spot changes.
   imageTagsHash  String?
+  /// The imageTagsHash the place-images sync last applied; differs when its images need a sync.
+  imagesSyncedHash String?
   createdAt      DateTime                              @default(now())
   updatedAt      DateTime                              @updatedAt
 

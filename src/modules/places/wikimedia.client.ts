@@ -14,6 +14,11 @@ const TIMEOUT_MS = 15_000;
 const MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_AFTER_S = 5;
 const MAX_RETRY_AFTER_S = 120;
+/** At most about one request a second (Wikimedia robot policy). */
+const REQUEST_GAP_MS = 1_000;
+const UPLOAD_HOST = 'upload.wikimedia.org';
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 
 export interface CommonsImage extends CommonsFileInfo {
   /** The resized copy to download (≤ 1280 px wide), from the API. */
@@ -22,14 +27,15 @@ export interface CommonsImage extends CommonsFileInfo {
 }
 
 /**
- * Reads Wikidata main images (P18) and Commons file details. Callers pace the
- * requests (about one per second, one job at a time); this client waits and
- * tries again when Wikimedia answers 429 or a maxlag error, honouring
- * Retry-After.
+ * Reads Wikidata main images (P18) and Commons file details, and downloads
+ * Commons thumbnails. Requests go one at a time, about one a second; when
+ * Wikimedia answers 429 or a maxlag error the client waits for Retry-After
+ * and tries again. Use it from one job at a time.
  */
 @Injectable()
 export class WikimediaClient {
   private readonly logger = new Logger(WikimediaClient.name);
+  private nextRequestAt = 0;
 
   /**
    * Each item's main image (P18) as a "File:…" title. Deprecated statements
@@ -86,6 +92,24 @@ export class WikimediaClient {
     return result;
   }
 
+  /**
+   * A Commons thumbnail the imageinfo API returned. Only Wikimedia's upload
+   * host is fetched, and files over 25 MB are refused.
+   */
+  async download(thumbUrl: string): Promise<Buffer> {
+    const url = new URL(thumbUrl);
+    if (url.protocol !== 'https:' || url.hostname !== UPLOAD_HOST) {
+      throw new WikimediaError('not a Commons upload URL');
+    }
+    const response = await this.send(url, 'image/*', DOWNLOAD_TIMEOUT_MS);
+    if (!response.ok) throw new WikimediaError(`HTTP ${response.status}`);
+    const length = Number(response.headers.get('content-length') ?? 0);
+    if (length > MAX_DOWNLOAD_BYTES) throw new WikimediaError('too large');
+    const body = Buffer.from(await response.arrayBuffer());
+    if (body.length > MAX_DOWNLOAD_BYTES) throw new WikimediaError('too large');
+    return body;
+  }
+
   private async get(
     endpoint: string,
     params: Record<string, string>,
@@ -100,32 +124,52 @@ export class WikimediaClient {
       url.searchParams.set(key, value);
     }
     for (let attempt = 1; ; attempt++) {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      let slowDown: 'maxlag' | 'HTTP 429' = 'HTTP 429';
-      if (response.status !== 429) {
-        if (!response.ok) throw new WikimediaError(`HTTP ${response.status}`);
-        const body = (await response.json()) as Record<string, unknown>;
-        const code = (body.error as { code?: string } | undefined)?.code;
-        if (!body.error) return body;
-        if (code !== 'maxlag') {
-          throw new WikimediaError(`API error ${code ?? 'unknown'}`);
-        }
-        slowDown = 'maxlag';
+      const response = await this.send(url, 'application/json', TIMEOUT_MS);
+      if (!response.ok) throw new WikimediaError(`HTTP ${response.status}`);
+      const body = (await response.json()) as Record<string, unknown>;
+      const code = (body.error as { code?: string } | undefined)?.code;
+      if (!body.error) return body;
+      if (code !== 'maxlag') {
+        throw new WikimediaError(`API error ${code ?? 'unknown'}`);
       }
-      if (attempt >= MAX_ATTEMPTS) {
-        throw new WikimediaError(slowDown);
-      }
-      const waitS = retryAfterSeconds(response.headers.get('retry-after'));
-      this.logger.warn(
-        `Wikimedia asked to slow down (${slowDown}); waiting ${waitS} s`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, waitS * 1000));
+      if (attempt >= MAX_ATTEMPTS) throw new WikimediaError('maxlag');
+      await this.slowDown('maxlag', response);
     }
   }
+
+  /**
+   * One request at a time, at least REQUEST_GAP_MS apart (the robot policy),
+   * tried again after Retry-After when Wikimedia answers 429.
+   */
+  private async send(
+    url: URL,
+    accept: string,
+    timeoutMs: number,
+  ): Promise<Response> {
+    for (let attempt = 1; ; attempt++) {
+      const wait = this.nextRequestAt - Date.now();
+      if (wait > 0) await sleep(wait);
+      this.nextRequestAt = Date.now() + REQUEST_GAP_MS;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT, Accept: accept },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (response.status !== 429) return response;
+      if (attempt >= MAX_ATTEMPTS) throw new WikimediaError('HTTP 429');
+      await this.slowDown('HTTP 429', response);
+    }
+  }
+
+  private async slowDown(reason: string, response: Response): Promise<void> {
+    const waitS = retryAfterSeconds(response.headers.get('retry-after'));
+    this.logger.warn(
+      `Wikimedia asked to slow down (${reason}); waiting ${waitS} s`,
+    );
+    await sleep(waitS * 1000);
+  }
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class WikimediaError extends Error {
   override name = 'WikimediaError';

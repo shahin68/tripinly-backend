@@ -18,10 +18,11 @@ const p18 = (value: string, rank = 'normal') => ({
 
 describe('WikimediaClient', () => {
   let fetchMock: jest.SpyInstance;
-  const client = new WikimediaClient();
+  let client: WikimediaClient;
 
   beforeEach(() => {
     fetchMock = jest.spyOn(global, 'fetch');
+    client = new WikimediaClient();
   });
 
   afterEach(() => {
@@ -155,6 +156,43 @@ describe('WikimediaClient', () => {
       'API error badvalue',
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps requests a second apart', async () => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(() => Promise.resolve(json({ entities: {} })));
+    await client.wikidataMainImages(['Q1']);
+    const second = client.wikidataMainImages(['Q2']);
+    await jest.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1);
+    await second;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('downloads thumbnails from the Commons upload host only', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(Buffer.from('jpeg-bytes')));
+    await expect(
+      client.download('https://upload.wikimedia.org/thumb/1280px-A.jpg'),
+    ).resolves.toEqual(Buffer.from('jpeg-bytes'));
+    await expect(client.download('https://example.com/A.jpg')).rejects.toThrow(
+      'not a Commons upload URL',
+    );
+    await expect(
+      client.download('http://upload.wikimedia.org/A.jpg'),
+    ).rejects.toThrow('not a Commons upload URL');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses downloads over 25 MB', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('x', {
+        headers: { 'Content-Length': String(26 * 1024 * 1024) },
+      }),
+    );
+    await expect(
+      client.download('https://upload.wikimedia.org/big.jpg'),
+    ).rejects.toThrow('too large');
   });
 
   it('refuses more than 50 items and skips empty requests', async () => {
