@@ -9,7 +9,7 @@
 | **postgres** | PostgreSQL 16 with PostGIS | Railway Postgres with PostGIS (use a PostGIS-enabled image/template; run `CREATE EXTENSION IF NOT EXISTS postgis` in the first migration) |
 | **redis** | Queues, Socket.IO adapter, rate limits, short caches, idempotency records | Railway Redis |
 
-External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places).
+External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places), **Wikidata and Wikimedia Commons APIs** (place images: main images and file licences, read by the worker about once a second with a contact User-Agent; images are copied to R2, never hotlinked).
 
 Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> best_route_realtime [days]` (0 days revokes).
 
