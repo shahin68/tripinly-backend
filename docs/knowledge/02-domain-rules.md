@@ -96,7 +96,8 @@ These rules are product decisions. Implement them exactly; ask the user before c
 ## Blocking and reporting
 
 - Blocking is mutual in effect: neither side sees the other's profile, trips, markers, photos, comments or likes in lists; they can't comment on each other's content, add each other to trips or accept each other's invites. Blocking removes the blocked user from the blocker's trips as editor and vice versa, and removes follows in both directions.
-- Users can report a user, trip, marker, photo or comment with a reason. Admins review reports and can hide content, dismiss, or suspend a user.
+- Users can report a user, trip, marker, photo, comment or a place's Wikimedia Commons image with a reason; `copyright` is the reason for someone else's photo. Admins review reports and can hide content, dismiss, or suspend a user. A Commons image can only be hidden (it has no Tripinly author).
+- **Photo licence:** the Terms of Service grant Tripinly a licence to show a user's public trip photos, including as a place's image once other people like them (rule above); the privacy policy says so. Draft wording for legal review: `docs/legal/photo-licence-clauses.md` (Shahin, 2026-10-15).
 
 ## Account deletion
 

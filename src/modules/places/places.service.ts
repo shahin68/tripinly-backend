@@ -7,7 +7,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
-import { thumbUrl } from '../photos/photo-keys';
+import { photoKeys, thumbUrl } from '../photos/photo-keys';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import {
@@ -21,7 +21,9 @@ import {
 } from './bbox';
 import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
+import { buildCredit } from './commons-metadata';
 import { PhotonClient } from './photon.client';
+import { placeImageKeys, placeImageThumbUrl } from './place-image-keys';
 import {
   PlaceMatchingService,
   type PlaceInput,
@@ -38,6 +40,7 @@ import {
   type NearbyQueryDto,
   OSM_ATTRIBUTION,
   type PlaceClusterDto,
+  type PlaceImageDto,
   type PlaceDetailDto,
   type PlaceItemDto,
   type PopularQueryDto,
@@ -379,7 +382,11 @@ export class PlacesService {
       throw AppException.notFound();
     }
     const tags = asStringRecord(place.tags);
-    const [item] = await this.personalize(userId, [toPlaceItem(place, lang)]);
+    const [[item], tripPhotos, commons] = await Promise.all([
+      this.personalize(userId, [toPlaceItem(place, lang)]),
+      this.placeTripPhotos(userId, place.id),
+      this.placeCommonsImages(place.id),
+    ]);
     return {
       ...item,
       source: place.source,
@@ -392,16 +399,17 @@ export class PlacesService {
         cuisine: tags.cuisine ?? null,
         wikidata: tags.wikidata ?? null,
       },
-      photoThumbUrls: await this.placePhotoThumbs(userId, place.id),
+      photoThumbUrls: tripPhotos.flatMap((photo) => photo.thumbUrl ?? []),
+      images: [...tripPhotos, ...commons],
       attribution:
         place.source === 'osm' || place.osmId ? OSM_ATTRIBUTION : null,
     };
   }
 
   /**
-   * Fills each place's cover (its most liked photo that may represent it, see
-   * `representativePhotos`; left out across blocks) and likedByMe for this
-   * viewer.
+   * Fills each place's cover and likedByMe for this viewer. The cover is its
+   * most liked trip photo that may represent it (see `representativePhotos`;
+   * left out across blocks), else its first ready Commons image.
    */
   async personalize<T extends PlaceItem>(
     userId: string,
@@ -409,7 +417,7 @@ export class PlacesService {
   ): Promise<T[]> {
     const ids = items.map((item) => item.id);
     if (ids.length === 0) return items;
-    const [covers, liked] = await Promise.all([
+    const [covers, commons, liked] = await Promise.all([
       this.prisma.$queryRaw<{ placeId: string; photoId: string }[]>`
         SELECT DISTINCT ON (q."placeId") q."placeId" AS "placeId", q.id AS "photoId"
         FROM (${this.representativePhotos(
@@ -417,33 +425,82 @@ export class PlacesService {
           Prisma.sql`m."placeId" = ANY(${ids}::uuid[])`,
         )}) q
         ORDER BY q."placeId", q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id`,
+      this.prisma.$queryRaw<{ placeId: string; imageId: string }[]>`
+        SELECT DISTINCT ON ("placeId") "placeId", id AS "imageId"
+        FROM place_images
+        WHERE "placeId" = ANY(${ids}::uuid[]) AND status = 'ready'
+        ORDER BY "placeId", rank, id`,
       likedAmong(this.prisma, userId, { type: 'place', ids }),
     ]);
     const coverOf = new Map(covers.map((row) => [row.placeId, row.photoId]));
+    const commonsOf = new Map(commons.map((row) => [row.placeId, row.imageId]));
     return items.map((item) => {
       const photoId = coverOf.get(item.id) ?? null;
+      const imageId = photoId ? null : (commonsOf.get(item.id) ?? null);
       return {
         ...item,
         coverPhotoId: photoId,
-        coverThumbUrl: thumbUrl(this.storage, photoId),
+        coverImageId: photoId ?? imageId,
+        coverSource: photoId ? 'trip' : imageId ? 'commons' : null,
+        coverThumbUrl: photoId
+          ? thumbUrl(this.storage, photoId)
+          : placeImageThumbUrl(this.storage, imageId),
         likedByMe: liked.has(item.id),
       };
     });
   }
 
   /** Up to 10 photos that may represent the place, most outside likes first. */
-  private async placePhotoThumbs(
+  private async placeTripPhotos(
     userId: string,
     placeId: string,
-  ): Promise<string[]> {
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT q.id FROM (${this.representativePhotos(
+  ): Promise<PlaceImageDto[]> {
+    const rows = await this.prisma.$queryRaw<
+      { id: string; width: number | null; height: number | null }[]
+    >`
+      SELECT q.id, p.width, p.height FROM (${this.representativePhotos(
         userId,
         Prisma.sql`m."placeId" = ${placeId}::uuid`,
       )}) q
+      JOIN photos p ON p.id = q.id
       ORDER BY q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id
       LIMIT ${PLACE_PHOTO_LIMIT}`;
-    return rows.flatMap((row) => thumbUrl(this.storage, row.id) ?? []);
+    return rows.map((row) => ({
+      id: row.id,
+      source: 'trip',
+      thumbUrl: this.storage.signedGetUrl(photoKeys(row.id).thumb),
+      displayUrl: this.storage.signedGetUrl(photoKeys(row.id).display),
+      width: row.width,
+      height: row.height,
+      credit: null,
+    }));
+  }
+
+  /** The place's ready Commons images in rank order, each with its credit. */
+  private async placeCommonsImages(placeId: string): Promise<PlaceImageDto[]> {
+    const rows = await this.prisma.placeImage.findMany({
+      where: { placeId, status: 'ready' },
+      orderBy: [{ rank: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => {
+      const keys = placeImageKeys(row.id);
+      return {
+        id: row.id,
+        source: 'commons',
+        thumbUrl: this.storage.signedGetUrl(keys.thumb),
+        displayUrl: this.storage.signedGetUrl(keys.display),
+        width: row.width,
+        height: row.height,
+        credit: buildCredit(row.commonsTitle, {
+          license: row.licenseCode ?? '',
+          licenseShortName: row.licenseShortName ?? '',
+          licenseUrl: row.licenseUrl,
+          authorText: row.authorText,
+          attributionText: row.attributionText,
+          objectName: row.objectName,
+        }),
+      };
+    });
   }
 
   /**
@@ -776,6 +833,8 @@ export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
     likeCount: row.popularity,
     prominence: row.prominence,
     coverPhotoId: null,
+    coverImageId: null,
+    coverSource: null,
     coverThumbUrl: null,
     likedByMe: false,
   };

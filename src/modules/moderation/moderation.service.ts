@@ -17,6 +17,7 @@ import { SessionRevocationService } from '../auth/session-revocation.service';
 import { MarkersService } from '../markers/markers.service';
 import { thumbUrl } from '../photos/photo-keys';
 import { PhotosService } from '../photos/photos.service';
+import { placeImageThumbUrl } from '../places/place-image-keys';
 import { recomputePopularity } from '../places/popularity';
 import { CommentsService } from '../social/comments.service';
 import { likedPlaceIds, lockTrip, TripsService } from '../trips/trips.service';
@@ -107,6 +108,8 @@ export class ModerationService {
         break;
       case 'delete_content':
         this.requireContent(ref, info, input.action);
+        // A deleted Commons image would come back with the next sync; hide it.
+        if (ref.targetType === 'place_image') throw notApplicable(input.action);
         await this.remove(adminId, ref);
         break;
       case 'suspend_user': {
@@ -237,6 +240,12 @@ export class ModerationService {
           data: { hiddenAt: now },
         });
         return;
+      case 'place_image':
+        await this.prisma.placeImage.updateMany({
+          where: { id: ref.targetId, status: { not: 'hidden' } },
+          data: { status: 'hidden' },
+        });
+        return;
       case 'user':
         return;
     }
@@ -256,6 +265,7 @@ export class ModerationService {
       case 'comment':
         await this.comments.remove(adminId, ref.targetId);
         return;
+      case 'place_image':
       case 'user':
         return;
     }
@@ -337,7 +347,9 @@ export class ModerationService {
           exists: info.exists,
           owner: info.ownerId ? (owners.get(info.ownerId) ?? null) : null,
           text: info.text,
-          thumbUrl: thumbUrl(this.storage, info.photoId),
+          thumbUrl:
+            thumbUrl(this.storage, info.photoId) ??
+            placeImageThumbUrl(this.storage, info.placeImageId),
           tripId: info.tripId,
           hidden: info.hidden,
         },

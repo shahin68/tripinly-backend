@@ -571,6 +571,7 @@ describe('Social (integration)', () => {
         coverPhotoId: string | null;
         coverThumbUrl: string | null;
         photoThumbUrls: string[];
+        images: { id: string; source: string; credit: unknown }[];
       };
 
     const likePhoto = (session: Session, photoId: string) =>
@@ -657,6 +658,75 @@ describe('Social (integration)', () => {
       expect(
         (nearby.body.items as { id: string }[]).find((p) => p.id === placeId),
       ).toMatchObject({ coverPhotoId: photoId });
+    });
+
+    it('falls back to the Commons image, with its credit, until a trip photo qualifies', async () => {
+      const commons = await app.get(PrismaService).placeImage.create({
+        data: {
+          placeId,
+          origin: 'wikidata_p18',
+          commonsTitle: 'File:Albertina Wien.jpg',
+          status: 'ready',
+          width: 1280,
+          height: 853,
+          authorText: 'Jane Doe',
+          licenseCode: 'cc-by-sa-3.0-at',
+          licenseShortName: 'CC BY-SA 3.0 at',
+          licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/at',
+        },
+      });
+      // Not ready yet: never shown.
+      await app.get(PrismaService).placeImage.create({
+        data: { placeId, origin: 'osm_image', commonsTitle: 'File:Other.jpg' },
+      });
+
+      expect(await inViewItem(stranger)).toMatchObject({
+        coverPhotoId: null,
+        coverImageId: commons.id,
+        coverSource: 'commons',
+        coverThumbUrl: expect.stringContaining(
+          `place-images/${commons.id}/thumb.webp`,
+        ),
+      });
+      const before = await detail(stranger);
+      expect(before.images).toEqual([
+        {
+          id: commons.id,
+          source: 'commons',
+          thumbUrl: expect.stringContaining(
+            `place-images/${commons.id}/thumb.webp`,
+          ),
+          displayUrl: expect.stringContaining(
+            `place-images/${commons.id}/display.webp`,
+          ),
+          width: 1280,
+          height: 853,
+          credit: {
+            author: 'Jane Doe',
+            title: 'Albertina Wien',
+            license: 'CC BY-SA 3.0 at',
+            licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/at',
+            sourceUrl:
+              'https://commons.wikimedia.org/wiki/File:Albertina_Wien.jpg',
+          },
+        },
+      ]);
+
+      const photoId = await readyPhoto(app, owner, markerId);
+      const [other] = await outsiders('other');
+      await likePhoto(stranger, photoId);
+      await likePhoto(other, photoId);
+      expect(await inViewItem(stranger)).toMatchObject({
+        coverPhotoId: photoId,
+        coverImageId: photoId,
+        coverSource: 'trip',
+      });
+      const after = await detail(stranger);
+      expect(after.images.map((image) => [image.id, image.source])).toEqual([
+        [photoId, 'trip'],
+        [commons.id, 'commons'],
+      ]);
+      expect(after.images[0].credit).toBeNull();
     });
 
     it('picks the photo with the most outside likes, not the top marker', async () => {

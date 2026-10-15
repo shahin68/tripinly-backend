@@ -344,10 +344,13 @@ model Place {
   qrank          Int?
   /// Hash of the wikidata, wikimedia_commons and image tags, so image syncs can spot changes.
   imageTagsHash  String?
+  /// The imageTagsHash the place-images sync last applied; differs when its images need a sync.
+  imagesSyncedHash String?
   createdAt      DateTime                              @default(now())
   updatedAt      DateTime                              @updatedAt
 
   markers Marker[]
+  images  PlaceImage[]
 
   @@unique([osmType, osmId])
   @@index([location], type: Gist)
@@ -358,6 +361,72 @@ model Place {
   @@index([popularity(sort: Desc)])
   @@index([category])
   @@map("places")
+}
+
+/// Where a place image's Commons file was linked from, in priority order.
+enum PlaceImageOrigin {
+  /// Wikidata P18 (main image) of the place's `wikidata` tag.
+  wikidata_p18
+  /// OSM `wikimedia_commons=File:…`.
+  osm_wikimedia_commons
+  /// OSM `image=` pointing to a Commons file.
+  osm_image
+}
+
+enum PlaceImageStatus {
+  /// Found, not yet checked or copied.
+  pending
+  /// Copied to storage; may be shown.
+  ready
+  /// Failed the licence or size filter (`rejectReason`).
+  rejected
+  /// Deleted on Commons or no longer linked from the place; files removed.
+  removed
+  /// Hidden by an admin after a report.
+  hidden
+}
+
+/// A Wikimedia Commons image of a place, copied to our storage with its credit.
+/// Files: place-images/{id}/thumb.webp and place-images/{id}/display.webp.
+model PlaceImage {
+  id                  String           @id @default(uuid()) @db.Uuid
+  placeId             String           @db.Uuid
+  origin              PlaceImageOrigin
+  /// "File:…" title on Commons.
+  commonsTitle        String
+  /// Commons ObjectName, used as the title in credits for licences before 4.0.
+  objectName          String?
+  wikidataId          String?
+  /// Display order within the place, 0 first.
+  rank                Int              @default(0)
+  width               Int?
+  height              Int?
+  mime                String?
+  /// sha1 Commons reports for the file; a new one means download again.
+  commonsSha1         String?
+  /// Artist, HTML stripped to text.
+  authorText          String?
+  /// The uploader's attribution= wording, used instead of the author when present.
+  attributionText     String?
+  /// Normalized licence code from Commons, such as cc-by-sa-4.0, cc0 or pd.
+  licenseCode         String?
+  licenseShortName    String?
+  licenseUrl          String?
+  attributionRequired Boolean          @default(true)
+  filePageUrl         String?
+  status              PlaceImageStatus @default(pending)
+  rejectReason        String?
+  fetchedAt           DateTime?
+  checkedAt           DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, commonsTitle])
+  @@index([placeId, status, rank])
+  @@index([commonsTitle])
+  @@map("place_images")
 }
 
 model Marker {
@@ -639,6 +708,8 @@ enum ReportTargetType {
   marker
   photo
   comment
+  /// A Wikimedia Commons image shown for a place (place_images).
+  place_image
 }
 
 enum ReportReason {
@@ -647,6 +718,8 @@ enum ReportReason {
   nudity
   violence
   hate
+  /// Copyright or ownership: someone else's photo.
+  copyright
   other
 }
 

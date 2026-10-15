@@ -177,6 +177,8 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         likeCount: 9,
         prominence: 0,
         coverPhotoId: null,
+        coverImageId: null,
+        coverSource: null,
         coverThumbUrl: null,
         likedByMe: false,
       });
@@ -885,6 +887,8 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         likeCount: 0,
         prominence: 0,
         coverPhotoId: null,
+        coverImageId: null,
+        coverSource: null,
         coverThumbUrl: null,
         likedByMe: false,
         source: 'osm',
@@ -898,6 +902,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           wikidata: null,
         },
         photoThumbUrls: [],
+        images: [],
         attribution: '© OpenStreetMap contributors',
       });
     });

@@ -113,6 +113,19 @@ export class ReportsService {
         }
         return;
       }
+      case 'place_image': {
+        // Commons images are shown to everyone once ready on an active place.
+        const image = await this.prisma.placeImage.findFirst({
+          where: {
+            id: input.targetId,
+            status: 'ready',
+            place: { isActive: true },
+          },
+          select: { id: true },
+        });
+        if (!image) throw AppException.notFound();
+        return;
+      }
     }
   }
 }

@@ -9,7 +9,7 @@
 | **postgres** | PostgreSQL 16 with PostGIS | Railway Postgres with PostGIS (use a PostGIS-enabled image/template; run `CREATE EXTENSION IF NOT EXISTS postgis` in the first migration) |
 | **redis** | Queues, Socket.IO adapter, rate limits, short caches, idempotency records | Railway Redis |
 
-External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places).
+External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places), **Wikidata and Wikimedia Commons APIs** (place images: main images and file licences, read by the worker about once a second with a contact User-Agent; images are copied to R2, never hotlinked).
 
 Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> best_route_realtime [days]` (0 days revokes).
 
@@ -82,6 +82,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_CRON` | Monthly refresh schedule, UTC. Default `0 3 2 * *` |
 | `GEOFABRIK_BASE_URL` | Default `https://download.geofabrik.de` |
 | `QRANK_URL` | Default `https://qrank.toolforge.org/download/qrank.csv.gz` |
+| `PLACE_IMAGES_SYNC_ENABLED` | `true` on the worker to copy Wikimedia Commons images of places into storage (daily sync, weekly recheck; needs `R2_*`). Default `false` |
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup; account deletion deletes the customer, worker) and the webhook's shared Authorization value (with the webhook). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |

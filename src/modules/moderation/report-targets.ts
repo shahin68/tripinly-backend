@@ -2,7 +2,7 @@ import type { PrismaService } from '../../common/prisma/prisma.service';
 
 /**
  * Closes open reports whose target is gone: the user themselves, or trips,
- * markers, photos and comments that no longer exist.
+ * markers, photos, comments and place images that no longer exist.
  */
 export async function closeReportsOnMissingTargets(
   prisma: PrismaService,
@@ -16,11 +16,12 @@ export async function closeReportsOnMissingTargets(
       OR (r."targetType" = 'marker' AND NOT EXISTS (SELECT 1 FROM markers x WHERE x.id = r."targetId"))
       OR (r."targetType" = 'photo' AND NOT EXISTS (SELECT 1 FROM photos x WHERE x.id = r."targetId"))
       OR (r."targetType" = 'comment' AND NOT EXISTS (SELECT 1 FROM comments x WHERE x.id = r."targetId"))
+      OR (r."targetType" = 'place_image' AND NOT EXISTS (SELECT 1 FROM place_images x WHERE x.id = r."targetId"))
     )`;
 }
 
 export interface TargetRef {
-  targetType: 'user' | 'trip' | 'marker' | 'photo' | 'comment';
+  targetType: 'user' | 'trip' | 'marker' | 'photo' | 'comment' | 'place_image';
   targetId: string;
 }
 
@@ -29,6 +30,7 @@ export interface TargetInfo {
   ownerId: string | null;
   text: string | null;
   photoId: string | null;
+  placeImageId: string | null;
   tripId: string | null;
   hidden: boolean;
 }
@@ -41,6 +43,7 @@ const MISSING: TargetInfo = {
   ownerId: null,
   text: null,
   photoId: null,
+  placeImageId: null,
   tripId: null,
   hidden: false,
 };
@@ -55,40 +58,50 @@ export async function describeTargets(
       refs.filter((r) => r.targetType === type).map((r) => r.targetId),
     ),
   ];
-  const [users, trips, markers, photos, comments] = await Promise.all([
-    prisma.user.findMany({
-      where: { id: { in: ids('user') } },
-      select: { id: true, displayName: true, status: true },
-    }),
-    prisma.trip.findMany({
-      where: { id: { in: ids('trip') } },
-      select: { id: true, title: true, ownerId: true, hiddenAt: true },
-    }),
-    prisma.marker.findMany({
-      where: { id: { in: ids('marker') } },
-      select: {
-        id: true,
-        name: true,
-        createdById: true,
-        tripId: true,
-        hiddenAt: true,
-      },
-    }),
-    prisma.photo.findMany({
-      where: { id: { in: ids('photo') } },
-      select: { id: true, uploaderId: true, tripId: true, hiddenAt: true },
-    }),
-    prisma.comment.findMany({
-      where: { id: { in: ids('comment') } },
-      select: {
-        id: true,
-        body: true,
-        authorId: true,
-        tripId: true,
-        hiddenAt: true,
-      },
-    }),
-  ]);
+  const [users, trips, markers, photos, comments, placeImages] =
+    await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: ids('user') } },
+        select: { id: true, displayName: true, status: true },
+      }),
+      prisma.trip.findMany({
+        where: { id: { in: ids('trip') } },
+        select: { id: true, title: true, ownerId: true, hiddenAt: true },
+      }),
+      prisma.marker.findMany({
+        where: { id: { in: ids('marker') } },
+        select: {
+          id: true,
+          name: true,
+          createdById: true,
+          tripId: true,
+          hiddenAt: true,
+        },
+      }),
+      prisma.photo.findMany({
+        where: { id: { in: ids('photo') } },
+        select: { id: true, uploaderId: true, tripId: true, hiddenAt: true },
+      }),
+      prisma.comment.findMany({
+        where: { id: { in: ids('comment') } },
+        select: {
+          id: true,
+          body: true,
+          authorId: true,
+          tripId: true,
+          hiddenAt: true,
+        },
+      }),
+      prisma.placeImage.findMany({
+        where: { id: { in: ids('place_image') } },
+        select: {
+          id: true,
+          commonsTitle: true,
+          status: true,
+          place: { select: { name: true } },
+        },
+      }),
+    ]);
   const result = new Map<string, TargetInfo>();
   for (const ref of refs) result.set(targetKey(ref), MISSING);
   const put = (
@@ -105,6 +118,7 @@ export async function describeTargets(
       ownerId: u.id,
       text: u.displayName,
       photoId: null,
+      placeImageId: null,
       tripId: null,
       hidden: u.status !== 'active',
     });
@@ -114,6 +128,7 @@ export async function describeTargets(
       ownerId: t.ownerId,
       text: t.title,
       photoId: null,
+      placeImageId: null,
       tripId: t.id,
       hidden: t.hiddenAt !== null,
     });
@@ -123,6 +138,7 @@ export async function describeTargets(
       ownerId: m.createdById,
       text: m.name,
       photoId: null,
+      placeImageId: null,
       tripId: m.tripId,
       hidden: m.hiddenAt !== null,
     });
@@ -132,6 +148,7 @@ export async function describeTargets(
       ownerId: p.uploaderId,
       text: null,
       photoId: p.id,
+      placeImageId: null,
       tripId: p.tripId,
       hidden: p.hiddenAt !== null,
     });
@@ -141,8 +158,20 @@ export async function describeTargets(
       ownerId: c.authorId,
       text: c.body,
       photoId: null,
+      placeImageId: null,
       tripId: c.tripId,
       hidden: c.hiddenAt !== null,
+    });
+  }
+  for (const i of placeImages) {
+    // Commons images have no owner in Tripinly; admins can only hide them.
+    put('place_image', i.id, {
+      ownerId: null,
+      text: `${i.place.name}: ${i.commonsTitle}`,
+      photoId: null,
+      placeImageId: i.id,
+      tripId: null,
+      hidden: i.status === 'hidden',
     });
   }
   return result;
