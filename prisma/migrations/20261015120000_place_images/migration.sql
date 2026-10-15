@@ -25,6 +25,7 @@ CREATE TABLE "place_images" (
     "commonsSha1" TEXT,
     "authorText" TEXT,
     "attributionText" TEXT,
+    "licenseCode" TEXT,
     "licenseShortName" TEXT,
     "licenseUrl" TEXT,
     "attributionRequired" BOOLEAN NOT NULL DEFAULT true,

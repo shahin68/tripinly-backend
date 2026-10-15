@@ -4949,12 +4949,27 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover photo (stable; cache the image by it), or null"
+            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+          },
+          "coverImageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+          },
+          "coverSource": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "commons"
+            ],
+            "nullable": true,
+            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -4969,6 +4984,8 @@
           "likeCount",
           "prominence",
           "coverPhotoId",
+          "coverImageId",
+          "coverSource",
           "coverThumbUrl",
           "likedByMe"
         ]
@@ -5223,12 +5240,27 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover photo (stable; cache the image by it), or null"
+            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+          },
+          "coverImageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+          },
+          "coverSource": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "commons"
+            ],
+            "nullable": true,
+            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5247,6 +5279,8 @@
           "likeCount",
           "prominence",
           "coverPhotoId",
+          "coverImageId",
+          "coverSource",
           "coverThumbUrl",
           "likedByMe",
           "distanceMeters"
@@ -5327,6 +5361,96 @@
           "wikidata"
         ]
       },
+      "ImageCreditDto": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string",
+            "nullable": true,
+            "description": "Who to credit (the uploader's own wording when given)"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Title of the work; set only where the licence requires it (CC before 4.0)"
+          },
+          "license": {
+            "type": "string",
+            "example": "CC BY-SA 4.0",
+            "description": "Licence name, or \"Public domain\""
+          },
+          "licenseUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Link the licence name here"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "description": "The file page on Wikimedia Commons; link the author here"
+          }
+        },
+        "required": [
+          "author",
+          "title",
+          "license",
+          "licenseUrl",
+          "sourceUrl"
+        ]
+      },
+      "PlaceImageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable; cache the image by it and source"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "commons"
+            ]
+          },
+          "thumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "256 px square; signed, valid ≥ 1 h"
+          },
+          "displayUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Up to 1600 px (trip) or 1280 px wide (Commons), uncropped; signed, valid ≥ 1 h"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "credit": {
+            "nullable": true,
+            "description": "For Commons images: show \"© author · licence · Wikimedia Commons\" under the image (with the title first when set, and \"· cropped\" where the app crops it). Null for trip photos",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImageCreditDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "thumbUrl",
+          "displayUrl",
+          "width",
+          "height",
+          "credit"
+        ]
+      },
       "PlaceDetailDto": {
         "type": "object",
         "properties": {
@@ -5374,12 +5498,27 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover photo (stable; cache the image by it), or null"
+            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+          },
+          "coverImageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+          },
+          "coverSource": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "commons"
+            ],
+            "nullable": true,
+            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5412,10 +5551,18 @@
             "$ref": "#/components/schemas/PlaceTagsDto"
           },
           "photoThumbUrls": {
-            "description": "Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first",
+            "deprecated": true,
+            "description": "Use images. Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first",
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "images": {
+            "description": "Images for the card: up to 10 trip photos that may represent the place (most outside likes first), then its Wikimedia Commons images. The first one is the cover",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceImageDto"
             }
           },
           "attribution": {
@@ -5434,6 +5581,8 @@
           "likeCount",
           "prominence",
           "coverPhotoId",
+          "coverImageId",
+          "coverSource",
           "coverThumbUrl",
           "likedByMe",
           "source",
@@ -5442,6 +5591,7 @@
           "osmId",
           "tags",
           "photoThumbUrls",
+          "images",
           "attribution"
         ]
       },
@@ -6409,7 +6559,8 @@
               "trip",
               "marker",
               "photo",
-              "comment"
+              "comment",
+              "place_image"
             ]
           },
           "targetId": {
@@ -6424,6 +6575,7 @@
               "nudity",
               "violence",
               "hate",
+              "copyright",
               "other"
             ]
           },
@@ -6452,7 +6604,8 @@
               "trip",
               "marker",
               "photo",
-              "comment"
+              "comment",
+              "place_image"
             ]
           },
           "targetId": {
@@ -6467,6 +6620,7 @@
               "nudity",
               "violence",
               "hate",
+              "copyright",
               "other"
             ]
           },
@@ -6569,7 +6723,8 @@
               "trip",
               "marker",
               "photo",
-              "comment"
+              "comment",
+              "place_image"
             ]
           },
           "targetId": {
@@ -6584,6 +6739,7 @@
               "nudity",
               "violence",
               "hate",
+              "copyright",
               "other"
             ]
           },

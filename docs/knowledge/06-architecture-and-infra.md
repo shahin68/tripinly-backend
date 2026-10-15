@@ -82,6 +82,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_CRON` | Monthly refresh schedule, UTC. Default `0 3 2 * *` |
 | `GEOFABRIK_BASE_URL` | Default `https://download.geofabrik.de` |
 | `QRANK_URL` | Default `https://qrank.toolforge.org/download/qrank.csv.gz` |
+| `PLACE_IMAGES_SYNC_ENABLED` | `true` on the worker to copy Wikimedia Commons images of places into storage (daily sync, weekly recheck; needs `R2_*`). Default `false` |
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (subscriber lookup; account deletion deletes the customer, worker) and the webhook's shared Authorization value (with the webhook). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |

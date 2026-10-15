@@ -28,6 +28,9 @@ import {
 
 export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
+export const COVER_SOURCES = ['trip', 'commons'] as const;
+export type CoverSource = (typeof COVER_SOURCES)[number];
+
 const NUMBER = '-?\\d{1,3}(\\.\\d+)?';
 const BBOX_PATTERN = new RegExp(`^${NUMBER},${NUMBER},${NUMBER},${NUMBER}$`);
 
@@ -242,15 +245,32 @@ export class PlaceItemDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Id of the cover photo (stable; cache the image by it), or null',
+      'Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)',
   })
   coverPhotoId: string | null;
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
     nullable: true,
     description:
-      'The most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members); signed, valid ≥ 1 h',
+      'Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null',
+  })
+  coverImageId: string | null;
+
+  @ApiProperty({
+    enum: COVER_SOURCES,
+    nullable: true,
+    description:
+      '`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover',
+  })
+  coverSource: CoverSource | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h",
   })
   coverThumbUrl: string | null;
 
@@ -410,6 +430,81 @@ export class SearchResponseDto {
   attribution: string;
 }
 
+export class ImageCreditDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "Who to credit (the uploader's own wording when given)",
+  })
+  author: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Title of the work; set only where the licence requires it (CC before 4.0)',
+  })
+  title: string | null;
+
+  @ApiProperty({
+    example: 'CC BY-SA 4.0',
+    description: 'Licence name, or "Public domain"',
+  })
+  license: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Link the licence name here',
+  })
+  licenseUrl: string | null;
+
+  @ApiProperty({
+    description: 'The file page on Wikimedia Commons; link the author here',
+  })
+  sourceUrl: string;
+}
+
+export class PlaceImageDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Stable; cache the image by it and source',
+  })
+  id: string;
+
+  @ApiProperty({ enum: COVER_SOURCES })
+  source: CoverSource;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: '256 px square; signed, valid ≥ 1 h',
+  })
+  thumbUrl: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Up to 1600 px (trip) or 1280 px wide (Commons), uncropped; signed, valid ≥ 1 h',
+  })
+  displayUrl: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  width: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  height: number | null;
+
+  @ApiProperty({
+    type: ImageCreditDto,
+    nullable: true,
+    description:
+      'For Commons images: show "© author · licence · Wikimedia Commons" under the image (with the title first when set, and "· cropped" where the app crops it). Null for trip photos',
+  })
+  credit: ImageCreditDto | null;
+}
+
 export class PlaceTagsDto {
   @ApiProperty({ type: String, nullable: true })
   website: string | null;
@@ -438,6 +533,8 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   'likeCount',
   'prominence',
   'coverPhotoId',
+  'coverImageId',
+  'coverSource',
   'coverThumbUrl',
   'likedByMe',
 ] as const) {
@@ -460,10 +557,18 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
 
   @ApiProperty({
     type: [String],
+    deprecated: true,
     description:
-      'Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first',
+      'Use images. Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first',
   })
   photoThumbUrls: string[];
+
+  @ApiProperty({
+    type: () => [PlaceImageDto],
+    description:
+      'Images for the card: up to 10 trip photos that may represent the place (most outside likes first), then its Wikimedia Commons images. The first one is the cover',
+  })
+  images: PlaceImageDto[];
 
   @ApiProperty({
     type: String,

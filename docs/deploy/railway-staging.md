@@ -78,6 +78,7 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
 3. **Variables:**
    - all shared variables, plus `DATABASE_URL` and `REDIS_URL` references as for `api`;
    - `OSM_IMPORT_ENABLED` = `true` (loads Austria and Hungary places on first start, then monthly; the first import takes a while and downloads a few hundred MB);
+   - `PLACE_IMAGES_SYNC_ENABLED` = `true` (copies Wikimedia Commons images of places into storage, daily; needs the R2 variables);
    - `REVENUECAT_API_KEY` 🔑 = your RevenueCat secret key (optional; account deletion deletes the RevenueCat customer with it);
    - `FIREBASE_SERVICE_ACCOUNT_JSON` 🔑 = the whole service account JSON (optional; without it no pushes).
 4. **Deploy.**
@@ -131,4 +132,5 @@ DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://
 | worker | `REVENUECAT_API_KEY` | you hold it |
 | worker | `FIREBASE_SERVICE_ACCOUNT_JSON` | from Firebase, when ready |
 | worker | `OSM_IMPORT_ENABLED` | `true` |
+| worker | `PLACE_IMAGES_SYNC_ENABLED` | `true` (copies Commons images of places; the first run takes hours at one request a second) |
 | later | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL`, `REVENUECAT_WEBHOOK_AUTH` | need the domain, developer accounts or the webhook |

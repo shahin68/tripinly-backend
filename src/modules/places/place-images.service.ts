@@ -381,6 +381,7 @@ function licenseData(commonsTitle: string, license: AcceptedLicense) {
     objectName: license.objectName,
     authorText: license.authorText,
     attributionText: license.attributionText,
+    licenseCode: license.license,
     licenseShortName: license.licenseShortName,
     licenseUrl: license.licenseUrl,
     attributionRequired: license.attributionRequired,

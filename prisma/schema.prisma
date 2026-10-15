@@ -408,6 +408,8 @@ model PlaceImage {
   authorText          String?
   /// The uploader's attribution= wording, used instead of the author when present.
   attributionText     String?
+  /// Normalized licence code from Commons, such as cc-by-sa-4.0, cc0 or pd.
+  licenseCode         String?
   licenseShortName    String?
   licenseUrl          String?
   attributionRequired Boolean          @default(true)
