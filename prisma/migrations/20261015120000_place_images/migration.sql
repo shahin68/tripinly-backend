@@ -3,6 +3,11 @@ CREATE TYPE "PlaceImageOrigin" AS ENUM ('wikidata_p18', 'osm_wikimedia_commons',
 
 CREATE TYPE "PlaceImageStatus" AS ENUM ('pending', 'ready', 'rejected', 'removed', 'hidden');
 
+-- Reports on place images, and a copyright reason for every report.
+ALTER TYPE "ReportTargetType" ADD VALUE 'place_image';
+
+ALTER TYPE "ReportReason" ADD VALUE 'copyright' BEFORE 'other';
+
 CREATE TABLE "place_images" (
     "id" UUID NOT NULL,
     "placeId" UUID NOT NULL,

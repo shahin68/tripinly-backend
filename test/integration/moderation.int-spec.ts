@@ -311,5 +311,59 @@ describe('Moderation (integration)', () => {
         .expect(400);
       expect(await prisma.adminAuditLog.count()).toBe(0);
     });
+    it('takes copyright reports on Commons place images; admins can hide them but not delete them', async () => {
+      const image = await prisma.placeImage.create({
+        data: {
+          placeId,
+          origin: 'wikidata_p18',
+          commonsTitle: 'File:Albertina Wien.jpg',
+          status: 'ready',
+        },
+      });
+      const pending = await prisma.placeImage.create({
+        data: {
+          placeId,
+          origin: 'osm_image',
+          commonsTitle: 'File:Albertina Nacht.jpg',
+        },
+      });
+      await report(reporter, 'place_image', pending.id).expect(404);
+      const reportId = (
+        await report(reporter, 'place_image', image.id, 'copyright').expect(201)
+      ).body.id as string;
+
+      const [item] = await openReports();
+      expect(item).toMatchObject({
+        targetType: 'place_image',
+        target: {
+          exists: true,
+          owner: null,
+          text: 'Albertina: File:Albertina Wien.jpg',
+          hidden: false,
+        },
+      });
+      await as(admin)
+        .patch(`/v1/admin/reports/${reportId}`)
+        .send({ action: 'delete_content' })
+        .expect(400);
+      await as(admin)
+        .patch(`/v1/admin/reports/${reportId}`)
+        .send({ action: 'suspend_user' })
+        .expect(400);
+      const { body } = await as(admin)
+        .patch(`/v1/admin/reports/${reportId}`)
+        .send({ action: 'hide_content' })
+        .expect(200);
+      expect(body).toMatchObject({
+        reason: 'copyright',
+        status: 'actioned',
+        target: { hidden: true },
+      });
+      expect(
+        (await prisma.placeImage.findUniqueOrThrow({ where: { id: image.id } }))
+          .status,
+      ).toBe('hidden');
+      await report(other, 'place_image', image.id).expect(404);
+    });
   });
 });

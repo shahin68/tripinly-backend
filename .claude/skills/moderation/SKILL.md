@@ -9,8 +9,8 @@ App Store and Google Play require apps with user-generated content to let users 
 
 ## Reporting — `POST /reports`
 
-- Targets: `user`, `trip`, `marker`, `photo`, `comment`. Caller must be able to `view` the target (or it must be a user they can see).
-- Reasons: `spam`, `harassment`, `nudity`, `violence`, `hate`, `other` (+ optional details ≤ 1000 chars).
+- Targets: `user`, `trip`, `marker`, `photo`, `comment`, `place_image` (a Wikimedia Commons image of a place). Caller must be able to `view` the target (or it must be a user they can see; a place image must be `ready` on an active place).
+- Reasons: `spam`, `harassment`, `nudity`, `violence`, `hate`, `copyright` (someone else's photo; the notice channel the Terms of Service name), `other` (+ optional details ≤ 1000 chars).
 - One open report per reporter per target (repeat → 200, no duplicate).
 - Rate limit: 20 reports per user per day.
 - Reporting doesn't hide anything automatically (see open questions for thresholds).
@@ -36,6 +36,7 @@ Implement block filtering through shared helpers (`blockFilter(userId)` for Pris
   - `hide_content` → set `hiddenAt` on the target (trip/marker/photo/comment); hidden content disappears for everyone except admins and a "hidden" state for the author. Recompute popularity if a public marker/trip is hidden.
   - `suspend_user` → `users.status = suspended`, revoke tokens, disconnect sockets; their public content is hidden from discovery while suspended.
   - `delete_content` → hard delete via the normal service (with storage cleanup).
+  - Place images have no owner in Tripinly: only `dismiss` and `hide_content` (status `hidden`, kept hidden by every later sync) apply; `delete_content` and `suspend_user` answer 400, since a deleted Commons link would come back with the next sync.
 - Resolving one report can resolve all open reports on the same target.
 - Every admin action writes an **audit log** entry (admin ID, action, target, time, note).
 - Admin role is set manually in the database for now; there's no admin UI in scope — admins use the API (or a simple internal tool later).

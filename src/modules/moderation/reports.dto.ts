@@ -9,6 +9,7 @@ export const REPORT_TARGET_TYPES = [
   'marker',
   'photo',
   'comment',
+  'place_image',
 ] as const;
 export type ReportTargetTypeValue = (typeof REPORT_TARGET_TYPES)[number];
 
@@ -18,6 +19,7 @@ export const REPORT_REASONS = [
   'nudity',
   'violence',
   'hate',
+  'copyright',
   'other',
 ] as const;
 

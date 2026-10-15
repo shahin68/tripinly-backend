@@ -704,6 +704,8 @@ enum ReportTargetType {
   marker
   photo
   comment
+  /// A Wikimedia Commons image shown for a place (place_images).
+  place_image
 }
 
 enum ReportReason {
@@ -712,6 +714,8 @@ enum ReportReason {
   nudity
   violence
   hate
+  /// Copyright or ownership: someone else's photo.
+  copyright
   other
 }
 
