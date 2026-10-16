@@ -3274,7 +3274,7 @@
     },
     "/v1/explore/trips": {
       "get": {
-        "description": "Ranked by likes and saves with recency decay. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor to continue the same ranking.",
+        "description": "Ranked by likes only (saves never count), newest on ties; period picks which likes count or the season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.",
         "operationId": "Explore_trips",
         "parameters": [
           {
@@ -3306,6 +3306,43 @@
               "default": true,
               "type": "boolean"
             }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "Ranks by all likes (all), by the likes of the last 7, 30 or 365 days (week, month, year), or keeps trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov) ranked by all likes",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year",
+                "season",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "description": "Nearby filter, with lng",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "description": "Nearby filter, with lat",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -3325,7 +3362,7 @@
             "bearer": []
           }
         ],
-        "summary": "Public trips, mine included, ranked",
+        "summary": "Public trips, mine included, ranked by likes",
         "tags": [
           "discovery"
         ]

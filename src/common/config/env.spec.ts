@@ -23,6 +23,7 @@ describe('validateEnv', () => {
       APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: 2,
       APP_PLACE_RANK_MIN_LIKES: 1,
       APP_PLACE_PHOTO_DAILY_LIMIT: 20,
+      APP_EXPLORE_NEARBY_RADIUS_KM: 50,
       APP_TRIP_MAX_MEMBERS: 50,
     });
   });

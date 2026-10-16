@@ -76,6 +76,7 @@ Adding anything else: state the reason.
 | `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |
 | `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` | How many people outside a trip (not the uploader, trip owner or members) must like a trip photo before it can represent a place (place `coverThumbUrl`, detail `photoThumbUrls`). Integer ≥ 1, default 2. API only; takes effect after a restart |
+| `APP_EXPLORE_NEARBY_RADIUS_KM` | Explore's Nearby filter keeps trips with a stop within this many km of the user. Number 1–500, default 50. API only |
 | `APP_PLACE_RANK_MIN_LIKES` | Likes (`popularity`) a place needs to rank on the map by its likes, ahead of every place below it; places below it rank by prominence (QRank and tags). Integer ≥ 1, default 1. API only; takes effect after a restart (in-view answers are cached 60 s) |
 | `APP_PLACE_PHOTO_DAILY_LIMIT` | Place photos one person may add in 24 hours, across all places (failed uploads don't count) → 422 `DAILY_PHOTO_LIMIT_REACHED`. Integer ≥ 1, default 20. API only; takes effect after a restart |
 | `OSM_IMPORT_REGIONS` | Geofabrik extract paths. Default `europe/austria,europe/hungary` |

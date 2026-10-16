@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import {
   DEFAULT_PAGE_SIZE,
@@ -9,6 +11,21 @@ import { StorageService } from '../../common/storage/storage.service';
 import { Prisma } from '../../generated/prisma/client';
 import { toTripSummaries, tripSummaryInclude } from '../trips/trip.mapper';
 import type { TripSummaryDto } from '../trips/trips.dto';
+import type { ExplorePeriod } from './explore.dto';
+
+/** Filters on Explore; [near] is used for this query only, never stored or logged. */
+export interface ExploreFilter {
+  includeMine: boolean;
+  period: ExplorePeriod;
+  near?: { lat: number; lng: number };
+}
+
+/** How far back each period counts likes. */
+const PERIOD_DAYS: Partial<Record<ExplorePeriod, number>> = {
+  week: 7,
+  month: 30,
+  year: 365,
+};
 
 /** Where a page of Explore ends. `ref` fixes "now" for the whole scroll so scores don't shift between pages. */
 interface ExploreCursor {
@@ -21,39 +38,62 @@ interface ExploreCursor {
 /**
  * Explore: public, visible trips with at least one marker, the viewer's own
  * included (Shahin 2026-10-16: a popular trip shows to its owner too; `role`
- * tells the app not to offer Save; `includeMine` false leaves them out), owner without a block with the viewer. Ranked by
- * (likes + 2 × saves) / (age in days + 2)^1.5, newest first on ties.
+ * tells the app not to offer Save; `includeMine` false leaves them out), owner without a block with the viewer.
+ * Ranked by likes only (saves never count, Shahin 2026-10-16), newest first on ties: all likes
+ * for `all` and `season` (trips travelled in the current season), the likes of the last 7, 30
+ * or 365 days for `week`, `month`, `year`. `near` keeps trips with a stop within
+ * `APP_EXPLORE_NEARBY_RADIUS_KM`.
  */
 @Injectable()
 export class ExploreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async trips(
     userId: string,
+    filter: ExploreFilter,
     cursor?: string,
     limit = DEFAULT_PAGE_SIZE,
-    includeMine = true,
   ): Promise<Page<TripSummaryDto>> {
     const after = cursor ? decodeExploreCursor(cursor) : null;
     const ref = after ? new Date(after.ref) : new Date();
+    const days = PERIOD_DAYS[filter.period];
+    const likes =
+      days === undefined
+        ? Prisma.sql`t."likeCount"`
+        : Prisma.sql`(SELECT count(*) FROM likes l
+            WHERE l."targetType" = 'trip' AND l."targetId" = t.id
+              AND l."createdAt" > ${ref.toISOString()}::timestamp - make_interval(days => ${days}::int))`;
+    const season =
+      filter.period === 'season'
+        ? Prisma.sql`(extract(month FROM t."startDate")::int IN (${Prisma.join(seasonMonths(ref))})
+            OR extract(month FROM t."endDate")::int IN (${Prisma.join(seasonMonths(ref))}))`
+        : Prisma.sql`true`;
+    const near = filter.near
+      ? Prisma.sql`EXISTS (
+          SELECT 1 FROM markers nm WHERE nm."tripId" = t.id AND nm."hiddenAt" IS NULL
+            AND ST_DWithin(nm.location,
+              ST_SetSRID(ST_MakePoint(${filter.near.lng}, ${filter.near.lat}), 4326)::geography,
+              ${this.config.get('APP_EXPLORE_NEARBY_RADIUS_KM', { infer: true }) * 1000}))`
+      : Prisma.sql`true`;
     const ranked = await this.prisma.$queryRaw<
       { id: string; score: number; createdAt: Date }[]
     >`
       SELECT id, score, "createdAt" FROM (
         SELECT t.id, t."createdAt",
-               (t."likeCount" + 2 * (SELECT count(*) FROM trip_saves s WHERE s."tripId" = t.id))::float8
-                 / power(greatest(extract(epoch FROM (${ref.toISOString()}::timestamp - t."createdAt")) / 86400.0, 0) + 2, 1.5)
-                 AS score
+               (${likes})::float8 AS score
         FROM trips t
         WHERE t.visibility = 'public' AND t."hiddenAt" IS NULL
           -- Suspended (or deleting) owners' trips leave discovery.
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)
+          AND ${season}
+          AND ${near}
           AND ${
-            includeMine
+            filter.includeMine
               ? Prisma.sql`true`
               : Prisma.sql`t."ownerId" <> ${userId}::uuid AND NOT EXISTS (
                   SELECT 1 FROM trip_members tm WHERE tm."tripId" = t.id AND tm."userId" = ${userId}::uuid)`
@@ -92,6 +132,13 @@ export class ExploreService {
           : null,
     };
   }
+}
+
+/** The months of the season [ref] is in (meteorological, northern hemisphere: fall is September to November). */
+function seasonMonths(ref: Date): number[] {
+  const month = ref.getUTCMonth() + 1;
+  const first = month - (month % 3);
+  return [first, first + 1, first + 2].map((m) => ((m + 11) % 12) + 1);
 }
 
 function encodeExploreCursor(cursor: ExploreCursor): string {

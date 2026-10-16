@@ -12,7 +12,7 @@ None right now.
 2. **Comments on trips and photos,** or markers only? Default: markers only.
 3. **Comment replies (threads)?** Default: flat list.
 4. **What does the "Activity" screen show?** Default: the in-app notification list.
-5. **Explore ranking filters** (region, season, length)? Default: none in v1.
+5. ~~**Explore ranking filters**~~ Decided 2026-10-16: week, month, year, season and nearby (more may follow); see `04-api-spec.md`.
 6. **Moderation auto-hide threshold?** Default: no auto-hide.
 7. **Share links:** deep links only, or a public web preview page? Default: deep links with minimal preview JSON.
 8. **Supported languages at launch.** Default: English, German, Hungarian.

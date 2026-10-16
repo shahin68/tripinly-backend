@@ -18,9 +18,9 @@ export class ExploreController {
 
   @Get('trips')
   @ApiOperation({
-    summary: 'Public trips, mine included, ranked',
+    summary: 'Public trips, mine included, ranked by likes',
     description:
-      'Ranked by likes and saves with recency decay. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor to continue the same ranking.',
+      'Ranked by likes only (saves never count), newest on ties; period picks which likes count or the season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.',
   })
   @ApiOkResponse({ type: TripSummaryPageDto })
   trips(
@@ -29,9 +29,16 @@ export class ExploreController {
   ): Promise<TripSummaryPageDto> {
     return this.explore.trips(
       user.id,
+      {
+        includeMine: query.includeMine ?? true,
+        period: query.period ?? 'all',
+        near:
+          query.lat !== undefined && query.lng !== undefined
+            ? { lat: query.lat, lng: query.lng }
+            : undefined,
+      },
       query.cursor,
       query.limit,
-      query.includeMine ?? true,
     );
   }
 }
