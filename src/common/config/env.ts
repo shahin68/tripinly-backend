@@ -143,6 +143,8 @@ export const envSchema = z
     APP_PLACE_RANK_MIN_LIKES: z.coerce.number().int().min(1).default(1),
     /** Place photos one person may add in 24 hours, across all places. */
     APP_PLACE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(1).default(20),
+    /** Explore's Nearby filter: trips with a stop within this many km of the user. */
+    APP_EXPLORE_NEARBY_RADIUS_KM: z.coerce.number().min(1).max(500).default(50),
     // Routing: openrouteservice. Without a key, routes are straight lines
     // (degraded) and best route uses straight-line distance.
     ORS_API_KEY: optionalString,

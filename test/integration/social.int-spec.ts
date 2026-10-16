@@ -587,7 +587,7 @@ describe('Social (integration)', () => {
   });
 
   describe('explore', () => {
-    it('ranks public trips (mine too) by likes and saves, newest on ties', async () => {
+    it('ranks public trips (mine too) by likes only, newest on ties', async () => {
       const second = await createTrip(editor, 'Budapest', 'public');
       await addMarker(editor, second.days[0].id, placeId);
       const third = await createTrip(editor, 'Graz', 'public');
@@ -604,14 +604,14 @@ describe('Social (integration)', () => {
       await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
 
       const all = await as(stranger).get('/v1/explore/trips').expect(200);
-      // Graz: 2 likes; Vienna: 1 save (counts 2); Mine and Budapest: 0, newest first.
+      // Graz: 2 likes; the rest none (a save doesn't count), newest first.
       expect(all.body.items.map((t: { title: string }) => t.title)).toEqual([
         'Graz',
-        'Vienna',
         'Mine',
         'Budapest',
+        'Vienna',
       ]);
-      expect(all.body.items[2]).toMatchObject({
+      expect(all.body.items[1]).toMatchObject({
         role: 'owner',
         savedByMe: false,
       });
@@ -631,7 +631,7 @@ describe('Social (integration)', () => {
         [...page1.body.items, ...page2.body.items].map(
           (t: { title: string }) => t.title,
         ),
-      ).toEqual(['Graz', 'Vienna', 'Mine', 'Budapest']);
+      ).toEqual(['Graz', 'Mine', 'Budapest', 'Vienna']);
       expect(page2.body.nextCursor).toBeNull();
 
       // includeMine=false leaves out what the caller owns (Budapest, Graz) or edits (Vienna).
@@ -647,9 +647,61 @@ describe('Social (integration)', () => {
       const afterBlock = await as(stranger).get('/v1/explore/trips');
       expect(
         afterBlock.body.items.map((t: { title: string }) => t.title),
-      ).toEqual(['Vienna', 'Mine']);
+      ).toEqual(['Mine', 'Vienna']);
 
       await as(stranger).get('/v1/explore/trips?cursor=nope').expect(400);
+    });
+    it('filters by period, season and nearby', async () => {
+      const budapest = await createTrip(editor, 'Budapest', 'public');
+      const pest = await insertPlace(app, {
+        name: 'Parliament',
+        lat: 47.507,
+        lng: 19.0456,
+      });
+      await addMarker(editor, budapest.days[0].id, pest);
+      // Vienna was liked twice long ago, Budapest once this week.
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await prisma.like.updateMany({
+        where: { targetId: trip.id },
+        data: { createdAt: new Date(Date.now() - 40 * 86_400_000) },
+      });
+      await as(stranger).put(`/v1/likes/trip/${budapest.id}`).expect(200);
+      const titles = async (query: string) =>
+        (
+          (await as(stranger).get(`/v1/explore/trips?${query}`).expect(200))
+            .body.items as { title: string }[]
+        ).map((t) => t.title);
+
+      expect(await titles('period=all')).toEqual(['Vienna', 'Budapest']);
+      expect(await titles('period=week')).toEqual(['Budapest', 'Vienna']);
+      expect(await titles('period=month')).toEqual(['Budapest', 'Vienna']);
+      expect(await titles('period=year')).toEqual(['Vienna', 'Budapest']);
+
+      // Season: only trips travelled in the current season.
+      const now = new Date();
+      const offSeason = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 6, 1),
+      );
+      await prisma.trip.update({
+        where: { id: trip.id },
+        data: { startDate: now, endDate: now },
+      });
+      await prisma.trip.update({
+        where: { id: budapest.id },
+        data: { startDate: offSeason, endDate: offSeason },
+      });
+      expect(await titles('period=season')).toEqual(['Vienna']);
+
+      // Nearby: a stop within the radius (50 km), with any period.
+      const near = `lat=${ALBERTINA.lat}&lng=${ALBERTINA.lng}`;
+      expect(await titles(near)).toEqual(['Vienna']);
+      expect(await titles(`${near}&period=week`)).toEqual(['Vienna']);
+      expect(await titles('lat=47.5&lng=19.05')).toEqual(['Budapest']);
+
+      await as(stranger).get('/v1/explore/trips?period=day').expect(400);
+      await as(stranger).get('/v1/explore/trips?lat=48.2').expect(400);
+      await as(stranger).get('/v1/explore/trips?lat=200&lng=16').expect(400);
     });
   });
 

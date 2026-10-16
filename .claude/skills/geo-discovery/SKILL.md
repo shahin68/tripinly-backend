@@ -67,7 +67,7 @@ Tripinly places only (popularity > 0) in the bbox, ordered by popularity, limit 
 
 ## Explore — `GET /explore/trips`
 
-Public, not hidden, not own, owner not blocked either way. Score `(likeCount + 2 * saves) / (ageDays + 2)^1.5` (saves counted from `trip_saves`), ties by `createdAt` desc.
+Public, not hidden, at least one visible marker, owner active and not blocked either way; the caller's own trips unless `includeMine=false`. Ranked by likes only, never saves: `likeCount` for `period=all` and `season` (start or end month in the current meteorological season), likes rows of the last 7/30/365 days for `week`/`month`/`year`. `lat`+`lng` adds `ST_DWithin` on the trip's markers with `APP_EXPLORE_NEARBY_RADIUS_KM`; never store or log the point. Ties by `createdAt` desc; the cursor carries the reference time.
 
 ## Performance
 
