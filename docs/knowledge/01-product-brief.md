@@ -16,7 +16,7 @@ Tripinly is a social travel-planning app. People plan trips day by day as marker
 | Your trips | Trips the user owns or collaborates on, plus other people's trips they saved (read-only, "by @owner") |
 | Trip map | Days, markers (optional time, order), cover photo inside markers, popular spots near the trip, privacy toggle, collaborators, add day, add marker, best route |
 | Marker sheet | Photo gallery (scrollable, one cover), likes on marker and photos, comments with likes, share, delete |
-| Explore | Public trips from others, ranked by popularity; like; "Add to my trips" (save, or ask to join) |
+| Explore | Public trips, mine included, ranked by popularity; like; "Add to my trips" (save, or ask to join) |
 | Nearby | Popular places around the user's current location, from Tripinly's own data ranked by likes |
 | Popular spot sheet | Place details, like, add to a trip/day |
 | New trip | Name, length/dates, public/private, invite friends |

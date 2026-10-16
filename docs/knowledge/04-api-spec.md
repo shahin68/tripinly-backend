@@ -83,7 +83,7 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 | GET | `/trips/{id}/join-requests?cursor=&limit=` | Owner: pending requests, newest first → `{ items: [join request], nextCursor }` (people who are suspended, deleting or with a block with me left out). Others → 403 (404 if they can't see the trip) |
 | POST | `/join-requests/{id}/accept` | Owner: the person becomes an editor → 200 member `{ user, role }`; the request (and their save of the trip) is removed; `member.added` and an `added_to_trip` push follow. Over `APP_TRIP_MAX_MEMBERS` → 422 `LIMIT_REACHED`. Not the owner, already decided, or the person is gone or blocked → 404 |
 | POST | `/join-requests/{id}/decline` | Owner → 204; the person's `myJoinRequest` becomes `declined` and they can't ask again. Not the owner or already decided → 404 |
-| GET | `/explore/trips?cursor=&limit=` | Public trips from others with at least one marker, ranked by `(likes + 2 × saves) / (age days + 2)^1.5`, newest on ties. Trip summaries; `nextCursor` continues the same ranking |
+| GET | `/explore/trips?cursor=&limit=` | Public trips with at least one marker, mine included (`role` says owner or editor; no Save on those), ranked by `(likes + 2 × saves) / (age days + 2)^1.5`, newest on ties. Trip summaries; `nextCursor` continues the same ranking |
 
 ### Days
 | Method | Path | Notes |

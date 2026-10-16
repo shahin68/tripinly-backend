@@ -19,8 +19,9 @@ interface ExploreCursor {
 }
 
 /**
- * Explore: public, visible trips of other people with at least one marker,
- * owner without a block with the viewer. Ranked by
+ * Explore: public, visible trips with at least one marker, the viewer's own
+ * included (Shahin 2026-10-16: a popular trip shows to its owner too; `role`
+ * tells the app not to offer Save), owner without a block with the viewer. Ranked by
  * (likes + 2 × saves) / (age in days + 2)^1.5, newest first on ties.
  */
 @Injectable()
@@ -47,7 +48,6 @@ export class ExploreService {
                  AS score
         FROM trips t
         WHERE t.visibility = 'public' AND t."hiddenAt" IS NULL
-          AND t."ownerId" <> ${userId}::uuid
           -- Suspended (or deleting) owners' trips leave discovery.
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)

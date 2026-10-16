@@ -585,12 +585,12 @@ describe('Social (integration)', () => {
   });
 
   describe('explore', () => {
-    it('ranks public trips of others by likes and saves, newest on ties', async () => {
+    it('ranks public trips (mine too) by likes and saves, newest on ties', async () => {
       const second = await createTrip(editor, 'Budapest', 'public');
       await addMarker(editor, second.days[0].id, placeId);
       const third = await createTrip(editor, 'Graz', 'public');
       await addMarker(editor, third.days[0].id, placeId);
-      // Not listed: empty, private, my own.
+      // Not listed: empty, private. Listed: my own, as owner.
       await createTrip(editor, 'Empty', 'public');
       const secret = await createTrip(editor, 'Secret', 'private');
       await addMarker(editor, secret.days[0].id, placeId);
@@ -602,12 +602,17 @@ describe('Social (integration)', () => {
       await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
 
       const all = await as(stranger).get('/v1/explore/trips').expect(200);
-      // Graz: 2 likes; Vienna: 1 save (counts 2); Budapest: 0, and newer than Vienna.
+      // Graz: 2 likes; Vienna: 1 save (counts 2); Mine and Budapest: 0, newest first.
       expect(all.body.items.map((t: { title: string }) => t.title)).toEqual([
         'Graz',
         'Vienna',
+        'Mine',
         'Budapest',
       ]);
+      expect(all.body.items[2]).toMatchObject({
+        role: 'owner',
+        savedByMe: false,
+      });
       expect(all.body.items[0]).toMatchObject({
         likedByMe: true,
         likeCount: 2,
@@ -624,14 +629,14 @@ describe('Social (integration)', () => {
         [...page1.body.items, ...page2.body.items].map(
           (t: { title: string }) => t.title,
         ),
-      ).toEqual(['Graz', 'Vienna', 'Budapest']);
+      ).toEqual(['Graz', 'Vienna', 'Mine', 'Budapest']);
       expect(page2.body.nextCursor).toBeNull();
 
       await as(stranger).post(`/v1/users/${editor.userId}/block`).expect(204);
       const afterBlock = await as(stranger).get('/v1/explore/trips');
       expect(
         afterBlock.body.items.map((t: { title: string }) => t.title),
-      ).toEqual(['Vienna']);
+      ).toEqual(['Vienna', 'Mine']);
 
       await as(stranger).get('/v1/explore/trips?cursor=nope').expect(400);
     });

@@ -18,9 +18,9 @@ export class ExploreController {
 
   @Get('trips')
   @ApiOperation({
-    summary: 'Public trips from other people, ranked',
+    summary: 'Public trips, mine included, ranked',
     description:
-      'Ranked by likes and copies with recency decay. Only trips with at least one marker. Pass nextCursor to continue the same ranking.',
+      'Ranked by likes and saves with recency decay. Includes trips the caller owns or edits (role owner or editor): offer no Save on those. Only trips with at least one marker. Pass nextCursor to continue the same ranking.',
   })
   @ApiOkResponse({ type: TripSummaryPageDto })
   trips(
