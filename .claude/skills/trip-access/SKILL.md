@@ -15,7 +15,8 @@ All trip-scoped authorization goes through `TripAccessService`. Never re-impleme
 | `edit_content` (days, markers, order, photos, cover) | ✓ | ✓ | ✗ |
 | `comment`, `like` | ✓ | ✓ | public trips only |
 | `manage` (rename, dates, visibility, delete, members, invites) | ✓ | ✗ | ✗ |
-| `copy` | ✗ (own trip) | public trips only | public trips only |
+| `copy` (markers only) | ✗ (own trip) | public trips only | public trips only |
+| `save`, `join` (save the trip, ask to join it) | ✗ | ✗ | public trips only |
 | `leave` | ✗ (owner can't leave; delete instead) | ✓ | ✗ |
 
 Block rule: if the caller and the trip owner have a block in either direction, the caller has **no** capabilities — treat the trip as not found.

@@ -10,8 +10,8 @@ export const DomainEvents = {
   TRIP_CREATED: 'trip.created',
   TRIP_UPDATED: 'trip.updated',
   TRIP_DELETED: 'trip.deleted',
-  /** Someone copied a public trip; tripId is the source. For notifications, not the trip room. */
-  TRIP_COPIED: 'trip.copied',
+  /** Someone asked to join a trip; data `{ requestId, ownerId }`. For the owner's notification, not the trip room. */
+  JOIN_REQUESTED: 'join_request.created',
   DAY_CREATED: 'day.created',
   DAY_DELETED: 'day.deleted',
   MARKER_CREATED: 'marker.created',

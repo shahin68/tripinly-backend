@@ -30,6 +30,12 @@ export type PlanInput =
       userIds: string[];
     }
   | {
+      kind: 'join_requested';
+      actorId: string;
+      tripId: string;
+      ownerId: string;
+    }
+  | {
       kind: 'trip_changed';
       actorId: string;
       tripId: string;

@@ -21,7 +21,7 @@ interface ExploreCursor {
 /**
  * Explore: public, visible trips of other people with at least one marker,
  * owner without a block with the viewer. Ranked by
- * (likes + 2 × copies) / (age in days + 2)^1.5, newest first on ties.
+ * (likes + 2 × saves) / (age in days + 2)^1.5, newest first on ties.
  */
 @Injectable()
 export class ExploreService {
@@ -42,7 +42,7 @@ export class ExploreService {
     >`
       SELECT id, score, "createdAt" FROM (
         SELECT t.id, t."createdAt",
-               (t."likeCount" + 2 * t."copyCount")::float8
+               (t."likeCount" + 2 * (SELECT count(*) FROM trip_saves s WHERE s."tripId" = t.id))::float8
                  / power(greatest(extract(epoch FROM (${ref.toISOString()}::timestamp - t."createdAt")) / 86400.0, 0) + 2, 1.5)
                  AS score
         FROM trips t

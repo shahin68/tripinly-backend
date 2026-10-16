@@ -31,8 +31,8 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - Days: with a start date, a trip has one day per date and each day shows its date; without dates, days show "Day n". A trip always has at least one day.
 - Limits: 20 days per trip, 50 markers per day, 200 owned trips per user, `APP_TRIP_MAX_MEMBERS` members per trip (default 50, set on Railway), 20 active invite links per trip (`LIMIT_REACHED`).
 - New trips default to the user's `defaultTripVisibility` setting.
-- **Public:** visible to anyone (not blocked), listed in Explore, its markers count toward place popularity, copyable.
-- **Private:** visible only to owner and editors. Never in Explore, search, Nearby, Popular spots or popularity counts. Not copyable. Share links to private trips only work for members.
+- **Public:** visible to anyone (not blocked), listed in Explore, its markers count toward place popularity; others can save it, ask to join it and copy its markers.
+- **Private:** visible only to owner and editors. Never in Explore, search, Nearby, Popular spots or popularity counts. Can't be saved, joined from outside or copied from. Share links to private trips only work for members.
 - Only the owner can change visibility, rename, delete the trip, and manage members. Editors can add/edit/delete/reorder markers and days, upload and remove photos, and set covers.
 - Switching public → private removes the trip's markers from popularity aggregates (recompute).
 
@@ -60,7 +60,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - **Place popularity** = number of likes on **public** markers linked to that place (plus direct likes on the place from the place sheets). A place with popularity > 0 is a "Tripinly place"; OSM places with popularity 0 are background suggestions. Blocked relationships don't change global counts but blocked users' content is hidden from the viewer.
 - **A trip photo may represent a place** (the place's card image `coverThumbUrl` / `coverPhotoId`, and the up to 10 photos on the place detail) only when at least **N distinct people outside its trip** have liked it: the uploader, the trip owner and the trip's members never count. N is `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` (Shahin chose 2). So nobody can make their own photo a place's image with their own or their friends-in-the-trip likes. The cover is the qualifying photo with the most outside likes (then total likes, then newest), not the cover of the most liked marker; the detail lists qualifying photos in the same order. Photos must be ready, in a public, unhidden trip with an active owner, on an unhidden marker, and not hidden; photos uploaded by or in trips owned by someone with a block with the viewer are left out. Place `popularity` and like counts don't change with this rule.
 - Counters (`likeCount`, `commentCount`, `popularity`) move in the same transaction as the like or comment; a nightly job rebuilds them from source rows.
-- Explore ranks public trips of other people by likes and copies, with recency decay: `(likes + 2 × copies) / (age in days + 2)^1.5`. Only trips with at least one marker are listed; owners with a block either way are left out.
+- Explore ranks public trips of other people by likes and saves, with recency decay: `(likes + 2 × saves) / (age in days + 2)^1.5`. Only trips with at least one marker are listed; owners with a block either way are left out.
 
 ## Comments
 
@@ -69,15 +69,21 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - The comment author (even after leaving the trip) and the trip owner can delete a comment. Deleting removes it for good.
 - 30 new comments per minute per user.
 
-## Copying ("Add to my trips")
+## Saving and joining other people's trips (decided 2026-10-16)
 
-- Only **public** trips/markers can be copied, and not your own.
-- A copy is a **new, independent** trip (or marker) owned by the copier: new IDs, title, days, marker names, locations, times, order and place links.
-- A copy does **not** include photos, comments, likes, members or the original's visibility (it uses the copier's default visibility).
-- The copy stores `copiedFromTripId` / `copiedFromMarkerId`; when the original is deleted, these become `null`. The client shows "Copied from @handle" only while the source exists.
-- Copying a popular spot or marker into a trip creates a new marker on the chosen day (of a trip I own or edit), linked to the same place, with the source's name, location and time. Hidden markers are not copied.
-- Each trip copy increments the source trip's `copyCount` (used for ranking and "Saved by N people"). Copying a trip counts toward my 200 owned trips.
-- Copying my own trip or a private trip (even as its editor) answers 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in answers 404.
+A trip has **one owner forever** and is **never duplicated**. "Add to my trips" has two forms:
+
+- **Save:** the trip appears in my trips marked "by @owner", **read-only**, always the live original (`PUT/DELETE /trips/{id}/save`, idempotent). It is listed only while it is public, not hidden and the owner has no block with me; the save itself is kept, so the trip comes back if it turns public again. When the owner deletes the trip, it is gone for savers too. Saves rank Explore and show as "Saved by N people" (`saveCount`).
+- **Join:** I ask the owner to let me edit (`POST /trips/{id}/join-request`). The owner gets a `join_requested` notification and **accepts** (I become an **editor**, a member of the same trip, like an invite; `APP_TRIP_MAX_MEMBERS` applies) or **declines**. A declined request stays declined and can't be sent again; a pending one can be withdrawn. As a member I keep access if the trip later turns private; I can leave, and the owner can remove me. Accepting removes my save of that trip.
+- Only for other people's **public** trips: own trips and trips I'm already a member of answer 403 `FORBIDDEN`; private trips I'm not in answer 404. A declined request answers 409 `JOIN_REQUEST_DECLINED`.
+- Blocking deletes each side's saves of and join requests to the other's trips; a request from someone who is gone or blocked can't be accepted (404).
+- Deleting a trip with joined members shows the owner a warning first (client).
+
+## Copying a marker
+
+- Copying a popular spot or marker into a trip creates a new marker on the chosen day (of a trip I own or edit), linked to the same place, with the source's name, location and time. Hidden markers are not copied. The new marker stores `copiedFromMarkerId` (null once the source is deleted).
+- Only markers of **public** trips, and not from my own trip: 403 `TRIP_NOT_COPYABLE`; a private trip I'm not in answers 404.
+- Whole trips are never copied (replaced by Save and Join, 2026-10-16).
 
 ## Profiles
 
@@ -108,7 +114,8 @@ When a user deletes their account, **everything about them is deleted**:
 - **All their photos and comments everywhere**, including in other people's trips, and the stored image files.
 - **All their likes** (popularity counts are recomputed).
 - Their membership in other people's trips. Markers they added to someone else's trip stay (they belong to that trip) but have `createdBy` set to `null`.
-- **Copies other people made** of their trips or markers are **not** deleted — those belong to the copier and contain none of the author's photos or comments. Their `copiedFrom…` link is cleared.
+- Their saves and join requests. Other people's saves of and requests to join the user's trips go with those trips.
+- **Markers other people copied** from their trips are **not** deleted — those belong to the copier and contain none of the author's photos or comments. Their `copiedFromMarkerId` link is cleared.
 - The username is held for 30 days, then released.
 
 ## Premium

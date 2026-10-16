@@ -34,13 +34,14 @@ Steps 2–6 run in transactions per batch (e.g. 100 trips) so a huge account doe
 
 ## What must survive
 
-- Trips and markers **other users copied** (they are independent rows owned by the copier with no photos/comments from the author).
+- Markers **other users copied** (independent rows owned by the copier with no photos/comments from the author). Trips are never copied.
+- Their saves and join requests are deleted by cascade, as are other people's saves of and requests to join the user's trips.
 - Markers the user added to other people's trips (without attribution).
 
 ## Data export (`POST /me/export`)
 
 - One export at a time per user; rate limit 1 per 24 h.
-- Worker builds a ZIP: `profile.json`, `consents.json`, `trips.json` (owned and member trips with days and markers), `comments.json`, `likes.json`, `notifications.json`, `blocks.json` (people the user blocked), `follows.json` (`following` and `followers`: user id, username, since), `reports.json` (reports the user filed), `photos/` (originals the user uploaded, EXIF already stripped), `README.txt` (localized explanation, `i18n/*/export.json`).
+- Worker builds a ZIP: `profile.json`, `consents.json`, `trips.json` (owned and member trips with days and markers), `saved-trips.json` (`saved` trips and `joinRequests` with status), `comments.json`, `likes.json`, `notifications.json`, `blocks.json` (people the user blocked), `follows.json` (`following` and `followers`: user id, username, since), `reports.json` (reports the user filed), `photos/` (originals the user uploaded, EXIF already stripped), `README.txt` (localized explanation, `i18n/*/export.json`).
 - Upload to `exports/{userId}/{exportId}.zip`, email a signed link valid 7 days, delete the object after 7 days.
 
 ## When you add a table or storage path
@@ -49,4 +50,4 @@ Update the step table above, `03-data-model.md` (deletion behaviour), and the ex
 
 ## Tests
 
-End-to-end: user A owns a shared trip with editor B; B copied another of A's public trips; A commented and uploaded in C's trip; A liked things. Delete A → A's trips gone, B's copy intact with `copiedFromTripId = null`, A's comments/photos in C's trip gone and cover fixed, A's markers in C's trip kept with no author, counts and popularity recomputed, storage delete jobs enqueued, no rows reference A.
+End-to-end: user A owns a shared trip with editor B; B saved another of A's public trips; A commented and uploaded in C's trip; A liked things. Delete A → A's trips gone with B's save of them, A's comments/photos in C's trip gone and cover fixed, A's markers in C's trip kept with no author, counts and popularity recomputed, storage delete jobs enqueued, no rows reference A.

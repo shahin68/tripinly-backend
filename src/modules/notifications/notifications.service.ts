@@ -123,6 +123,7 @@ export class NotificationsService {
       addedToTrip: input.addedToTrip,
       tripChangedByCollaborator: input.tripChangedByCollaborator,
       likesGrouped: input.likesGrouped,
+      joinRequested: input.joinRequested,
     };
     const row = await this.prisma.notificationSettings.upsert({
       where: { userId },
@@ -142,5 +143,6 @@ function pickSettings(
     addedToTrip: row.addedToTrip ?? true,
     tripChangedByCollaborator: row.tripChangedByCollaborator ?? true,
     likesGrouped: row.likesGrouped ?? true,
+    joinRequested: row.joinRequested ?? true,
   };
 }

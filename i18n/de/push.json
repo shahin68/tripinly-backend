@@ -8,6 +8,10 @@
     "title": "Zu {trip} hinzugefügt",
     "body": "{actor} hat dich zu dieser Reise hinzugefügt."
   },
+  "join_requested": {
+    "title": "Beitrittsanfrage für {trip}",
+    "body": "{actor} möchte bei dieser Reise mitmachen."
+  },
   "trip_changed_by_collaborator": {
     "title": "Änderungen in {trip}",
     "places_added": {

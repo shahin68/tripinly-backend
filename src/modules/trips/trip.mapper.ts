@@ -1,5 +1,6 @@
 import { addDays, toCalendarDate } from '../../common/dates/calendar-date';
 import type {
+  JoinRequestStatus,
   Prisma,
   Trip,
   TripRole,
@@ -31,7 +32,15 @@ export const TRIP_DETAIL_INCLUDE = {
       },
     },
   },
-  copiedFrom: { select: { id: true, owner: { select: USER_SUMMARY_SELECT } } },
+  _count: {
+    select: {
+      saves: true,
+      // Same people as the owner's request list (blocks delete requests).
+      joinRequests: {
+        where: { status: 'pending', user: { status: 'active' } },
+      },
+    },
+  },
 } satisfies Prisma.TripInclude;
 
 export type TripWithDetails = Prisma.TripGetPayload<{
@@ -72,6 +81,17 @@ export function destinationColumns(destination: DestinationDto | null) {
   };
 }
 
+/** The viewer's own save and join request on a trip. */
+export interface TripViewerState {
+  savedByMe: boolean;
+  joinRequest: JoinRequestStatus | null;
+}
+
+const NO_VIEWER_STATE: TripViewerState = {
+  savedByMe: false,
+  joinRequest: null,
+};
+
 /**
  * `hiddenUserIds`: users with a block in either direction with the viewer.
  * They are left out of the member list and shown as no creator on markers,
@@ -84,6 +104,7 @@ export function toTripDto(
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
   likedIds: ReadonlySet<string> = new Set(),
+  viewer: TripViewerState = NO_VIEWER_STATE,
 ): TripDto {
   return {
     id: trip.id,
@@ -102,13 +123,10 @@ export function toTripDto(
       })),
     likeCount: trip.likeCount,
     likedByMe: likedIds.has(trip.id),
-    copyCount: trip.copyCount,
-    copiedFrom: trip.copiedFrom
-      ? {
-          tripId: trip.copiedFrom.id,
-          owner: toUserSummary(trip.copiedFrom.owner),
-        }
-      : null,
+    saveCount: trip._count.saves,
+    savedByMe: viewer.savedByMe,
+    myJoinRequest: viewer.joinRequest,
+    pendingJoinRequestCount: myRole === 'owner' ? trip._count.joinRequests : 0,
     days: trip.days.map((day) => ({
       id: day.id,
       position: day.position,
@@ -132,7 +150,8 @@ export const TRIP_COVER_MARKER = {
 
 export type TripWithCounts = Trip & {
   owner: Summary;
-  _count: { days: number; markers: number; members: number };
+  _count: { days: number; markers: number; members: number; saves: number };
+  saves: { userId: string }[];
   markers: {
     coverPhotoId: string | null;
     coverPhoto: { uploaderId: string } | null;
@@ -165,7 +184,8 @@ export function toTripSummaryDto(
     editorCount: trip._count.members,
     likeCount: trip.likeCount,
     likedByMe: likedIds.has(trip.id),
-    copyCount: trip.copyCount,
+    saveCount: trip._count.saves,
+    savedByMe: trip.saves.length > 0,
     updatedAt: trip.updatedAt.toISOString(),
   };
 }
@@ -175,11 +195,13 @@ export function tripSummaryInclude(userId: string) {
   return {
     owner: { select: USER_SUMMARY_SELECT },
     members: { where: { userId }, select: { role: true } },
+    saves: { where: { userId }, select: { userId: true } },
     _count: {
       select: {
         days: true,
         markers: true,
         members: { where: { role: 'editor' } },
+        saves: true,
       },
     },
     markers: TRIP_COVER_MARKER,

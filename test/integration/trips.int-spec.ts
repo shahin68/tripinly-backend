@@ -61,9 +61,11 @@ describe('Trips, days and members (integration)', () => {
         endDate: '2026-10-11',
         visibility: 'public',
         myRole: 'owner',
-        copiedFrom: null,
         likeCount: 0,
-        copyCount: 0,
+        saveCount: 0,
+        savedByMe: false,
+        myJoinRequest: null,
+        pendingJoinRequestCount: 0,
       });
       expect(trip.days.map((day) => [day.position, day.date])).toEqual([
         [0, '2026-10-09'],

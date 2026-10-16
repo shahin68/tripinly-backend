@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = [
   'added_to_trip',
   'trip_changed_by_collaborator',
   'likes_grouped',
+  'join_requested',
 ] as const satisfies readonly NotificationType[];
 
 /** The per-type push switch in notification_settings. */
@@ -16,6 +17,7 @@ export const SETTING_FOR_TYPE = {
   added_to_trip: 'addedToTrip',
   trip_changed_by_collaborator: 'tripChangedByCollaborator',
   likes_grouped: 'likesGrouped',
+  join_requested: 'joinRequested',
 } as const satisfies Record<
   NotificationType,
   keyof Omit<NotificationSettings, 'userId' | 'updatedAt'>

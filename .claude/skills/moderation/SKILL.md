@@ -20,7 +20,7 @@ App Store and Google Play require apps with user-generated content to let users 
 Blocking takes effect immediately and in both directions:
 
 - Profiles, trips, markers, photos, comments of the other user disappear from lists, search, Explore, Nearby and Popular spots for the viewer.
-- Neither can comment on, like, or copy the other's content, add the other to a trip, or accept the other's invite.
+- Neither can comment on, like, or copy the other's content, save or ask to join the other's trips, add the other to a trip, or accept the other's invite. Blocking deletes each side's saves of and join requests to the other's trips.
 - If they share trips, the non-owner is removed from the owner's trip (both directions), with realtime eviction.
 - Follows between them are deleted in both directions (same transaction); neither can follow the other while the block lasts (404).
 - Pending notifications between them are dropped; future ones aren't created.

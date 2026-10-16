@@ -88,6 +88,16 @@ export class NotificationsListener {
     });
   }
 
+  @OnEvent(DomainEvents.JOIN_REQUESTED)
+  onJoinRequested(event: DomainEvent<{ ownerId: string }>): Promise<void> {
+    return this.enqueue({
+      kind: 'join_requested',
+      actorId: event.actorId,
+      tripId: event.tripId!,
+      ownerId: event.data.ownerId,
+    });
+  }
+
   @OnEvent(DomainEvents.TRIP_CREATED)
   onTripCreated(event: DomainEvent<{ memberIds: string[] }>): Promise<void> {
     if (event.data.memberIds.length === 0) return Promise.resolve();

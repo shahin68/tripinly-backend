@@ -359,88 +359,192 @@ describe('Social (integration)', () => {
     });
   });
 
-  describe('copying', () => {
-    it('copies a public trip as a new, independent trip', async () => {
-      await as(owner)
-        .post(`/v1/days/${trip.days[1].id}/markers`)
-        .send({
-          name: 'Naschmarkt',
-          location: { lat: 48.1985, lng: 16.3634 },
-        });
+  describe('saving and joining trips, copying markers', () => {
+    it('saves someone else’s public trip as the live original, never a copy', async () => {
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      expect(await prisma.trip.count()).toBe(1);
+
+      const mine = await as(stranger).get('/v1/me/trips').expect(200);
+      expect(mine.body.items).toEqual([
+        expect.objectContaining({
+          id: trip.id,
+          owner: expect.objectContaining({ username: 'owner' }),
+          role: 'viewer',
+          savedByMe: true,
+          saveCount: 1,
+        }),
+      ]);
+      const detail = await as(stranger).get(`/v1/trips/${trip.id}`);
+      expect(detail.body).toMatchObject({
+        myRole: 'viewer',
+        savedByMe: true,
+        saveCount: 1,
+      });
+      // Saving is read-only.
+      await as(stranger)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ placeId })
+        .expect(403);
+
+      // A private trip isn't listed but the save is kept for when it's public again.
       await as(owner)
         .patch(`/v1/trips/${trip.id}`)
-        .send({
-          destination: {
-            name: 'Vienna',
-            location: { lat: 48.2082, lng: 16.3738 },
-          },
-        })
+        .send({ visibility: 'private' })
         .expect(200);
-      await readyPhoto(app, owner, markerId);
-      await as(stranger)
-        .post(`/v1/markers/${markerId}/comments`)
-        .send({ body: 'Nice' })
-        .expect(201);
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
-      await as(stranger)
-        .patch('/v1/me')
-        .send({ defaultTripVisibility: 'private' })
+      expect(
+        (await as(stranger).get('/v1/me/trips').expect(200)).body.items,
+      ).toEqual([]);
+      await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ visibility: 'public' })
         .expect(200);
+      expect(
+        (await as(stranger).get('/v1/me/trips').expect(200)).body.items,
+      ).toHaveLength(1);
 
-      const { body: copy } = await as(stranger)
-        .post(`/v1/trips/${trip.id}/copy`)
-        .expect(201);
-      expect(copy).toMatchObject({
-        title: 'Vienna',
-        startDate: '2026-10-09',
-        endDate: '2026-10-10',
-        destination: {
-          name: 'Vienna',
-          location: { lat: 48.2082, lng: 16.3738 },
-        },
-        visibility: 'private',
-        owner: { username: 'stranger' },
-        myRole: 'owner',
-        members: [{ user: { username: 'stranger' }, role: 'owner' }],
-        likeCount: 0,
-        copyCount: 0,
-        copiedFrom: { tripId: trip.id, owner: { username: 'owner' } },
-      });
-      expect(copy.id).not.toBe(trip.id);
-      expect(copy.days).toHaveLength(2);
-      expect(copy.days[0].markers[0]).toMatchObject({
-        name: 'Albertina',
-        placeId,
-        time: '10:00',
-        position: 0,
-        photoCount: 0,
-        coverPhotoId: null,
-        likeCount: 0,
-        commentCount: 0,
-        createdBy: { username: 'stranger' },
-      });
-      expect(copy.days[1].markers[0].name).toBe('Naschmarkt');
-
-      const source = await as(owner).get(`/v1/trips/${trip.id}`);
-      expect(source.body.copyCount).toBe(1);
-
-      // The copy outlives the source; the link is cleared.
-      await as(owner).delete(`/v1/trips/${trip.id}`).expect(204);
-      const after = await as(stranger).get(`/v1/trips/${copy.id}`);
-      expect(after.body.copiedFrom).toBeNull();
-      expect(after.body.days[0].markers).toHaveLength(1);
+      await as(stranger).delete(`/v1/trips/${trip.id}/save`).expect(204);
+      await as(stranger).delete(`/v1/trips/${trip.id}/save`).expect(204);
+      expect(
+        (await as(stranger).get('/v1/me/trips').expect(200)).body.items,
+      ).toEqual([]);
     });
 
-    it('refuses own and private trips', async () => {
-      const own = await as(owner).post(`/v1/trips/${trip.id}/copy`).expect(403);
-      expect(own.body.error.code).toBe('TRIP_NOT_COPYABLE');
+    it('refuses saving own, member and private trips, and across a block', async () => {
+      await as(owner).put(`/v1/trips/${trip.id}/save`).expect(403);
+      await as(editor).put(`/v1/trips/${trip.id}/save`).expect(403);
+      const secret = await createTrip(owner, 'Secret', 'private');
+      await as(stranger).put(`/v1/trips/${secret.id}/save`).expect(404);
 
-      const secret = await createTrip(owner, 'Secret', 'private', ['editor']);
-      await as(stranger).post(`/v1/trips/${secret.id}/copy`).expect(404);
-      const asEditor = await as(editor)
-        .post(`/v1/trips/${secret.id}/copy`)
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
+      expect(await prisma.tripSave.count()).toBe(0);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(404);
+    });
+
+    it('joins as an editor only once the owner accepts', async () => {
+      const { body: request } = await as(stranger)
+        .post(`/v1/trips/${trip.id}/join-request`)
+        .expect(200);
+      expect(request).toMatchObject({
+        tripId: trip.id,
+        user: { username: 'stranger' },
+        status: 'pending',
+      });
+      // Idempotent while pending.
+      const again = await as(stranger)
+        .post(`/v1/trips/${trip.id}/join-request`)
+        .expect(200);
+      expect(again.body.id).toBe(request.id);
+      expect(
+        (await as(stranger).get(`/v1/trips/${trip.id}`)).body,
+      ).toMatchObject({ myRole: 'viewer', myJoinRequest: 'pending' });
+      // Not a member yet.
+      await as(stranger)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ placeId })
         .expect(403);
-      expect(asEditor.body.error.code).toBe('TRIP_NOT_COPYABLE');
+
+      // Only the owner sees and decides requests.
+      await as(editor).get(`/v1/trips/${trip.id}/join-requests`).expect(403);
+      await as(editor)
+        .post(`/v1/join-requests/${request.id}/accept`)
+        .expect(404);
+      const ownersView = await as(owner).get(`/v1/trips/${trip.id}`);
+      expect(ownersView.body.pendingJoinRequestCount).toBe(1);
+      const list = await as(owner)
+        .get(`/v1/trips/${trip.id}/join-requests`)
+        .expect(200);
+      expect(list.body).toEqual({
+        items: [expect.objectContaining({ id: request.id, status: 'pending' })],
+        nextCursor: null,
+      });
+
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      const { body: member } = await as(owner)
+        .post(`/v1/join-requests/${request.id}/accept`)
+        .expect(200);
+      expect(member).toMatchObject({
+        user: { username: 'stranger' },
+        role: 'editor',
+      });
+      await as(owner)
+        .post(`/v1/join-requests/${request.id}/accept`)
+        .expect(404);
+
+      // Same trip, same owner; the save made way for the membership.
+      expect(await prisma.trip.count()).toBe(1);
+      expect(await prisma.tripSave.count()).toBe(0);
+      const joined = await as(stranger).get(`/v1/trips/${trip.id}`);
+      expect(joined.body).toMatchObject({
+        myRole: 'editor',
+        myJoinRequest: null,
+        savedByMe: false,
+        owner: { username: 'owner' },
+      });
+      await as(stranger)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ placeId })
+        .expect(201);
+      // A member keeps access when the trip turns private.
+      await as(owner)
+        .patch(`/v1/trips/${trip.id}`)
+        .send({ visibility: 'private' })
+        .expect(200);
+      await as(stranger).get(`/v1/trips/${trip.id}`).expect(200);
+      await as(stranger).post(`/v1/trips/${trip.id}/join-request`).expect(403);
+    });
+
+    it('keeps a declined request declined, and lets a pending one be withdrawn', async () => {
+      const { body: request } = await as(stranger)
+        .post(`/v1/trips/${trip.id}/join-request`)
+        .expect(200);
+      await as(owner)
+        .post(`/v1/join-requests/${request.id}/decline`)
+        .expect(204);
+      const refused = await as(stranger)
+        .post(`/v1/trips/${trip.id}/join-request`)
+        .expect(409);
+      expect(refused.body.error.code).toBe('JOIN_REQUEST_DECLINED');
+      // Withdrawing doesn't erase a decline.
+      await as(stranger)
+        .delete(`/v1/trips/${trip.id}/join-request`)
+        .expect(204);
+      expect(
+        (await as(stranger).get(`/v1/trips/${trip.id}`)).body.myJoinRequest,
+      ).toBe('declined');
+      expect(
+        (await as(owner).get(`/v1/trips/${trip.id}/join-requests`)).body.items,
+      ).toEqual([]);
+
+      const other = await onboardedUser(app, 'other');
+      await as(other).post(`/v1/trips/${trip.id}/join-request`).expect(200);
+      await as(other).delete(`/v1/trips/${trip.id}/join-request`).expect(204);
+      expect(
+        (await as(other).get(`/v1/trips/${trip.id}`)).body.myJoinRequest,
+      ).toBeNull();
+    });
+
+    it('refuses joining own, member and private trips, and across a block', async () => {
+      await as(owner).post(`/v1/trips/${trip.id}/join-request`).expect(403);
+      await as(editor).post(`/v1/trips/${trip.id}/join-request`).expect(403);
+      const secret = await createTrip(owner, 'Secret', 'private');
+      await as(stranger)
+        .post(`/v1/trips/${secret.id}/join-request`)
+        .expect(404);
+
+      const { body: request } = await as(stranger)
+        .post(`/v1/trips/${trip.id}/join-request`)
+        .expect(200);
+      await as(stranger).post(`/v1/users/${owner.userId}/block`).expect(204);
+      expect(await prisma.tripJoinRequest.count()).toBe(0);
+      await as(owner)
+        .post(`/v1/join-requests/${request.id}/accept`)
+        .expect(404);
+    });
+
+    it('no longer copies whole trips', async () => {
+      await as(stranger).post(`/v1/trips/${trip.id}/copy`).expect(404);
     });
 
     it('copies a marker into one of my trips', async () => {
@@ -481,7 +585,7 @@ describe('Social (integration)', () => {
   });
 
   describe('explore', () => {
-    it('ranks public trips of others by likes and copies, newest on ties', async () => {
+    it('ranks public trips of others by likes and saves, newest on ties', async () => {
       const second = await createTrip(editor, 'Budapest', 'public');
       await addMarker(editor, second.days[0].id, placeId);
       const third = await createTrip(editor, 'Graz', 'public');
@@ -495,10 +599,10 @@ describe('Social (integration)', () => {
 
       await as(stranger).put(`/v1/likes/trip/${third.id}`).expect(200);
       await as(owner).put(`/v1/likes/trip/${third.id}`).expect(200);
-      await as(stranger).post(`/v1/trips/${trip.id}/copy`).expect(201);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
 
       const all = await as(stranger).get('/v1/explore/trips').expect(200);
-      // Graz: 2 likes; Vienna: 1 copy (counts 2); Budapest: 0, and newer than Vienna.
+      // Graz: 2 likes; Vienna: 1 save (counts 2); Budapest: 0, and newer than Vienna.
       expect(all.body.items.map((t: { title: string }) => t.title)).toEqual([
         'Graz',
         'Vienna',

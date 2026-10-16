@@ -1109,55 +1109,6 @@
         ]
       }
     },
-    "/v1/trips/{id}/copy": {
-      "post": {
-        "description": "Copies title, dates, days and markers into a new trip I own (my default visibility). No photos, comments, likes or members. Own and private trips: 403 TRIP_NOT_COPYABLE.",
-        "operationId": "Trips_copy",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "A client-generated UUID, new per action and reused on its retries. For 24 hours a retry with the same key and body returns the first response (header `Idempotent-Replayed: true`); the same key with a different request answers 422 IDEMPOTENCY_KEY_REUSED, and while the first is still running 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 255
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TripDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Add a public trip to my trips",
-        "tags": [
-          "trips"
-        ]
-      }
-    },
     "/v1/trips/{id}/days": {
       "post": {
         "description": "Extends endDate by one day for dated trips.",
@@ -1372,8 +1323,266 @@
         ]
       }
     },
+    "/v1/trips/{id}/save": {
+      "put": {
+        "description": "Idempotent. The trip stays the owner's: it shows in GET /me/trips with savedByMe = true and role viewer, always the live original, read-only. Not listed while it is private or hidden; gone when the owner deletes it. Own trips and trips I am a member of: 403 FORBIDDEN. Private trips and a block either way: 404.",
+        "operationId": "Trips_save",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save someone else's public trip to my trips",
+        "tags": [
+          "trips"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent, also when it was never saved.",
+        "operationId": "Trips_unsave",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a saved trip from my trips",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/join-request": {
+      "post": {
+        "description": "The owner gets a join_requested notification and accepts or declines. Repeating a pending request returns it unchanged. Once declined: 409 JOIN_REQUEST_DECLINED. Own trips and trips I am a member of: 403 FORBIDDEN. Private trips and a block either way: 404.",
+        "operationId": "Trips_requestJoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequestDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "JOIN_REQUEST_DECLINED"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ask the owner to join a public trip as an editor",
+        "tags": [
+          "trips"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent. A declined request stays declined.",
+        "operationId": "Trips_cancelJoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw my pending request to join",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/trips/{id}/join-requests": {
+      "get": {
+        "description": "Others: 403 FORBIDDEN (404 when they can't see the trip).",
+        "operationId": "Trips_joinRequests",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequestPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: pending requests to join, newest first",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/join-requests/{id}/accept": {
+      "post": {
+        "description": "Removes the request (and their save of the trip). The person gets an added_to_trip notification; trip members get member.added. Over APP_TRIP_MAX_MEMBERS: 422 LIMIT_REACHED. Not the owner, already decided, or the person is gone or blocked: 404.",
+        "operationId": "Trips_acceptJoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripMemberDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: accept a request; the person becomes an editor",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/v1/join-requests/{id}/decline": {
+      "post": {
+        "description": "The person isn't told, and their myJoinRequest becomes declined; they can't ask again. Not the owner or already decided: 404.",
+        "operationId": "Trips_declineJoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner: decline a request",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
     "/v1/me/trips": {
       "get": {
+        "description": "Saved trips (savedByMe = true, role viewer) only while they are public and visible to me.",
         "operationId": "Trips_myTrips",
         "parameters": [
           {
@@ -1414,7 +1623,7 @@
             "bearer": []
           }
         ],
-        "summary": "Trips I own or collaborate on, most recently changed first",
+        "summary": "Trips I own, collaborate on or saved, most recently changed first",
         "tags": [
           "trips"
         ]
@@ -3679,6 +3888,7 @@
               "NOT_FOUND",
               "FORBIDDEN",
               "TRIP_NOT_COPYABLE",
+              "JOIN_REQUEST_DECLINED",
               "USER_BLOCKED",
               "INVITE_EXPIRED",
               "PHOTO_LIMIT_REACHED",
@@ -4310,8 +4520,13 @@
           "likedByMe": {
             "type": "boolean"
           },
-          "copyCount": {
-            "type": "number"
+          "saveCount": {
+            "type": "number",
+            "description": "People who saved the trip"
+          },
+          "savedByMe": {
+            "type": "boolean",
+            "description": "In my trips because I saved it (role is viewer then, unless I am also a member)"
           },
           "updatedAt": {
             "type": "string"
@@ -4331,7 +4546,8 @@
           "editorCount",
           "likeCount",
           "likedByMe",
-          "copyCount",
+          "saveCount",
+          "savedByMe",
           "updatedAt"
         ]
       },
@@ -4534,22 +4750,6 @@
           "role"
         ]
       },
-      "CopiedFromDto": {
-        "type": "object",
-        "properties": {
-          "tripId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "owner": {
-            "$ref": "#/components/schemas/UserSummaryDto"
-          }
-        },
-        "required": [
-          "tripId",
-          "owner"
-        ]
-      },
       "MarkerDto": {
         "type": "object",
         "properties": {
@@ -4732,18 +4932,26 @@
           "likedByMe": {
             "type": "boolean"
           },
-          "copyCount": {
-            "type": "number"
+          "saveCount": {
+            "type": "number",
+            "description": "People who saved the trip"
           },
-          "copiedFrom": {
+          "savedByMe": {
+            "type": "boolean",
+            "description": "The trip is in my trips as a saved trip"
+          },
+          "myJoinRequest": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "declined"
+            ],
             "nullable": true,
-            "description": "Shown as \"Copied from @handle\" while the source exists",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CopiedFromDto"
-              }
-            ]
+            "description": "My request to join: pending until the owner decides; declined stays declined. Null when I have none (also once accepted: I am a member then)."
+          },
+          "pendingJoinRequestCount": {
+            "type": "number",
+            "description": "Requests waiting for the owner; 0 for everyone else"
           },
           "days": {
             "type": "array",
@@ -4770,8 +4978,10 @@
           "members",
           "likeCount",
           "likedByMe",
-          "copyCount",
-          "copiedFrom",
+          "saveCount",
+          "savedByMe",
+          "myJoinRequest",
+          "pendingJoinRequestCount",
           "days",
           "createdAt",
           "updatedAt"
@@ -4859,6 +5069,63 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "JoinRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tripId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "description": "Who asked to join",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "declined"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tripId",
+          "user",
+          "status",
+          "createdAt"
+        ]
+      },
+      "JoinRequestPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JoinRequestDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ]
       },
       "TripSummaryPageDto": {
@@ -6325,7 +6592,8 @@
               "comment_on_marker",
               "added_to_trip",
               "trip_changed_by_collaborator",
-              "likes_grouped"
+              "likes_grouped",
+              "join_requested"
             ]
           },
           "actor": {
@@ -6456,13 +6724,18 @@
           "likesGrouped": {
             "type": "boolean",
             "description": "Push for likes (at most one per hour)"
+          },
+          "joinRequested": {
+            "type": "boolean",
+            "description": "Push when someone asks to join my trip"
           }
         },
         "required": [
           "commentOnMarker",
           "addedToTrip",
           "tripChangedByCollaborator",
-          "likesGrouped"
+          "likesGrouped",
+          "joinRequested"
         ]
       },
       "UpdateNotificationSettingsDto": {
@@ -6478,6 +6751,9 @@
             "type": "boolean"
           },
           "likesGrouped": {
+            "type": "boolean"
+          },
+          "joinRequested": {
             "type": "boolean"
           }
         }

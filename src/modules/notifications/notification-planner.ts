@@ -59,6 +59,8 @@ export class NotificationPlanner {
         return;
       case 'added_to_trip':
         return this.addedToTrip(input);
+      case 'join_requested':
+        return this.joinRequested(input);
       case 'trip_changed':
         return this.tripChanged(input);
       case 'liked':
@@ -110,6 +112,21 @@ export class NotificationPlanner {
         tripId: input.tripId,
       });
     }
+  }
+
+  private async joinRequested(
+    input: Extract<PlanInput, { kind: 'join_requested' }>,
+  ): Promise<void> {
+    const [recipientId] = await this.eligible(input.actorId, input.tripId, [
+      input.ownerId,
+    ]);
+    if (!recipientId) return;
+    await this.immediate({
+      recipientId,
+      type: 'join_requested',
+      actorId: input.actorId,
+      tripId: input.tripId,
+    });
   }
 
   private async tripChanged(

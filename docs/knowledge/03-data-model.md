@@ -28,11 +28,14 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 
 **trips**
 - owner → users, `title`, `startDate`, `endDate` (both nullable; with a start date, `endDate = startDate + days − 1`, kept in sync on every day or date change), `destinationName`, `destinationLat`, `destinationLng` (optional destination: all three or none, enforced by a CHECK), `visibility`
-- `copiedFromTripId` → trips (nullable, `ON DELETE SET NULL`)
-- `likeCount`, `copyCount` (denormalized, maintained in the same transaction or by job)
+- `likeCount` (denormalized, maintained in the same transaction or by job). Trips are never copied (`copiedFromTripId` and `copyCount` dropped 2026-10-16).
 - `hiddenAt` (moderation)
 
 **trip_members** — trip → trips, user → users, `role` (`owner` | `editor`), `addedById` (→ users, `SET NULL`). Unique (`tripId`, `userId`). The owner also has a row.
+
+**trip_saves** — trip → trips (`CASCADE`), user → users (`CASCADE`), `createdAt`. Primary key (`tripId`, `userId`); index on `userId`. Someone else's trip in my trips, read-only (not a member). `saveCount` is counted from these rows (no counter column). Blocking deletes each side's saves of the other's trips.
+
+**trip_join_requests** — trip → trips (`CASCADE`), user → users (`CASCADE`), `status` (`pending` | `declined`), `createdAt`, `decidedAt`. Unique (`tripId`, `userId`); index on (`tripId`, `status`, `createdAt`) and `userId`. Accepting adds a `trip_members` row and deletes the request; a declined row stays so the request can't be repeated. Blocking deletes each side's requests to the other's trips.
 
 **trip_days** — trip → trips, `position` (0-based, contiguous). Unique (`tripId`, `position`). No stored date: a day's date is `trip.startDate + position`, or none for undated trips ("Day n").
 
@@ -96,7 +99,7 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 
 **notifications** — recipient → users (`CASCADE`), `type` (`comment_on_marker` | `added_to_trip` | `trip_changed_by_collaborator` | `likes_grouped`), `actorId` (latest actor; `SET NULL` on account deletion), `tripId` (`CASCADE`; null for likes across several trips), `markerId` (`CASCADE`), `payload` (json: comment id, marker name and excerpt; or actor ids and change counts; or liker and trip ids), `groupKey` (`changes:{tripId}:{recipientId}`, `likes:{recipientId}`), `count`, `readAt`, `pushedAt` (push sent; for groups it closes the group), `createdAt`, `updatedAt`. A partial unique index keeps one open group per key (`groupKey` set, `pushedAt` null).
 
-**notification_settings** — `userId` (PK, `CASCADE`), `commentOnMarker`, `addedToTrip`, `tripChangedByCollaborator`, `likesGrouped` (booleans, default true). No row = all on.
+**notification_settings** — `userId` (PK, `CASCADE`), `commentOnMarker`, `addedToTrip`, `tripChangedByCollaborator`, `likesGrouped`, `joinRequested` (booleans, default true). No row = all on.
 
 **entitlements** — user → users (`CASCADE`), `feature` (`best_route_realtime`), `source` (`revenuecat`, or `manual` from `npm run entitlement:grant`), `expiresAt` (null = never), `externalRef`. Unique (`userId`, `feature`, `source`). Active = no `expiresAt` or one in the future.
 
@@ -110,7 +113,8 @@ Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount
 | photos uploaded anywhere | delete rows and storage objects |
 | comments written anywhere | delete |
 | likes given | delete, recompute counts |
-| copies others made (`copiedFrom…`) | keep, link set null |
+| markers others copied (`copiedFromMarkerId`) | keep, link set null |
+| trip_saves, trip_join_requests (own, and others' on the user's trips) | delete |
 | reports filed | keep report, `reporterId = null` |
 | reports about the user or their deleted content | closed (`dismissed`, action `target_deleted`) |
 | notifications (received), notification settings, devices, tokens, identities, blocks, follows (both directions), entitlements, invites created, data exports | delete |
