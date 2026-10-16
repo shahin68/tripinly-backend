@@ -3114,7 +3114,7 @@
     },
     "/v1/explore/trips": {
       "get": {
-        "description": "Ranked by likes and saves with recency decay. Includes trips the caller owns or edits (role owner or editor): offer no Save on those. Only trips with at least one marker. Pass nextCursor to continue the same ranking.",
+        "description": "Ranked by likes and saves with recency decay. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor to continue the same ranking.",
         "operationId": "Explore_trips",
         "parameters": [
           {
@@ -3135,6 +3135,16 @@
               "maximum": 50,
               "default": 20,
               "type": "number"
+            }
+          },
+          {
+            "name": "includeMine",
+            "required": false,
+            "in": "query",
+            "description": "false leaves out trips the caller owns or edits",
+            "schema": {
+              "default": true,
+              "type": "boolean"
             }
           }
         ],

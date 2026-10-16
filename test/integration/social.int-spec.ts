@@ -632,6 +632,15 @@ describe('Social (integration)', () => {
       ).toEqual(['Graz', 'Vienna', 'Mine', 'Budapest']);
       expect(page2.body.nextCursor).toBeNull();
 
+      // includeMine=false leaves out what the caller owns (Budapest, Graz) or edits (Vienna).
+      const others = await as(editor)
+        .get('/v1/explore/trips?includeMine=false')
+        .expect(200);
+      expect(others.body.items.map((t: { title: string }) => t.title)).toEqual([
+        'Mine',
+      ]);
+      await as(editor).get('/v1/explore/trips?includeMine=maybe').expect(400);
+
       await as(stranger).post(`/v1/users/${editor.userId}/block`).expect(204);
       const afterBlock = await as(stranger).get('/v1/explore/trips');
       expect(
