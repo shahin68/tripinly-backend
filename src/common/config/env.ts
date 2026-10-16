@@ -141,6 +141,8 @@ export const envSchema = z
      * ahead of every unliked place; below it, prominence (QRank) ranks it.
      */
     APP_PLACE_RANK_MIN_LIKES: z.coerce.number().int().min(1).default(1),
+    /** Place photos one person may add in 24 hours, across all places. */
+    APP_PLACE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(1).default(20),
     // Routing: openrouteservice. Without a key, routes are straight lines
     // (degraded) and best route uses straight-line distance.
     ORS_API_KEY: optionalString,

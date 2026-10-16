@@ -1,5 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
@@ -14,6 +16,7 @@ import {
   toMarkerDto,
 } from '../markers/markers.dto';
 import { BlocksService } from '../moderation/blocks.service';
+import { PlaceMatchingService } from '../places/place-matching.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import { lockTrip } from '../trips/trips.service';
@@ -21,6 +24,7 @@ import { photoKeys } from './photo-keys';
 import {
   MAX_PHOTO_BYTES,
   MAX_PHOTOS_PER_MARKER,
+  MAX_PLACE_GALLERY,
   PHOTO_INCLUDE,
   PHOTO_MIME_TYPES,
   type PhotoDto,
@@ -32,10 +36,20 @@ import {
 } from './photos.dto';
 import { PhotoJobsService } from './photos.queue';
 
+/** The parts of a photo that say where it belongs. */
+type PhotoRef = {
+  id: string;
+  markerId: string | null;
+  tripId: string | null;
+  placeId: string | null;
+};
+
 /**
  * Photo uploads, gallery, order, cover and deletion (photo-pipeline skill).
  * Files go straight from the app to storage with pre-signed URLs; the worker
- * processes them. Trip access decides everything; uploads need edit rights.
+ * processes them. Trip photos: trip access decides everything; uploads need
+ * edit rights. Place photos: anyone who can see the place may add one, up to
+ * APP_PLACE_PHOTO_DAILY_LIMIT a day; only the uploader deletes it.
  */
 @Injectable()
 export class PhotosService {
@@ -45,6 +59,8 @@ export class PhotosService {
     private readonly blocks: BlocksService,
     private readonly storage: StorageService,
     private readonly jobs: PhotoJobsService,
+    private readonly places: PlaceMatchingService,
+    private readonly config: ConfigService<Env, true>,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -59,18 +75,7 @@ export class PhotosService {
       markerId,
       'edit_content',
     );
-    if (!PHOTO_MIME_TYPES.includes(input.mimeType as PhotoMimeType)) {
-      throw new AppException(
-        ErrorCode.UNSUPPORTED_MEDIA_TYPE,
-        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-        {
-          allowed: PHOTO_MIME_TYPES,
-        },
-      );
-    }
-    if (input.bytes > MAX_PHOTO_BYTES) {
-      throw uploadTooLarge();
-    }
+    assertUploadable(input);
 
     const photo = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
@@ -102,7 +107,60 @@ export class PhotosService {
         include: PHOTO_INCLUDE,
       });
     });
+    return this.uploadResponse(photo, input);
+  }
 
+  /** A place photo (B1–B3): no trip; counts toward the uploader's daily limit. */
+  async requestPlaceUpload(
+    userId: string,
+    placeId: string,
+    input: UploadUrlRequestDto,
+  ): Promise<UploadUrlResponseDto> {
+    this.storage.assertEnabled();
+    await this.places.assertVisible(this.prisma, userId, placeId);
+    assertUploadable(input);
+    const max = this.config.get('APP_PLACE_PHOTO_DAILY_LIMIT', { infer: true });
+
+    const photo = await this.prisma.$transaction(async (tx) => {
+      // The place lock keeps a user place from being removed (with its photos) mid-upload,
+      // and the user lock makes the daily count exact under parallel uploads.
+      const place = await tx.$queryRaw<unknown[]>`
+        SELECT 1 FROM places WHERE id = ${placeId}::uuid FOR UPDATE`;
+      if (place.length === 0) throw AppException.notFound();
+      await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      const today = await tx.photo.count({
+        where: {
+          uploaderId: userId,
+          placeId: { not: null },
+          status: { not: 'failed' },
+          createdAt: { gt: new Date(Date.now() - DAY_MS) },
+        },
+      });
+      if (today >= max) {
+        throw new AppException(
+          ErrorCode.DAILY_PHOTO_LIMIT_REACHED,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          { max },
+        );
+      }
+      return tx.photo.create({
+        data: {
+          placeId,
+          uploaderId: userId,
+          mimeType: input.mimeType,
+          bytes: input.bytes,
+          position: 0,
+        },
+        include: PHOTO_INCLUDE,
+      });
+    });
+    return this.uploadResponse(photo, input);
+  }
+
+  private async uploadResponse(
+    photo: PhotoWithUploader,
+    input: UploadUrlRequestDto,
+  ): Promise<UploadUrlResponseDto> {
     const uploadUrl = await this.storage.presignPut(
       photoKeys(photo.id).original,
       input.mimeType,
@@ -125,7 +183,9 @@ export class PhotosService {
   async complete(userId: string, photoId: string): Promise<PhotoDto> {
     this.storage.assertEnabled();
     const photo = await this.findPhoto(photoId);
-    await this.access.assert(userId, photo.tripId, 'edit_content');
+    if (photo.tripId) {
+      await this.access.assert(userId, photo.tripId, 'edit_content');
+    }
     if (photo.uploaderId !== userId) throw AppException.forbidden();
     if (photo.status !== 'pending_upload')
       return toPhotoDto(photo, this.storage);
@@ -157,7 +217,7 @@ export class PhotosService {
           DomainEvents.PHOTO_PROCESSING,
           userId,
           { photo: dto },
-          photo.tripId,
+          photo.tripId ?? undefined,
         ),
       );
       return dto;
@@ -194,6 +254,43 @@ export class PhotosService {
     return photos
       .filter((photo) => !hidden.has(photo.uploaderId))
       .map((photo) => toPhotoDto(photo, this.storage, hidden, liked));
+  }
+
+  /**
+   * A place's photos, most liked first, then newest (at most MAX_PLACE_GALLERY).
+   * The uploader also sees their own photos still processing or failed. Blocks
+   * don't hide place photos (C7), only who uploaded them.
+   */
+  async placeGallery(userId: string, placeId: string): Promise<PhotoDto[]> {
+    await this.places.assertVisible(this.prisma, userId, placeId);
+    const photos = await this.prisma.photo.findMany({
+      where: {
+        placeId,
+        OR: [
+          { status: 'ready', hiddenAt: null },
+          {
+            uploaderId: userId,
+            status: { in: ['processing', 'ready', 'failed'] },
+          },
+        ],
+      },
+      orderBy: [{ likeCount: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
+      take: MAX_PLACE_GALLERY,
+      include: PHOTO_INCLUDE,
+    });
+    const [hidden, liked] = await Promise.all([
+      this.blocks.blockedAmong(
+        userId,
+        photos.map((photo) => photo.uploaderId),
+      ),
+      likedAmong(this.prisma, userId, {
+        type: 'photo',
+        ids: photos.map((photo) => photo.id),
+      }),
+    ]);
+    return photos.map((photo) =>
+      toPhotoDto(photo, this.storage, hidden, liked),
+    );
   }
 
   /** `photoIds` must be exactly the marker's processing and ready photos. */
@@ -291,12 +388,14 @@ export class PhotosService {
   }
 
   /**
-   * The uploader, the trip owner or an editor. A deleted cover passes to the
-   * next ready photo. Files are deleted by the worker after the commit.
+   * Trip photos: the uploader, the trip owner or an editor; a deleted cover
+   * passes to the next ready photo. Place photos: only the uploader (B2).
+   * Files are deleted by the worker after the commit.
    */
   async delete(userId: string, photoId: string): Promise<void> {
     const photo = await this.findPhoto(photoId);
     if (photo.uploaderId !== userId) {
+      if (!photo.tripId) throw AppException.forbidden();
       await this.access.assert(userId, photo.tripId, 'edit_content');
     }
     await this.remove(userId, photo);
@@ -307,35 +406,41 @@ export class PhotosService {
    * and delete above). The cover passes to the next ready, visible photo.
    * Returns false when it was already gone.
    */
-  async remove(
-    actorId: string,
-    target: string | { id: string; markerId: string; tripId: string },
-  ): Promise<boolean> {
+  async remove(actorId: string, target: string | PhotoRef): Promise<boolean> {
     const photo =
       typeof target === 'string'
         ? await this.prisma.photo.findUnique({
             where: { id: target },
-            select: { id: true, markerId: true, tripId: true },
+            select: { id: true, markerId: true, tripId: true, placeId: true },
           })
         : target;
     if (!photo) return false;
+    if (!photo.markerId || !photo.tripId) {
+      const { count } = await this.prisma.photo.deleteMany({
+        where: { id: photo.id },
+      });
+      if (count === 0) return false;
+      await this.jobs.deleteFiles([photo.id]);
+      return true;
+    }
+    const { markerId, tripId } = photo;
 
     const coverPhotoId = await this.prisma.$transaction(async (tx) => {
-      await lockTrip(tx, photo.tripId);
+      await lockTrip(tx, tripId);
       const marker = await tx.marker.findUniqueOrThrow({
-        where: { id: photo.markerId },
+        where: { id: markerId },
         select: { coverPhotoId: true },
       });
       const { count } = await tx.photo.deleteMany({ where: { id: photo.id } });
       if (count === 0) return undefined;
       if (marker.coverPhotoId !== photo.id) return marker.coverPhotoId;
       const next = await tx.photo.findFirst({
-        where: { markerId: photo.markerId, status: 'ready', hiddenAt: null },
+        where: { markerId, status: 'ready', hiddenAt: null },
         orderBy: [{ position: 'asc' }, { id: 'asc' }],
         select: { id: true },
       });
       await tx.marker.update({
-        where: { id: photo.markerId },
+        where: { id: markerId },
         data: { coverPhotoId: next?.id ?? null },
       });
       return next?.id ?? null;
@@ -348,8 +453,8 @@ export class PhotosService {
       domainEvent(
         DomainEvents.PHOTO_DELETED,
         actorId,
-        { photoId: photo.id, markerId: photo.markerId, coverPhotoId },
-        photo.tripId,
+        { photoId: photo.id, markerId, coverPhotoId },
+        tripId,
       ),
     );
     return true;
@@ -362,6 +467,23 @@ export class PhotosService {
     });
     if (!photo) throw AppException.notFound();
     return photo;
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function assertUploadable(input: UploadUrlRequestDto): void {
+  if (!PHOTO_MIME_TYPES.includes(input.mimeType as PhotoMimeType)) {
+    throw new AppException(
+      ErrorCode.UNSUPPORTED_MEDIA_TYPE,
+      HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+      {
+        allowed: PHOTO_MIME_TYPES,
+      },
+    );
+  }
+  if (input.bytes > MAX_PHOTO_BYTES) {
+    throw uploadTooLarge();
   }
 }
 

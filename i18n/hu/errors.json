@@ -16,6 +16,8 @@
   "USER_BLOCKED": "Ezzel a felhasználóval nem léphetsz kapcsolatba.",
   "INVITE_EXPIRED": "Ez a meghívó link lejárt vagy visszavonták.",
   "PHOTO_LIMIT_REACHED": "Ehhez a helyhez már elérted a fotók maximális számát.",
+  "DAILY_PHOTO_LIMIT_REACHED": "Mára elérted a hozzáadható helyfotók maximális számát. Próbáld újra holnap.",
+  "STOP_HAS_OTHERS_CONTENT": "Ezen a megállón mások fotói, hozzászólásai vagy kedvelései is vannak. Ha törlöd, azok is törlődnek.",
   "LIMIT_REACHED": "Elérted ennek a korlátját.",
   "UPLOAD_TOO_LARGE": "Ez a fájl túl nagy.",
   "UNSUPPORTED_MEDIA_TYPE": "Ez a fájltípus nem támogatott.",

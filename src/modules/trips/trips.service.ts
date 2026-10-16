@@ -21,7 +21,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
 import type { Prisma, Trip } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
+import {
+  assertConfirmedIfShared,
+  mayDeleteStop,
+} from '../markers/stop-deletion';
 import { PhotoJobsService } from '../photos/photos.queue';
+import { releaseUserPlaces } from '../places/user-places';
 import { recomputePopularity } from '../places/popularity';
 import { likedAmong } from '../social/liked';
 import { normalizeUsername } from '../users/username';
@@ -269,21 +274,29 @@ export class TripsService {
       where: { tripId },
       select: { userId: true },
     });
-    const photoIds = await this.prisma.$transaction(async (tx) => {
+    const removed = await this.prisma.$transaction(async (tx) => {
       // The lock keeps uploads from starting while the photo list is read.
       await lockTrip(tx, tripId);
       const photos = await tx.photo.findMany({
         where: { tripId },
         select: { id: true },
       });
+      const stops = await tx.marker.findMany({
+        where: { tripId },
+        select: { placeId: true },
+      });
       const placeIds = await likedPlaceIds(tx, { tripId });
       const { count } = await tx.trip.deleteMany({ where: { id: tripId } });
       if (count === 0) return null;
       await recomputePopularity(tx, placeIds);
-      return photos.map((photo) => photo.id);
+      return {
+        photoIds: photos.map((photo) => photo.id),
+        placeIds: stops.map((stop) => stop.placeId),
+      };
     });
-    if (!photoIds) return;
-    await this.photoJobs.deleteFiles(photoIds);
+    if (!removed) return;
+    await this.photoJobs.deleteFiles(removed.photoIds);
+    await releaseUserPlaces(this.prisma, this.photoJobs, removed.placeIds);
     this.events.emit(
       DomainEvents.TRIP_DELETED,
       domainEvent(
@@ -388,19 +401,39 @@ export class TripsService {
   }
 
   /** Deletes a day with its markers; later days move up. A trip keeps at least one day. */
-  async deleteDay(userId: string, dayId: string): Promise<void> {
+  async deleteDay(
+    userId: string,
+    dayId: string,
+    confirm = false,
+  ): Promise<void> {
     const { trip } = await this.access.assertForDay(
       userId,
       dayId,
       'edit_content',
     );
     const photoIds: string[] = [];
+    const stopPlaceIds: string[] = [];
     await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
       const day = await tx.tripDay.findUnique({ where: { id: dayId } });
       if (!day) throw AppException.notFound();
       const count = await tx.tripDay.count({ where: { tripId: trip.id } });
       if (count <= 1) throw AppException.validation({ id: ['lastDay'] });
+      // Its stops go too, so the same rule as deleting each of them (B4, B5).
+      const stops = await tx.marker.findMany({
+        where: { dayId },
+        select: { id: true, placeId: true, createdById: true },
+      });
+      if (stops.some((stop) => !mayDeleteStop(userId, trip.ownerId, stop))) {
+        throw AppException.forbidden();
+      }
+      await assertConfirmedIfShared(
+        tx,
+        stops.map((stop) => stop.id),
+        userId,
+        confirm,
+      );
+      stopPlaceIds.push(...stops.map((stop) => stop.placeId));
       const photos = await tx.photo.findMany({
         where: { marker: { dayId } },
         select: { id: true },
@@ -424,6 +457,7 @@ export class TripsService {
       });
     });
     await this.photoJobs.deleteFiles(photoIds);
+    await releaseUserPlaces(this.prisma, this.photoJobs, stopPlaceIds);
     this.events.emit(
       DomainEvents.DAY_DELETED,
       domainEvent(DomainEvents.DAY_DELETED, userId, { dayId }, trip.id),

@@ -180,7 +180,7 @@ export class AccountDeletionService {
     for (;;) {
       const photos = await this.prisma.photo.findMany({
         where: { uploaderId: userId },
-        select: { id: true, markerId: true, tripId: true },
+        select: { id: true, markerId: true, tripId: true, placeId: true },
         take: BATCH,
       });
       if (photos.length === 0) break;

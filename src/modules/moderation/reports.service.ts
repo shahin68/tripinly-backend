@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { type Report, Prisma } from '../../generated/prisma/client';
+import { PlaceMatchingService } from '../places/place-matching.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import type { CreateReportDto, ReportDto } from './reports.dto';
 
@@ -14,6 +15,7 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: TripAccessService,
+    private readonly places: PlaceMatchingService,
   ) {}
 
   /** `created` is false when an open report by this user already existed. */
@@ -89,13 +91,18 @@ export class ReportsService {
           where: { id: input.targetId },
           select: {
             tripId: true,
+            placeId: true,
             uploaderId: true,
             hiddenAt: true,
             status: true,
           },
         });
         if (!photo || photo.status !== 'ready') throw AppException.notFound();
-        await this.access.assert(userId, photo.tripId, 'view');
+        if (photo.tripId) {
+          await this.access.assert(userId, photo.tripId, 'view');
+        } else {
+          await this.places.assertVisible(this.prisma, userId, photo.placeId!);
+        }
         if (photo.hiddenAt && photo.uploaderId !== userId) {
           throw AppException.notFound();
         }

@@ -9,9 +9,11 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -21,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { I18nLang } from 'nestjs-i18n';
 import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
+import { ConfirmQueryDto } from '../../common/dto/confirm-query.dto';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import {
   CopyMarkerDto,
@@ -130,13 +133,34 @@ export class MarkersController {
 
   @Delete('markers/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a marker' })
+  @ApiOperation({
+    summary: 'Delete a marker with everything on it',
+    description:
+      "Whoever added the stop, or the trip owner (403 FORBIDDEN for other editors: they use DELETE /markers/{id}/mine). Photos, comments and likes go with it. When other people's photos, comments or likes are on it: 409 STOP_HAS_OTHERS_CONTENT (details.photos, details.comments, details.likes) unless confirm=true. A user-made place goes with its last stop, with its place photos.",
+  })
   @ApiNoContentResponse()
+  @ApiConflictResponse({ description: 'STOP_HAS_OTHERS_CONTENT' })
   delete(
     @CurrentUser() user: AuthUser,
     @Param() { id }: IdParamDto,
+    @Query() { confirm }: ConfirmQueryDto,
   ): Promise<void> {
-    return this.markers.delete(user.id, id);
+    return this.markers.delete(user.id, id, confirm ?? false);
+  }
+
+  @Delete('markers/:id/mine')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove my photos, comments and likes from a marker',
+    description:
+      "Anyone who can see the stop. The stop and other people's content stay. 204 also when there was nothing of mine.",
+  })
+  @ApiNoContentResponse()
+  removeMine(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.markers.removeMine(user.id, id);
   }
 
   @Delete('days/:id/markers')
@@ -144,14 +168,16 @@ export class MarkersController {
   @ApiOperation({
     summary: "Delete all of a day's markers",
     description:
-      'Clears the day in one request (editor or owner); the day itself stays. 204 also when it was already empty.',
+      "Clears the day in one request; the day itself stays. 204 also when it was already empty. All or nothing: the trip owner, or an editor when every stop on it is theirs (else 403 FORBIDDEN). Other people's photos, comments or likes on the stops: 409 STOP_HAS_OTHERS_CONTENT unless confirm=true.",
   })
   @ApiNoContentResponse()
+  @ApiConflictResponse({ description: 'STOP_HAS_OTHERS_CONTENT' })
   clearDay(
     @CurrentUser() user: AuthUser,
     @Param() { id }: IdParamDto,
+    @Query() { confirm }: ConfirmQueryDto,
   ): Promise<void> {
-    return this.markers.clearDay(user.id, id);
+    return this.markers.clearDay(user.id, id, confirm ?? false);
   }
 
   @Put('days/:id/marker-order')

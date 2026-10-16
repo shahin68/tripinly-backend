@@ -41,6 +41,7 @@ Domain events that don't go to a room as such: `join_request.created` (actor = t
 | `notification.created` | notification (as in `GET /notifications`, in the user's saved language). Batched and grouped entries are sent again with the same `id` and a higher `count`: replace by id |
 | `trips.changed` | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted |
 | `follows.changed` | `{ followerId, followeeId, following }` — someone followed or unfollowed; sent to both people, so profile counts and Friends/Following/Followers lists can reload |
+| `photo.ready` / `photo.failed` | Place photos only (they have no trip room): sent to their uploader, same data as in the trip room (`placeId` set, `markerId` null) |
 | `account.suspended` | `{}` — an admin suspended the account; the server disconnects every socket of the user right after, and HTTP calls answer 403 `ACCOUNT_SUSPENDED`. Account deletion disconnects the same way, without an event |
 
 ## Push notifications (FCM)

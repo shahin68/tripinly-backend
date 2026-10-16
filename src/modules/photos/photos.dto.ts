@@ -22,6 +22,8 @@ export const PHOTO_MIME_TYPES = [
 export type PhotoMimeType = (typeof PHOTO_MIME_TYPES)[number];
 export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 export const MAX_PHOTOS_PER_MARKER = 30;
+/** A place's gallery shows at most this many photos, the most liked first. */
+export const MAX_PLACE_GALLERY = 100;
 
 export class UploadUrlRequestDto {
   @ApiProperty({
@@ -45,8 +47,21 @@ export class PhotoDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty({ format: 'uuid' })
-  markerId: string;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The stop of a trip photo; null for a place photo',
+  })
+  markerId: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The place of a place photo; null for a trip photo',
+  })
+  placeId: string | null;
 
   @ApiProperty({
     enum: ['pending_upload', 'processing', 'ready', 'failed'],
@@ -75,7 +90,7 @@ export class PhotoDto {
   @ApiProperty({ type: Number, nullable: true })
   height: number | null;
 
-  @ApiProperty({ description: 'Gallery order, 0-based' })
+  @ApiProperty({ description: 'Gallery order, 0-based; 0 for place photos' })
   position: number;
 
   @ApiProperty()
@@ -156,6 +171,7 @@ export function toPhotoDto(
   return {
     id: photo.id,
     markerId: photo.markerId,
+    placeId: photo.placeId,
     status: photo.status,
     thumbUrl: ready ? signer.signedGetUrl(keys.thumb) : null,
     displayUrl: ready ? signer.signedGetUrl(keys.display) : null,

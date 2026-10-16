@@ -126,4 +126,15 @@ export class PlaceMatchingService {
     });
     return marker !== null;
   }
+
+  /** An active place the caller can see (isVisible), else 404. */
+  async assertVisible(db: Tx, userId: string, placeId: string): Promise<void> {
+    const place = await db.place.findFirst({
+      where: { id: placeId, isActive: true },
+      select: { id: true, source: true, popularity: true },
+    });
+    if (!place || !(await this.isVisible(db, userId, place))) {
+      throw AppException.notFound();
+    }
+  }
 }

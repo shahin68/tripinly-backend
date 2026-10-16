@@ -16,6 +16,8 @@
   "USER_BLOCKED": "You can't interact with this user.",
   "INVITE_EXPIRED": "This invite link has expired or was revoked.",
   "PHOTO_LIMIT_REACHED": "This place already has the maximum number of photos.",
+  "DAILY_PHOTO_LIMIT_REACHED": "You've added the most place photos allowed for today. Try again tomorrow.",
+  "STOP_HAS_OTHERS_CONTENT": "This stop has photos, comments or likes from other people. Deleting it deletes them too.",
   "LIMIT_REACHED": "You've reached the limit for this.",
   "UPLOAD_TOO_LARGE": "This file is too large.",
   "UNSUPPORTED_MEDIA_TYPE": "This file type isn't supported.",

@@ -141,12 +141,20 @@ export class LikesService {
           where: { id: targetId },
           select: {
             markerId: true,
+            placeId: true,
             status: true,
             hiddenAt: true,
             uploaderId: true,
           },
         });
         if (!photo) throw AppException.notFound();
+        if (!photo.markerId) {
+          // A place photo: whoever can see the place, not blocked with the uploader (C7).
+          await this.places.assertVisible(this.prisma, userId, photo.placeId!);
+          await this.assertShown(userId, photo.uploaderId, photo.hiddenAt);
+          if (photo.status !== 'ready') throw AppException.notFound();
+          return { tripId: null, placeId: null };
+        }
         const { trip } = await this.access.assertForMarker(
           userId,
           photo.markerId,

@@ -22,6 +22,7 @@ describe('validateEnv', () => {
       APP_PHOTO_PARALLEL_UPLOADS: 2,
       APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: 2,
       APP_PLACE_RANK_MIN_LIKES: 1,
+      APP_PLACE_PHOTO_DAILY_LIMIT: 20,
       APP_TRIP_MAX_MEMBERS: 50,
     });
   });
@@ -159,6 +160,16 @@ describe('validateEnv', () => {
     ).toBe(3);
     expect(() =>
       validateEnv({ ...valid, APP_PLACE_RANK_MIN_LIKES: '0' }),
+    ).toThrow(EnvValidationError);
+  });
+
+  it('needs a daily place photo limit of at least one', () => {
+    expect(
+      validateEnv({ ...valid, APP_PLACE_PHOTO_DAILY_LIMIT: '5' })
+        .APP_PLACE_PHOTO_DAILY_LIMIT,
+    ).toBe(5);
+    expect(() =>
+      validateEnv({ ...valid, APP_PLACE_PHOTO_DAILY_LIMIT: '0' }),
     ).toThrow(EnvValidationError);
   });
 

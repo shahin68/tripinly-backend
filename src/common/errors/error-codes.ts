@@ -22,6 +22,10 @@ export const ErrorCode = {
   USER_BLOCKED: 'USER_BLOCKED',
   INVITE_EXPIRED: 'INVITE_EXPIRED',
   PHOTO_LIMIT_REACHED: 'PHOTO_LIMIT_REACHED',
+  /** Place photos per person in 24 hours (APP_PLACE_PHOTO_DAILY_LIMIT); `details.max` (422). */
+  DAILY_PHOTO_LIMIT_REACHED: 'DAILY_PHOTO_LIMIT_REACHED',
+  /** Deleting a stop would delete other people's photos, comments or likes; repeat with confirm=true (409). */
+  STOP_HAS_OTHERS_CONTENT: 'STOP_HAS_OTHERS_CONTENT',
   /** Days per trip, markers per day, trips per user, active invites; `details.resource` and `details.max`. */
   LIMIT_REACHED: 'LIMIT_REACHED',
   UPLOAD_TOO_LARGE: 'UPLOAD_TOO_LARGE',
