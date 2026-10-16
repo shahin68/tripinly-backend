@@ -161,7 +161,7 @@ export class TripsService {
         ]),
       ),
     ].filter(Boolean);
-    const [hidden, liked] = await Promise.all([
+    const [hidden, liked, saved, joinRequest] = await Promise.all([
       this.blocks.blockedAmong(userId, people),
       likedAmong(
         this.prisma,
@@ -172,8 +172,16 @@ export class TripsService {
           ids: trip.days.flatMap((day) => day.markers.map((m) => m.id)),
         },
       ),
+      this.prisma.tripSave.count({ where: { tripId, userId } }),
+      this.prisma.tripJoinRequest.findUnique({
+        where: { tripId_userId: { tripId, userId } },
+        select: { status: true },
+      }),
     ]);
-    return toTripDto(trip, role, this.storage, hidden, liked);
+    return toTripDto(trip, role, this.storage, hidden, liked, {
+      savedByMe: saved > 0,
+      joinRequest: joinRequest?.status ?? null,
+    });
   }
 
   async update(
@@ -288,101 +296,9 @@ export class TripsService {
   }
 
   /**
-   * "Add to my trips": a new, independent trip owned by the caller with the
-   * source's title, dates, destination, days and visible markers (names, locations, times,
-   * order, places). No photos, comments, likes or members; the caller's
-   * default visibility.
+   * Trips I own or collaborate on, plus trips I saved while they stay public
+   * and visible to me; most recently changed first.
    */
-  async copy(userId: string, tripId: string): Promise<TripDto> {
-    await this.access.assert(userId, tripId, 'copy');
-    const source = await this.prisma.trip.findUniqueOrThrow({
-      where: { id: tripId },
-      include: {
-        days: {
-          orderBy: { position: 'asc' },
-          include: {
-            markers: {
-              where: { hiddenAt: null },
-              orderBy: [{ position: 'asc' }, { id: 'asc' }],
-            },
-          },
-        },
-      },
-    });
-    const copier = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { defaultTripVisibility: true },
-    });
-
-    const copyId = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
-      const owned = await tx.trip.count({ where: { ownerId: userId } });
-      if (owned >= TripLimits.TRIPS_PER_USER) {
-        throw limitReached('trips', TripLimits.TRIPS_PER_USER);
-      }
-      const trip = await tx.trip.create({
-        data: {
-          ownerId: userId,
-          title: source.title,
-          startDate: source.startDate,
-          endDate: source.endDate,
-          destinationName: source.destinationName,
-          destinationLat: source.destinationLat,
-          destinationLng: source.destinationLng,
-          visibility: copier.defaultTripVisibility,
-          copiedFromTripId: source.id,
-          members: { create: { userId, role: 'owner', addedById: userId } },
-          days: {
-            create: source.days.map((day) => ({ position: day.position })),
-          },
-        },
-        include: { days: { select: { id: true, position: true } } },
-      });
-      const dayIds = new Map(trip.days.map((day) => [day.position, day.id]));
-      await tx.marker.createMany({
-        data: source.days.flatMap((day) =>
-          day.markers.map((marker, position) => ({
-            dayId: dayIds.get(day.position)!,
-            tripId: trip.id,
-            placeId: marker.placeId,
-            name: marker.name,
-            lat: marker.lat,
-            lng: marker.lng,
-            time: marker.time,
-            position,
-            createdById: userId,
-          })),
-        ),
-      });
-      await tx.trip.update({
-        where: { id: source.id },
-        data: { copyCount: { increment: 1 } },
-      });
-      return trip.id;
-    });
-
-    this.events.emit(
-      DomainEvents.TRIP_CREATED,
-      domainEvent(
-        DomainEvents.TRIP_CREATED,
-        userId,
-        { memberIds: [], copiedFromTripId: source.id },
-        copyId,
-      ),
-    );
-    this.events.emit(
-      DomainEvents.TRIP_COPIED,
-      domainEvent(
-        DomainEvents.TRIP_COPIED,
-        userId,
-        { copyId, ownerId: source.ownerId },
-        source.id,
-      ),
-    );
-    return this.get(userId, copyId);
-  }
-
-  /** Trips I own or collaborate on, most recently changed first. */
   async listMine(
     userId: string,
     cursor?: string,
@@ -391,8 +307,18 @@ export class TripsService {
     const position = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.trip.findMany({
       where: {
-        members: { some: { userId } },
-        OR: [{ hiddenAt: null }, { ownerId: userId }],
+        OR: [
+          {
+            members: { some: { userId } },
+            OR: [{ hiddenAt: null }, { ownerId: userId }],
+          },
+          {
+            saves: { some: { userId } },
+            visibility: 'public',
+            hiddenAt: null,
+            owner: BlocksService.notBlockedWith(userId),
+          },
+        ],
         ...(position && {
           AND: {
             OR: [

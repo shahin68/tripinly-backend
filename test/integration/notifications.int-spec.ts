@@ -180,6 +180,41 @@ describe('Notifications (integration)', () => {
     });
   });
 
+  it('tells the owner right away when someone asks to join, then the person once accepted', async () => {
+    const { body: request } = await as(stranger)
+      .post(`/v1/trips/${trip.id}/join-request`)
+      .expect(200);
+    await eventually(
+      () => push.to(OWNER_TABLET).length,
+      5000,
+      'join request push',
+    );
+    expect(push.to(OWNER_TABLET)[0]).toMatchObject({
+      title: 'Request to join Vienna',
+      body: 'stranger wants to join this trip.',
+      data: {
+        type: 'join_requested',
+        deepLink: `tripinly://trips/${trip.id}`,
+      },
+    });
+    // Asking again doesn't notify again.
+    await as(stranger).post(`/v1/trips/${trip.id}/join-request`).expect(200);
+    await sleep(300);
+    expect(push.to(OWNER_TABLET)).toHaveLength(1);
+
+    await as(owner)
+      .post(`/v1/join-requests/${(request as { id: string }).id}/accept`)
+      .expect(200);
+    await eventually(
+      async () =>
+        (await prisma.notification.count({
+          where: { recipientId: stranger.userId, type: 'added_to_trip' },
+        })) === 1,
+      5000,
+      'added row',
+    );
+  });
+
   describe('comments', () => {
     it('notifies the trip owner and the marker’s creator, not the commenter', async () => {
       const markerId = await addMarker(editor);
@@ -266,6 +301,7 @@ describe('Notifications (integration)', () => {
           addedToTrip: true,
           tripChangedByCollaborator: true,
           likesGrouped: true,
+          joinRequested: true,
         });
       const markerId = await addMarker(owner);
       await as(stranger)
@@ -527,6 +563,7 @@ describe('Notifications (integration)', () => {
         addedToTrip: true,
         tripChangedByCollaborator: true,
         likesGrouped: true,
+        joinRequested: true,
       });
     });
 

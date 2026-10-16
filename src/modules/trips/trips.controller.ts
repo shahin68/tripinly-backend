@@ -8,10 +8,12 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -26,6 +28,8 @@ import {
   AddMemberDto,
   AddMembersDto,
   CreateTripDto,
+  JoinRequestDto,
+  JoinRequestPageDto,
   MemberParamsDto,
   MeStatsDto,
   TripDayDto,
@@ -35,6 +39,7 @@ import {
   TripSummaryPageDto,
   UpdateTripDto,
 } from './trips.dto';
+import { TripSharingService } from './trip-sharing.service';
 import { TripsService } from './trips.service';
 import { Idempotent } from '../../common/idempotency/idempotent.decorator';
 
@@ -45,6 +50,7 @@ export class TripsController {
   constructor(
     private readonly trips: TripsService,
     private readonly members: MembersService,
+    private readonly sharing: TripSharingService,
   ) {}
 
   @Post('trips')
@@ -69,21 +75,6 @@ export class TripsController {
     @Param() { id }: IdParamDto,
   ): Promise<TripDto> {
     return this.trips.get(user.id, id);
-  }
-
-  @Post('trips/:id/copy')
-  @Idempotent()
-  @ApiOperation({
-    summary: 'Add a public trip to my trips',
-    description:
-      'Copies title, dates, days and markers into a new trip I own (my default visibility). No photos, comments, likes or members. Own and private trips: 403 TRIP_NOT_COPYABLE.',
-  })
-  @ApiCreatedResponse({ type: TripDto })
-  copy(
-    @CurrentUser() user: AuthUser,
-    @Param() { id }: IdParamDto,
-  ): Promise<TripDto> {
-    return this.trips.copy(user.id, id);
   }
 
   @Patch('trips/:id')
@@ -178,9 +169,120 @@ export class TripsController {
     return this.members.remove(user.id, params.id, params.userId);
   }
 
+  @Put('trips/:id/save')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Save someone else's public trip to my trips",
+    description:
+      "Idempotent. The trip stays the owner's: it shows in GET /me/trips with savedByMe = true and role viewer, always the live original, read-only. Not listed while it is private or hidden; gone when the owner deletes it. Own trips and trips I am a member of: 403 FORBIDDEN. Private trips and a block either way: 404.",
+  })
+  @ApiNoContentResponse()
+  save(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.sharing.save(user.id, id);
+  }
+
+  @Delete('trips/:id/save')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove a saved trip from my trips',
+    description: 'Idempotent, also when it was never saved.',
+  })
+  @ApiNoContentResponse()
+  unsave(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.sharing.unsave(user.id, id);
+  }
+
+  @Post('trips/:id/join-request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Ask the owner to join a public trip as an editor',
+    description:
+      'The owner gets a join_requested notification and accepts or declines. Repeating a pending request returns it unchanged. Once declined: 409 JOIN_REQUEST_DECLINED. Own trips and trips I am a member of: 403 FORBIDDEN. Private trips and a block either way: 404.',
+  })
+  @ApiOkResponse({ type: JoinRequestDto })
+  @ApiConflictResponse({ description: 'JOIN_REQUEST_DECLINED' })
+  requestJoin(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<JoinRequestDto> {
+    return this.sharing.requestJoin(user.id, id);
+  }
+
+  @Delete('trips/:id/join-request')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Withdraw my pending request to join',
+    description: 'Idempotent. A declined request stays declined.',
+  })
+  @ApiNoContentResponse()
+  cancelJoin(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.sharing.cancelJoin(user.id, id);
+  }
+
+  @Get('trips/:id/join-requests')
+  @ApiOperation({
+    summary: 'Owner: pending requests to join, newest first',
+    description: "Others: 403 FORBIDDEN (404 when they can't see the trip).",
+  })
+  @ApiOkResponse({ type: JoinRequestPageDto })
+  joinRequests(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+    @Query() query: PageQueryDto,
+  ): Promise<JoinRequestPageDto> {
+    return this.sharing.listJoinRequests(
+      user.id,
+      id,
+      query.cursor,
+      query.limit,
+    );
+  }
+
+  @Post('join-requests/:id/accept')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Owner: accept a request; the person becomes an editor',
+    description:
+      'Removes the request (and their save of the trip). The person gets an added_to_trip notification; trip members get member.added. Over APP_TRIP_MAX_MEMBERS: 422 LIMIT_REACHED. Not the owner, already decided, or the person is gone or blocked: 404.',
+  })
+  @ApiOkResponse({ type: TripMemberDto })
+  acceptJoin(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<TripMemberDto> {
+    return this.sharing.accept(user.id, id);
+  }
+
+  @Post('join-requests/:id/decline')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Owner: decline a request',
+    description:
+      "The person isn't told, and their myJoinRequest becomes declined; they can't ask again. Not the owner or already decided: 404.",
+  })
+  @ApiNoContentResponse()
+  declineJoin(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.sharing.decline(user.id, id);
+  }
+
   @Get('me/trips')
   @ApiOperation({
-    summary: 'Trips I own or collaborate on, most recently changed first',
+    summary:
+      'Trips I own, collaborate on or saved, most recently changed first',
+    description:
+      'Saved trips (savedByMe = true, role viewer) only while they are public and visible to me.',
   })
   @ApiOkResponse({ type: TripSummaryPageDto })
   myTrips(

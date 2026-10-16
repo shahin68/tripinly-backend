@@ -8,6 +8,10 @@
     "title": "Added to {trip}",
     "body": "{actor} added you to this trip."
   },
+  "join_requested": {
+    "title": "Request to join {trip}",
+    "body": "{actor} wants to join this trip."
+  },
   "trip_changed_by_collaborator": {
     "title": "Changes in {trip}",
     "places_added": {

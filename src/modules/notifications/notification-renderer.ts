@@ -124,6 +124,11 @@ export class NotificationRenderer {
           ),
         };
       }
+      case 'join_requested':
+        return {
+          title: this.t('push.join_requested.title', lang, args),
+          body: this.t('push.join_requested.body', lang, args),
+        };
       case 'likes_grouped': {
         const payload = row.payload as unknown as LikesPayload;
         const inTrip = payload.tripIds.length === 1 && trip !== undefined;

@@ -28,6 +28,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const TRIP_ROLES = ['owner', 'editor'] as const;
 export const MY_ROLES = ['owner', 'editor', 'viewer'] as const;
+export const JOIN_REQUEST_STATUSES = ['pending', 'declined'] as const;
+export type JoinRequestStatusValue = (typeof JOIN_REQUEST_STATUSES)[number];
 
 export class DestinationDto {
   @ApiProperty({ minLength: 1, maxLength: 200, example: 'Paris' })
@@ -177,14 +179,6 @@ export class TripDayDto {
   markers: MarkerDto[];
 }
 
-export class CopiedFromDto {
-  @ApiProperty({ format: 'uuid' })
-  tripId: string;
-
-  @ApiProperty({ type: UserSummaryDto })
-  owner: UserSummaryDto;
-}
-
 export class TripDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -219,15 +213,24 @@ export class TripDto {
   @ApiProperty()
   likedByMe: boolean;
 
-  @ApiProperty()
-  copyCount: number;
+  @ApiProperty({ description: 'People who saved the trip' })
+  saveCount: number;
+
+  @ApiProperty({ description: 'The trip is in my trips as a saved trip' })
+  savedByMe: boolean;
 
   @ApiProperty({
-    type: CopiedFromDto,
+    enum: JOIN_REQUEST_STATUSES,
     nullable: true,
-    description: 'Shown as "Copied from @handle" while the source exists',
+    description:
+      'My request to join: pending until the owner decides; declined stays declined. Null when I have none (also once accepted: I am a member then).',
   })
-  copiedFrom: CopiedFromDto | null;
+  myJoinRequest: JoinRequestStatusValue | null;
+
+  @ApiProperty({
+    description: 'Requests waiting for the owner; 0 for everyone else',
+  })
+  pendingJoinRequestCount: number;
 
   @ApiProperty({ type: [TripDayDto] })
   days: TripDayDto[];
@@ -286,8 +289,14 @@ export class TripSummaryDto {
   @ApiProperty()
   likedByMe: boolean;
 
-  @ApiProperty()
-  copyCount: number;
+  @ApiProperty({ description: 'People who saved the trip' })
+  saveCount: number;
+
+  @ApiProperty({
+    description:
+      'In my trips because I saved it (role is viewer then, unless I am also a member)',
+  })
+  savedByMe: boolean;
 
   @ApiProperty()
   updatedAt: string;
@@ -347,4 +356,29 @@ export class MemberParamsDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   userId: string;
+}
+
+export class JoinRequestDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  tripId: string;
+
+  @ApiProperty({ type: UserSummaryDto, description: 'Who asked to join' })
+  user: UserSummaryDto;
+
+  @ApiProperty({ enum: JOIN_REQUEST_STATUSES })
+  status: JoinRequestStatusValue;
+
+  @ApiProperty()
+  createdAt: string;
+}
+
+export class JoinRequestPageDto implements Page<JoinRequestDto> {
+  @ApiProperty({ type: [JoinRequestDto] })
+  items: JoinRequestDto[];
+
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor: string | null;
 }

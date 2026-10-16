@@ -17,6 +17,8 @@ export const ErrorCode = {
   NOT_FOUND: 'NOT_FOUND',
   FORBIDDEN: 'FORBIDDEN',
   TRIP_NOT_COPYABLE: 'TRIP_NOT_COPYABLE',
+  /** The trip owner declined my request to join; it can't be sent again (409). */
+  JOIN_REQUEST_DECLINED: 'JOIN_REQUEST_DECLINED',
   USER_BLOCKED: 'USER_BLOCKED',
   INVITE_EXPIRED: 'INVITE_EXPIRED',
   PHOTO_LIMIT_REACHED: 'PHOTO_LIMIT_REACHED',

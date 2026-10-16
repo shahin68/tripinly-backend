@@ -8,6 +8,10 @@
     "title": "Hozzáadtak: {trip}",
     "body": "{actor} hozzáadott ehhez az úthoz."
   },
+  "join_requested": {
+    "title": "Csatlakozási kérés: {trip}",
+    "body": "{actor} csatlakozna ehhez az utazáshoz."
+  },
   "trip_changed_by_collaborator": {
     "title": "Változások: {trip}",
     "places_added": {

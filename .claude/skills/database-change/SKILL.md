@@ -22,7 +22,7 @@ description: Use for any Tripinly schema change — Prisma schema edits, migrati
    - Large tables: create indexes with `CONCURRENTLY` in a separate migration (Prisma runs migrations in a transaction by default; split accordingly).
 4. Apply locally: `npx prisma migrate dev`, then `npx prisma generate`.
 5. **Backfills** of existing data run as an idempotent script or BullMQ job, not inside the migration, unless trivially small.
-6. **Denormalized counters** (`likeCount`, `commentCount`, `copyCount`, `places.popularity`): update them in the same transaction as the write, and provide a recompute job that can rebuild them from source rows (used after account deletion and visibility changes).
+6. **Denormalized counters** (`likeCount`, `commentCount`, `places.popularity`): update them in the same transaction as the write, and provide a recompute job that can rebuild them from source rows (used after account deletion and visibility changes).
 7. Add or update test factories in `test/factories/`.
 8. Run the full integration test suite.
 

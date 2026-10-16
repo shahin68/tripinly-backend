@@ -163,7 +163,8 @@ describe('Account deletion and export (integration)', () => {
       const carol = await onboardedUser(app, 'carol');
       await withEmail(alice, 'alice@example.com');
 
-      // Alice owns a trip shared with Bob, and a public trip Bob copied.
+      // Alice owns a trip shared with Bob, and a public trip Bob saved and
+      // Carol asked to join.
       const shared = await createTrip(alice, 'Shared', {
         visibility: 'private',
         members: ['bob'],
@@ -177,9 +178,8 @@ describe('Account deletion and export (integration)', () => {
       );
       const original = await createTrip(alice, 'Original');
       await addMarker(alice, original);
-      const copy = (
-        await as(bob).post(`/v1/trips/${original.id}/copy`).expect(201)
-      ).body as { id: string };
+      await as(bob).put(`/v1/trips/${original.id}/save`).expect(204);
+      await as(carol).post(`/v1/trips/${original.id}/join-request`).expect(200);
 
       // Carol's trip, where Alice is an editor, adds a place, comments,
       // uploads the cover photo and likes things.
@@ -258,15 +258,14 @@ describe('Account deletion and export (integration)', () => {
         'alice deleted',
       );
 
-      // Her trips are gone; Bob's copy stays, unlinked.
+      // Her trips are gone, and with them Bob's save and Carol's request.
       expect(
         await prisma.trip.count({
           where: { id: { in: [shared.id, original.id] } },
         }),
       ).toBe(0);
-      expect(
-        await prisma.trip.findUniqueOrThrow({ where: { id: copy.id } }),
-      ).toMatchObject({ copiedFromTripId: null, ownerId: bob.userId });
+      expect(await prisma.tripSave.count()).toBe(0);
+      expect(await prisma.tripJoinRequest.count()).toBe(0);
 
       // Carol's trip keeps Alice's place without an author, loses her
       // comment and photo, and the cover passes to Carol's photo.
@@ -475,6 +474,7 @@ describe('Account deletion and export (integration)', () => {
           `photos/${photoId}.jpg`,
           'profile.json',
           'reports.json',
+          'saved-trips.json',
           'trips.json',
         ].sort(),
       );
@@ -497,7 +497,8 @@ describe('Account deletion and export (integration)', () => {
           expect.objectContaining({ userId: bob.userId, username: 'bob' }),
         ],
       });
-      expect(strFromU8(zip['README.txt'])).toContain('follows.json');
+      expect(json('saved-trips.json')).toEqual({ saved: [], joinRequests: [] });
+      expect(strFromU8(zip['README.txt'])).toContain('saved-trips.json');
 
       await eventually(() => email.sent.length === 1, 10_000, 'email');
       expect(email.sent[0]).toMatchObject({ to: 'alice@example.com' });

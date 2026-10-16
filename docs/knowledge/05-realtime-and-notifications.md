@@ -32,7 +32,7 @@
 | `like.count_changed` | Any like on trip/marker/photo/comment | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
 | `member.added` / `member.removed` | | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }` |
 
-Domain events that don't go to a room as such: `trip.copied` (tripId = the source; data: copyId, ownerId) for a future notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification, and `like.count_changed` for places (no trip).
+Domain events that don't go to a room as such: `join_request.created` (actor = the person asking; data: requestId, ownerId) for the owner's `join_requested` notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification, and `like.count_changed` for places (no trip).
 
 ### User room
 
@@ -50,7 +50,8 @@ Triggered from domain events by the notifications module, executed as BullMQ job
 | Type | Recipient | Rule |
 |---|---|---|
 | `comment_on_marker` | Trip owner and the marker's creator (if different), not the commenter | One push per comment |
-| `added_to_trip` | The added user | Includes trip title and who added them |
+| `added_to_trip` | The added user | Includes trip title and who added them. Also sent when the owner accepts a join request |
+| `join_requested` | Trip owner | Right away, once per request (repeating a pending request doesn't notify again). Deep link to the trip |
 | `trip_changed_by_collaborator` | Trip owner and editors except the actor | **Batched:** collect for 10 minutes per trip per recipient, then one push ("Jonas added 3 markers to Vienna") |
 | `likes_grouped` | Owner of the liked item | **Grouped:** at most one push per recipient per hour summarizing new likes ("12 people liked your photos in Vienna") |
 

@@ -6,7 +6,15 @@ import type { Prisma, Trip, TripRole } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 
 export type TripCapability =
-  'view' | 'edit_content' | 'comment' | 'like' | 'manage' | 'copy' | 'leave';
+  | 'view'
+  | 'edit_content'
+  | 'comment'
+  | 'like'
+  | 'manage'
+  | 'copy'
+  | 'leave'
+  | 'save'
+  | 'join';
 
 export interface TripAccess {
   trip: Trip;
@@ -130,6 +138,9 @@ export class TripAccessService {
       manage: isOwner,
       copy: !isOwner && trip.visibility === 'public',
       leave: role === 'editor',
+      // Saving and asking to join are for other people's public trips.
+      save: !isMember && trip.visibility === 'public',
+      join: !isMember && trip.visibility === 'public',
     };
     if (!allowed[capability]) {
       throw capability === 'copy'
@@ -147,7 +158,7 @@ export class TripAccessService {
   }
 }
 
-/** Own trips and private trips can't be copied. */
+/** Markers of own trips and private trips can't be copied. */
 export function tripNotCopyable(): AppException {
   return new AppException(ErrorCode.TRIP_NOT_COPYABLE, HttpStatus.FORBIDDEN);
 }

@@ -163,6 +163,7 @@ export class DataExportService {
     await addJson('profile.json', await this.profile(userId));
     await addJson('consents.json', await this.consents(userId));
     await addJson('trips.json', await this.trips(userId));
+    await addJson('saved-trips.json', await this.savedTrips(userId));
     await addJson('comments.json', await this.comments(userId));
     await addJson('likes.json', await this.likes(userId));
     await addJson('notifications.json', await this.notifications(userId));
@@ -262,6 +263,7 @@ export class DataExportService {
             tripChangedByCollaborator:
               user.notificationSettings.tripChangedByCollaborator,
             likesGrouped: user.notificationSettings.likesGrouped,
+            joinRequested: user.notificationSettings.joinRequested,
           }
         : null,
     };
@@ -306,7 +308,6 @@ export class DataExportService {
       visibility: trip.visibility,
       startDate: date(trip.startDate),
       endDate: date(trip.endDate),
-      copiedFromTripId: trip.copiedFromTripId,
       createdAt: iso(trip.createdAt),
       days: trip.days.map((day) => ({
         id: day.id,
@@ -323,6 +324,36 @@ export class DataExportService {
         })),
       })),
     }));
+  }
+
+  /** Other people's trips I saved, and my requests to join trips. */
+  private async savedTrips(userId: string) {
+    const [saves, joinRequests] = await Promise.all([
+      this.prisma.tripSave.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        include: { trip: { select: { title: true } } },
+      }),
+      this.prisma.tripJoinRequest.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        include: { trip: { select: { title: true } } },
+      }),
+    ]);
+    return {
+      saved: saves.map((row) => ({
+        tripId: row.tripId,
+        title: row.trip.title,
+        savedAt: iso(row.createdAt),
+      })),
+      joinRequests: joinRequests.map((row) => ({
+        tripId: row.tripId,
+        title: row.trip.title,
+        status: row.status,
+        requestedAt: iso(row.createdAt),
+        decidedAt: iso(row.decidedAt),
+      })),
+    };
   }
 
   private async comments(userId: string) {

@@ -67,7 +67,7 @@ Tripinly places only (popularity > 0) in the bbox, ordered by popularity, limit 
 
 ## Explore — `GET /explore/trips`
 
-Public, not hidden, not own, owner not blocked either way. Score `(likeCount + 2 * copyCount) / (ageDays + 2)^1.5`, ties by `createdAt` desc.
+Public, not hidden, not own, owner not blocked either way. Score `(likeCount + 2 * saves) / (ageDays + 2)^1.5` (saves counted from `trip_saves`), ties by `createdAt` desc.
 
 ## Performance
 

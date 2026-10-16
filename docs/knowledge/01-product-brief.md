@@ -13,16 +13,16 @@ Tripinly is a social travel-planning app. People plan trips day by day as marker
 |---|---|
 | Sign-in | Google / Apple sign-in, token issuing |
 | Onboarding | Profile (name, username, birth date), age check (16+), consent capture |
-| Your trips | Trips the user owns or collaborates on, including copies they made |
+| Your trips | Trips the user owns or collaborates on, plus other people's trips they saved (read-only, "by @owner") |
 | Trip map | Days, markers (optional time, order), cover photo inside markers, popular spots near the trip, privacy toggle, collaborators, add day, add marker, best route |
 | Marker sheet | Photo gallery (scrollable, one cover), likes on marker and photos, comments with likes, share, delete |
-| Explore | Public trips from others, ranked by popularity; like; "Add to my trips" (copy) |
+| Explore | Public trips from others, ranked by popularity; like; "Add to my trips" (save, or ask to join) |
 | Nearby | Popular places around the user's current location, from Tripinly's own data ranked by likes |
 | Popular spot sheet | Place details, like, add to a trip/day |
 | New trip | Name, length/dates, public/private, invite friends |
 | Travel together | Add/remove collaborators by username search or invite link |
 | Profile / Me | Stats, default privacy for new trips, notifications, activity, delete account |
-| Delete account | Explain what is deleted and what survives (copies others made), confirm |
+| Delete account | Explain what is deleted and what survives (markers others copied), confirm |
 
 ## Core features
 
@@ -41,7 +41,7 @@ Tripinly is a social travel-planning app. People plan trips day by day as marker
 10c. **Search:** a search box finds places (ours + OSM POIs) and addresses/cities.
 11. **Collaboration:** owners add people to a trip; collaborators can edit markers and photos.
 12. **Finding people:** by **username search** and **invite links**. Anyone can **follow** anyone without approval; two people who follow each other are **friends**, and the trip member picker lists friends. Following never opens private trips.
-13. **Add to my trips:** a single button that copies someone else's public trip (or a single marker / popular spot) into an **independent copy owned by the copier**, fully editable, as if they made it. Shows "Copied from @handle" while the original author's account exists.
+13. **Add to my trips** (changed 2026-10-16): a trip has one owner forever and is never duplicated. **Save** puts someone else's public trip in my trips, read-only, always the live original. **Join** asks the owner to let me edit; once accepted I'm an editor of the same trip and keep access even if it turns private. A single marker or popular spot can still be copied into one of my trips.
 14. **Best route:** reorders a day's markers. **Free:** straight-line ordering. **Paid:** real travel times via a routing provider.
 15. **Sharing:** links to a trip or marker.
 16. **Reporting and blocking** of content and users, with admin review (required by App Store and Google Play for user-generated content).

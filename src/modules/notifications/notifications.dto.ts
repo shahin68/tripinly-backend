@@ -118,6 +118,9 @@ export class NotificationSettingsDto {
 
   @ApiProperty({ description: 'Push for likes (at most one per hour)' })
   likesGrouped: boolean;
+
+  @ApiProperty({ description: 'Push when someone asks to join my trip' })
+  joinRequested: boolean;
 }
 
 export class UpdateNotificationSettingsDto {
@@ -140,6 +143,11 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean()
   likesGrouped?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  joinRequested?: boolean;
 }
 
 export function toNotificationDto(
