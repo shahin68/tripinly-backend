@@ -19,8 +19,9 @@ interface ExploreCursor {
 }
 
 /**
- * Explore: public, visible trips of other people with at least one marker,
- * owner without a block with the viewer. Ranked by
+ * Explore: public, visible trips with at least one marker, the viewer's own
+ * included (Shahin 2026-10-16: a popular trip shows to its owner too; `role`
+ * tells the app not to offer Save; `includeMine` false leaves them out), owner without a block with the viewer. Ranked by
  * (likes + 2 × saves) / (age in days + 2)^1.5, newest first on ties.
  */
 @Injectable()
@@ -34,6 +35,7 @@ export class ExploreService {
     userId: string,
     cursor?: string,
     limit = DEFAULT_PAGE_SIZE,
+    includeMine = true,
   ): Promise<Page<TripSummaryDto>> {
     const after = cursor ? decodeExploreCursor(cursor) : null;
     const ref = after ? new Date(after.ref) : new Date();
@@ -47,10 +49,15 @@ export class ExploreService {
                  AS score
         FROM trips t
         WHERE t.visibility = 'public' AND t."hiddenAt" IS NULL
-          AND t."ownerId" <> ${userId}::uuid
           -- Suspended (or deleting) owners' trips leave discovery.
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)
+          AND ${
+            includeMine
+              ? Prisma.sql`true`
+              : Prisma.sql`t."ownerId" <> ${userId}::uuid AND NOT EXISTS (
+                  SELECT 1 FROM trip_members tm WHERE tm."tripId" = t.id AND tm."userId" = ${userId}::uuid)`
+          }
           AND NOT EXISTS (
             SELECT 1 FROM blocks b
             WHERE (b."blockerId" = ${userId}::uuid AND b."blockedId" = t."ownerId")
