@@ -1160,7 +1160,7 @@
     },
     "/v1/days/{id}": {
       "delete": {
-        "description": "Later days move up. The last remaining day can’t be deleted (fields.id = [\"lastDay\"]).",
+        "description": "Later days move up. The last remaining day can’t be deleted (fields.id = [\"lastDay\"]). Its stops go too, so the trip owner, or an editor when every stop on it is theirs (else 403 FORBIDDEN). Other people's photos, comments or likes on them: 409 STOP_HAS_OTHERS_CONTENT unless confirm=true.",
         "operationId": "Trips_deleteDay",
         "parameters": [
           {
@@ -1171,11 +1171,24 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "required": false,
+            "in": "query",
+            "description": "true deletes other people's photos, comments and likes too; without it that answers 409 STOP_HAS_OTHERS_CONTENT",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": ""
+          },
+          "409": {
+            "description": "STOP_HAS_OTHERS_CONTENT"
           }
         },
         "security": [
@@ -2108,7 +2121,7 @@
         ]
       },
       "delete": {
-        "description": "Clears the day in one request (editor or owner); the day itself stays. 204 also when it was already empty.",
+        "description": "Clears the day in one request; the day itself stays. 204 also when it was already empty. All or nothing: the trip owner, or an editor when every stop on it is theirs (else 403 FORBIDDEN). Other people's photos, comments or likes on the stops: 409 STOP_HAS_OTHERS_CONTENT unless confirm=true.",
         "operationId": "Markers_clearDay",
         "parameters": [
           {
@@ -2119,11 +2132,24 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "required": false,
+            "in": "query",
+            "description": "true deletes other people's photos, comments and likes too; without it that answers 409 STOP_HAS_OTHERS_CONTENT",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": ""
+          },
+          "409": {
+            "description": "STOP_HAS_OTHERS_CONTENT"
           }
         },
         "security": [
@@ -2339,7 +2365,52 @@
         ]
       },
       "delete": {
+        "description": "Whoever added the stop, or the trip owner (403 FORBIDDEN for other editors: they use DELETE /markers/{id}/mine). Photos, comments and likes go with it. When other people's photos, comments or likes are on it: 409 STOP_HAS_OTHERS_CONTENT (details.photos, details.comments, details.likes) unless confirm=true. A user-made place goes with its last stop, with its place photos.",
         "operationId": "Markers_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirm",
+            "required": false,
+            "in": "query",
+            "description": "true deletes other people's photos, comments and likes too; without it that answers 409 STOP_HAS_OTHERS_CONTENT",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "409": {
+            "description": "STOP_HAS_OTHERS_CONTENT"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a marker with everything on it",
+        "tags": [
+          "markers"
+        ]
+      }
+    },
+    "/v1/markers/{id}/mine": {
+      "delete": {
+        "description": "Anyone who can see the stop. The stop and other people's content stay. 204 also when there was nothing of mine.",
+        "operationId": "Markers_removeMine",
         "parameters": [
           {
             "name": "id",
@@ -2361,7 +2432,7 @@
             "bearer": []
           }
         ],
-        "summary": "Delete a marker",
+        "summary": "Remove my photos, comments and likes from a marker",
         "tags": [
           "markers"
         ]
@@ -2657,6 +2728,95 @@
         ]
       }
     },
+    "/v1/places/{id}/photos/upload-url": {
+      "post": {
+        "description": "A photo on a place (an OSM place or a user place you can see), not on a trip; it stays until you delete it. Same upload flow and file rules as marker photos. At most APP_PLACE_PHOTO_DAILY_LIMIT (default 20) place photos per person in 24 hours → 422 DAILY_PHOTO_LIMIT_REACHED (details.max). 404 for a place you cannot see. photo.ready and photo.failed arrive in your own user room.",
+        "operationId": "Photos_placeUploadUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadUrlRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a place photo upload",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
+    "/v1/places/{id}/photos": {
+      "get": {
+        "description": "Ready place photos, most liked first, then newest; at most 100. Your own photos still processing or failed are included. A photo by someone you blocked (or who blocked you) shows without its uploader.",
+        "operationId": "Photos_placeGallery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A place's photos",
+        "tags": [
+          "photos"
+        ]
+      }
+    },
     "/v1/photos/{id}/complete": {
       "post": {
         "description": "The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is.",
@@ -2834,7 +2994,7 @@
     },
     "/v1/photos/{id}": {
       "delete": {
-        "description": "The uploader, the trip owner or an editor. A deleted cover passes to the next photo.",
+        "description": "Trip photos: the uploader, the trip owner or an editor; a deleted cover passes to the next photo. Place photos: only the uploader.",
         "operationId": "Photos_delete",
         "parameters": [
           {
@@ -3902,6 +4062,8 @@
               "USER_BLOCKED",
               "INVITE_EXPIRED",
               "PHOTO_LIMIT_REACHED",
+              "DAILY_PHOTO_LIMIT_REACHED",
+              "STOP_HAS_OTHERS_CONTENT",
               "LIMIT_REACHED",
               "UPLOAD_TOO_LARGE",
               "UNSUPPORTED_MEDIA_TYPE",
@@ -6171,7 +6333,15 @@
           },
           "markerId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "The stop of a trip photo; null for a place photo"
+          },
+          "placeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The place of a place photo; null for a trip photo"
           },
           "status": {
             "type": "string",
@@ -6203,7 +6373,7 @@
           },
           "position": {
             "type": "number",
-            "description": "Gallery order, 0-based"
+            "description": "Gallery order, 0-based; 0 for place photos"
           },
           "likeCount": {
             "type": "number"
@@ -6227,6 +6397,7 @@
         "required": [
           "id",
           "markerId",
+          "placeId",
           "status",
           "thumbUrl",
           "displayUrl",

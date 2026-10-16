@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
+import { ConfirmQueryDto } from '../../common/dto/confirm-query.dto';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import { PageQueryDto } from '../../common/pagination/pagination';
 import { MembersService } from './members.service';
@@ -118,14 +119,16 @@ export class TripsController {
   @ApiOperation({
     summary: 'Delete a day and its markers',
     description:
-      'Later days move up. The last remaining day can’t be deleted (fields.id = ["lastDay"]).',
+      'Later days move up. The last remaining day can’t be deleted (fields.id = ["lastDay"]). Its stops go too, so the trip owner, or an editor when every stop on it is theirs (else 403 FORBIDDEN). Other people\'s photos, comments or likes on them: 409 STOP_HAS_OTHERS_CONTENT unless confirm=true.',
   })
   @ApiNoContentResponse()
+  @ApiConflictResponse({ description: 'STOP_HAS_OTHERS_CONTENT' })
   deleteDay(
     @CurrentUser() user: AuthUser,
     @Param() { id }: IdParamDto,
+    @Query() { confirm }: ConfirmQueryDto,
   ): Promise<void> {
-    return this.trips.deleteDay(user.id, id);
+    return this.trips.deleteDay(user.id, id, confirm ?? false);
   }
 
   @Post('trips/:id/members')

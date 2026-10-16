@@ -54,6 +54,36 @@ export class PhotosController {
     return this.photos.requestUpload(user.id, id, body);
   }
 
+  @Post('places/:id/photos/upload-url')
+  @Throttle({ default: UPLOAD_RATE_LIMIT })
+  @ApiOperation({
+    summary: 'Start a place photo upload',
+    description:
+      'A photo on a place (an OSM place or a user place you can see), not on a trip; it stays until you delete it. Same upload flow and file rules as marker photos. At most APP_PLACE_PHOTO_DAILY_LIMIT (default 20) place photos per person in 24 hours → 422 DAILY_PHOTO_LIMIT_REACHED (details.max). 404 for a place you cannot see. photo.ready and photo.failed arrive in your own user room.',
+  })
+  @ApiCreatedResponse({ type: UploadUrlResponseDto })
+  placeUploadUrl(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+    @Body() body: UploadUrlRequestDto,
+  ): Promise<UploadUrlResponseDto> {
+    return this.photos.requestPlaceUpload(user.id, id, body);
+  }
+
+  @Get('places/:id/photos')
+  @ApiOperation({
+    summary: "A place's photos",
+    description:
+      'Ready place photos, most liked first, then newest; at most 100. Your own photos still processing or failed are included. A photo by someone you blocked (or who blocked you) shows without its uploader.',
+  })
+  @ApiOkResponse({ type: [PhotoDto] })
+  placeGallery(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<PhotoDto[]> {
+    return this.photos.placeGallery(user.id, id);
+  }
+
   @Post('photos/:id/complete')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
@@ -108,7 +138,7 @@ export class PhotosController {
   @ApiOperation({
     summary: 'Delete a photo',
     description:
-      'The uploader, the trip owner or an editor. A deleted cover passes to the next photo.',
+      'Trip photos: the uploader, the trip owner or an editor; a deleted cover passes to the next photo. Place photos: only the uploader.',
   })
   @ApiNoContentResponse()
   delete(

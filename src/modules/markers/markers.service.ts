@@ -15,6 +15,8 @@ import {
   type PlaceInput,
 } from '../places/place-matching.service';
 import { PlacesService } from '../places/places.service';
+import { releaseUserPlaces } from '../places/user-places';
+import { recountLikes } from '../social/counters.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { TripLimits } from '../trips/trip-limits';
 import { limitReached, lockTrip } from '../trips/trips.service';
@@ -27,6 +29,7 @@ import {
   toMarkerDto,
   type UpdateMarkerDto,
 } from './markers.dto';
+import { assertConfirmedIfShared, mayDeleteStop } from './stop-deletion';
 
 type Tx = Prisma.TransactionClient;
 
@@ -138,13 +141,14 @@ export class MarkersService {
       'edit_content',
     );
 
-    const marker = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, trip.id);
       const current = await tx.marker.findUnique({ where: { id: markerId } });
       if (!current) throw AppException.notFound();
       const data: Prisma.MarkerUncheckedUpdateInput = {};
       // The marker's likes count toward its place: moving it moves them.
       let movedLikes: string[] = [];
+      let leftPlaceId: string | null = null;
 
       if (input.name !== undefined) data.name = input.name;
       if (input.time !== undefined) data.time = input.time;
@@ -161,6 +165,7 @@ export class MarkersService {
           userId,
         );
         data.placeId = place.id;
+        if (place.id !== current.placeId) leftPlaceId = current.placeId;
         if (place.id !== current.placeId && current.likeCount > 0) {
           movedLikes = [current.placeId, place.id];
         }
@@ -207,8 +212,13 @@ export class MarkersService {
       });
       await recomputePopularity(tx, movedLikes);
       await touchTrip(tx, trip.id);
-      return updated;
+      return { updated, leftPlaceId };
     });
+    const marker = result.updated;
+    if (result.leftPlaceId)
+      await releaseUserPlaces(this.prisma, this.photoJobs, [
+        result.leftPlaceId,
+      ]);
 
     const dto = await this.toVisibleDto(userId, marker);
     this.events.emit(
@@ -223,14 +233,146 @@ export class MarkersService {
     return dto;
   }
 
-  async delete(userId: string, markerId: string): Promise<void> {
+  /**
+   * Whoever added the stop, or the trip owner, deletes it with everything on
+   * it; with other people's photos, comments or likes on it only when
+   * `confirm` (B4, B5). Other editors get 403: they use removeMine.
+   */
+  async delete(
+    userId: string,
+    markerId: string,
+    confirm = false,
+  ): Promise<void> {
     const { trip } = await this.access.assertForMarker(
       userId,
       markerId,
       'edit_content',
     );
+    const stop = await this.prisma.marker.findUnique({
+      where: { id: markerId },
+      select: { createdById: true },
+    });
+    if (!stop) throw AppException.notFound();
+    if (!mayDeleteStop(userId, trip.ownerId, stop)) {
+      throw AppException.forbidden();
+    }
+    await assertConfirmedIfShared(this.prisma, [markerId], userId, confirm);
     if (!(await this.remove(userId, markerId, trip.id))) {
       throw AppException.notFound();
+    }
+  }
+
+  /**
+   * Takes the caller's own photos, comments and likes off a stop; the stop and
+   * everyone else's content stay (B4). Anyone who can see the stop may do it.
+   * A cover among their photos passes to the next ready, visible photo.
+   */
+  async removeMine(userId: string, markerId: string): Promise<void> {
+    const { trip } = await this.access.assertForMarker(
+      userId,
+      markerId,
+      'view',
+    );
+    const result = await this.prisma.$transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      const marker = await tx.marker.findUnique({
+        where: { id: markerId },
+        select: { placeId: true, coverPhotoId: true },
+      });
+      if (!marker) throw AppException.notFound();
+      const photos = await tx.photo.findMany({
+        where: { markerId, uploaderId: userId },
+        select: { id: true },
+      });
+      const comments = await tx.comment.findMany({
+        where: { markerId, authorId: userId },
+        select: { id: true },
+      });
+      const photoIds = photos.map((p) => p.id);
+      const commentIds = comments.map((c) => c.id);
+      // Their photos' and comments' own likes go with them (likes trigger).
+      await tx.photo.deleteMany({ where: { id: { in: photoIds } } });
+      await tx.comment.deleteMany({ where: { id: { in: commentIds } } });
+
+      const [otherPhotos, otherComments] = await Promise.all([
+        tx.photo.findMany({ where: { markerId }, select: { id: true } }),
+        tx.comment.findMany({ where: { markerId }, select: { id: true } }),
+      ]);
+      const likes = await tx.like.findMany({
+        where: {
+          userId,
+          OR: [
+            { targetType: 'marker', targetId: markerId },
+            {
+              targetType: 'photo',
+              targetId: { in: otherPhotos.map((p) => p.id) },
+            },
+            {
+              targetType: 'comment',
+              targetId: { in: otherComments.map((c) => c.id) },
+            },
+          ],
+        },
+        select: { id: true, targetType: true, targetId: true },
+      });
+      await tx.like.deleteMany({
+        where: { id: { in: likes.map((like) => like.id) } },
+      });
+      const unliked = (type: string) =>
+        likes.filter((l) => l.targetType === type).map((l) => l.targetId);
+      await recountLikes(tx, 'marker', unliked('marker'));
+      await recountLikes(tx, 'photo', unliked('photo'));
+      await recountLikes(tx, 'comment', unliked('comment'));
+      if (unliked('marker').length > 0) {
+        await recomputePopularity(tx, [marker.placeId]);
+      }
+      await tx.marker.update({
+        where: { id: markerId },
+        data: { commentCount: otherComments.length },
+      });
+
+      let coverPhotoId = marker.coverPhotoId;
+      if (coverPhotoId && photoIds.includes(coverPhotoId)) {
+        const next = await tx.photo.findFirst({
+          where: { markerId, status: 'ready', hiddenAt: null },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          select: { id: true },
+        });
+        coverPhotoId = next?.id ?? null;
+        await tx.marker.update({
+          where: { id: markerId },
+          data: { coverPhotoId },
+        });
+      }
+      const counts = await tx.marker.findUniqueOrThrow({
+        where: { id: markerId },
+        select: { likeCount: true },
+      });
+      return { photoIds, commentIds, coverPhotoId, unliked: likes, counts };
+    });
+
+    await this.photoJobs.deleteFiles(result.photoIds);
+    const emit = (
+      name: (typeof DomainEvents)[keyof typeof DomainEvents],
+      data: unknown,
+    ) => this.events.emit(name, domainEvent(name, userId, data, trip.id));
+    for (const photoId of result.photoIds) {
+      emit(DomainEvents.PHOTO_DELETED, {
+        photoId,
+        markerId,
+        coverPhotoId: result.coverPhotoId,
+      });
+    }
+    for (const commentId of result.commentIds) {
+      emit(DomainEvents.COMMENT_DELETED, { commentId, markerId });
+    }
+    if (result.unliked.some((l) => l.targetType === 'marker')) {
+      emit(DomainEvents.LIKE_COUNT_CHANGED, {
+        targetType: 'marker',
+        targetId: markerId,
+        count: result.counts.likeCount,
+        liked: false,
+      });
     }
   }
 
@@ -270,10 +412,15 @@ export class MarkersService {
         data: { position: { decrement: 1 } },
       });
       await touchTrip(tx, trip.id);
-      return { dayId: marker.dayId, photoIds: photos.map((p) => p.id) };
+      return {
+        dayId: marker.dayId,
+        placeId: marker.placeId,
+        photoIds: photos.map((p) => p.id),
+      };
     });
     if (!result) return false;
     await this.photoJobs.deleteFiles(result.photoIds);
+    await releaseUserPlaces(this.prisma, this.photoJobs, [result.placeId]);
     this.events.emit(
       DomainEvents.MARKER_DELETED,
       domainEvent(
@@ -290,7 +437,11 @@ export class MarkersService {
    * Deletes all of a day's markers in one go ("clear day"). Moderated (hidden)
    * markers stay, as they do for reorder; they move up to fill the gap.
    */
-  async clearDay(userId: string, dayId: string): Promise<void> {
+  async clearDay(
+    userId: string,
+    dayId: string,
+    confirm = false,
+  ): Promise<void> {
     const { trip } = await this.access.assertForDay(
       userId,
       dayId,
@@ -302,11 +453,22 @@ export class MarkersService {
       const markers = await tx.marker.findMany({
         where: { dayId },
         orderBy: [{ position: 'asc' }, { id: 'asc' }],
-        select: { id: true, placeId: true, likeCount: true, hiddenAt: true },
+        select: {
+          id: true,
+          placeId: true,
+          likeCount: true,
+          hiddenAt: true,
+          createdById: true,
+        },
       });
       const deleted = markers.filter((m) => !m.hiddenAt);
       if (deleted.length === 0) return null;
+      // All or nothing: a day with other people's stops is cleared by the trip owner.
+      if (deleted.some((m) => !mayDeleteStop(userId, trip.ownerId, m))) {
+        throw AppException.forbidden();
+      }
       const markerIds = deleted.map((m) => m.id);
+      await assertConfirmedIfShared(tx, markerIds, userId, confirm);
       const photos = await tx.photo.findMany({
         where: { markerId: { in: markerIds } },
         select: { id: true },
@@ -328,10 +490,15 @@ export class MarkersService {
         });
       }
       await touchTrip(tx, trip.id);
-      return { markerIds, photoIds: photos.map((p) => p.id) };
+      return {
+        markerIds,
+        placeIds: deleted.map((m) => m.placeId),
+        photoIds: photos.map((p) => p.id),
+      };
     });
     if (!result) return;
     await this.photoJobs.deleteFiles(result.photoIds);
+    await releaseUserPlaces(this.prisma, this.photoJobs, result.placeIds);
     for (const markerId of result.markerIds) {
       this.events.emit(
         DomainEvents.MARKER_DELETED,

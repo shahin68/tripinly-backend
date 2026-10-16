@@ -67,7 +67,7 @@ export class RealtimeListener implements OnModuleDestroy {
 
   @OnDomainEvents(...PASS_THROUGH)
   onTripEvent(event: DomainEvent): Promise<void> {
-    return this.safely(event, () => this.toTrip(event, event.data));
+    return this.safely(event, () => this.toTripOrUploader(event, event.data));
   }
 
   @OnDomainEvents(...(Object.keys(VIEWER_NEUTRAL) as DomainEventName[]))
@@ -75,8 +75,35 @@ export class RealtimeListener implements OnModuleDestroy {
     return this.safely(event, () => {
       const key = VIEWER_NEUTRAL[event.event as keyof typeof VIEWER_NEUTRAL];
       const entity = event.data[key] as Record<string, unknown>;
-      return this.toTrip(event, { [key]: { ...entity, likedByMe: false } });
+      return this.toTripOrUploader(event, {
+        [key]: { ...entity, likedByMe: false },
+      });
     });
+  }
+
+  /**
+   * Place photos have no trip room: their uploader hears photo.ready and
+   * photo.failed in their own room. Other trip-less events go nowhere.
+   */
+  private toTripOrUploader(
+    event: DomainEvent<unknown>,
+    data: unknown,
+  ): Promise<void> {
+    if (event.tripId) return this.toTrip(event, data);
+    if (
+      event.actorId &&
+      (event.event === DomainEvents.PHOTO_READY ||
+        event.event === DomainEvents.PHOTO_FAILED)
+    ) {
+      this.publisher.toUser(event.actorId, {
+        event: event.event,
+        tripId: null,
+        actorId: event.actorId,
+        at: event.at,
+        data,
+      });
+    }
+    return Promise.resolve();
   }
 
   @OnEvent(DomainEvents.COMMENT_CREATED)

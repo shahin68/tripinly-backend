@@ -54,10 +54,11 @@ export async function upload(
   markerId: string,
   file: Buffer,
   mimeType = 'image/jpeg',
+  owner: 'markers' | 'places' = 'markers',
 ): Promise<UploadStart> {
   const { body } = await api(app)
     .as(session)
-    .post(`/v1/markers/${markerId}/photos/upload-url`)
+    .post(`/v1/${owner}/${markerId}/photos/upload-url`)
     .send({ mimeType, bytes: file.length })
     .expect(201);
   const start = body as UploadStart;
@@ -85,6 +86,28 @@ export async function readyPhoto(
     session,
     markerId,
     file ?? (await jpegWithGps()),
+  );
+  await api(app)
+    .as(session)
+    .post(`/v1/photos/${photo.id}/complete`)
+    .expect(202);
+  await app.get(PhotoProcessingService).process(photo.id);
+  return photo.id;
+}
+
+/** A ready place photo (no trip), uploaded and processed. Returns the photo id. */
+export async function readyPlacePhoto(
+  app: INestApplication,
+  session: Session,
+  placeId: string,
+): Promise<string> {
+  const { photo } = await upload(
+    app,
+    session,
+    placeId,
+    await jpegWithGps(),
+    'image/jpeg',
+    'places',
   );
   await api(app)
     .as(session)

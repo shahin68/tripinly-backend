@@ -208,12 +208,14 @@ export class ModerationService {
             select: { tripId: true },
           });
           // Trip first, like every other photo write, so locks never cross.
-          await lockTrip(tx, tripId);
+          if (tripId) await lockTrip(tx, tripId);
           const photo = await tx.photo.update({
             where: { id: ref.targetId },
             data: { hiddenAt: now },
             select: { id: true, markerId: true },
           });
+          // A place photo has no marker, so no cover to pass on.
+          if (!photo.markerId) return;
           const marker = await tx.marker.findUnique({
             where: { id: photo.markerId },
             select: { coverPhotoId: true },

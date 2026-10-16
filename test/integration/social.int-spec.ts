@@ -192,7 +192,9 @@ describe('Social (integration)', () => {
       expect(await popularity()).toBe(0);
       expect(await popularity(other)).toBe(1);
 
-      await as(owner).delete(`/v1/markers/${markerId}`).expect(204);
+      await as(owner)
+        .delete(`/v1/markers/${markerId}?confirm=true`)
+        .expect(204);
       expect(await popularity(other)).toBe(0);
       expect(await prisma.like.count()).toBe(0);
     });

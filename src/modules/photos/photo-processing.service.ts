@@ -93,6 +93,8 @@ export class PhotoProcessingService {
         data: { status: 'ready', width, height },
       });
       if (count === 0) return null;
+      // Place photos have no marker, so no cover.
+      if (!photo.markerId) return { coverSet: false };
       const cover = await tx.marker.updateMany({
         where: { id: photo.markerId, coverPhotoId: null },
         data: { coverPhotoId: photoId },
@@ -120,7 +122,7 @@ export class PhotoProcessingService {
         DomainEvents.PHOTO_READY,
         photo.uploaderId,
         { photo: toPhotoDto(ready, this.storage) },
-        photo.tripId,
+        photo.tripId ?? undefined,
       ),
     );
     if (result.coverSet) {
@@ -130,7 +132,7 @@ export class PhotoProcessingService {
           DomainEvents.MARKER_COVER_CHANGED,
           photo.uploaderId,
           { markerId: photo.markerId, photoId },
-          photo.tripId,
+          photo.tripId ?? undefined,
         ),
       );
     }
@@ -153,8 +155,8 @@ export class PhotoProcessingService {
       domainEvent(
         DomainEvents.PHOTO_FAILED,
         photo.uploaderId,
-        { photoId, markerId: photo.markerId },
-        photo.tripId,
+        { photoId, markerId: photo.markerId, placeId: photo.placeId },
+        photo.tripId ?? undefined,
       ),
     );
   }

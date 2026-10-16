@@ -33,7 +33,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - New trips default to the user's `defaultTripVisibility` setting.
 - **Public:** visible to anyone (not blocked), listed in Explore, its markers count toward place popularity; others can save it, ask to join it and copy its markers.
 - **Private:** visible only to owner and editors. Never in Explore, search, Nearby, Popular spots or popularity counts. Can't be saved, joined from outside or copied from. Share links to private trips only work for members.
-- Only the owner can change visibility, rename, delete the trip, and manage members. Editors can add/edit/delete/reorder markers and days, upload and remove photos, and set covers.
+- Only the owner can change visibility, rename, delete the trip, and manage members. Editors can add, edit and reorder markers and days, upload and remove photos, and set covers; deleting a stop follows "Deleting a stop" below.
 - Switching public → private removes the trip's markers from popularity aggregates (recompute).
 
 ## Collaboration and invites
@@ -51,6 +51,20 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - Limits (defaults, configurable): 30 photos per marker, 15 MB per original, JPEG/PNG/WebP. The app converts HEIC (iPhone) photos to JPEG before uploading; the server cannot decode HEIC.
 - Viewers see ready photos only; trip members also see photos still processing or failed. Photos uploaded by someone with a block with the viewer are left out, and a cover they uploaded is not shown.
 - An uploader can delete their photo even after leaving the trip.
+
+### Place photos (decided 2026-10-16, B1–B3, C7)
+
+- Anyone who can see a place (any active OSM place; a user place in a trip they can see) can add a photo **to the place**, without a trip. It belongs to the place, not to a trip or stop, and stays until its uploader deletes it (nobody else can, apart from moderation), the uploader's account goes, or the user place goes (below).
+- Limit: `APP_PLACE_PHOTO_DAILY_LIMIT` place photos per person in 24 hours (default 20, Railway) → `DAILY_PHOTO_LIMIT_REACHED`. Failed uploads don't count.
+- The place's gallery lists them most liked first, then newest. People with a block either way **still see each other's place photos**, without the uploader's name; they still can't like them (or anything else of each other's).
+- Same pipeline as trip photos (metadata stripped, thumb and display), same likes, reports, moderation, export and account deletion.
+
+### Deleting a stop (decided 2026-10-16, B4–B6)
+
+- A stop's **owner** is whoever added it; the **trip owner** also counts. Only they delete the stop, and with it everything on it: photos, comments and likes, other people's included. When other people's photos, comments or likes are on it, the server answers `STOP_HAS_OTHERS_CONTENT` (409) until the app has shown a warning and repeats with `confirm=true`.
+- Anyone else (another editor, a commenter on a public trip) can only **remove their own** photos, comments and likes from it (`DELETE /markers/{id}/mine`); the stop stays.
+- Clearing or deleting a day deletes its stops, so it needs the same right for every stop on it (all or nothing) and the same confirmation.
+- A **user-made place** used by stops in several trips stays while any stop uses it; with the last stop (deleted, moved to another place, or its trip or day deleted) it goes, with its place photos and likes. OSM places always stay.
 
 ## Likes and popularity
 

@@ -67,7 +67,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `likeCount`, `commentCount`, `hiddenAt`
 
 **photos**
-- marker → markers (`CASCADE`), `tripId` (denormalized, `CASCADE`), `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
+- A trip photo has `markerId` → markers (`CASCADE`) and `tripId` (denormalized, `CASCADE`); a **place photo** has only `placeId` → places (`CASCADE`) and `position` 0. A check constraint keeps exactly one of the two. `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
 - Storage keys derive from the id: `photos/{id}/original` (re-encoded without metadata once processed), `photos/{id}/thumb.webp` (256 px square), `photos/{id}/display.webp` (≤ 1600 px). Deleting the prefix `photos/{id}/` deletes every file.
 - `width`, `height` (upright, after EXIF rotation), `mimeType`, `bytes` (declared at upload)
 - `status` (`pending_upload` | `processing` | `ready` | `failed`), `likeCount`, `hiddenAt`

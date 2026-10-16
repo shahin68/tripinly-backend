@@ -420,9 +420,11 @@ describe('Markers and place matching (integration)', () => {
       const b = await addMarker({ name: 'B', location: SACHER }).expect(201);
       await addMarker({ name: 'C', location: SACHER }).expect(201);
       await as(stranger).delete(`/v1/markers/${b.body.id}`).expect(403);
-      await as(editor).delete(`/v1/markers/${b.body.id}`).expect(204);
+      // Only whoever added a stop, or the trip owner, deletes it.
+      await as(editor).delete(`/v1/markers/${b.body.id}`).expect(403);
+      await as(owner).delete(`/v1/markers/${b.body.id}`).expect(204);
       expect(await positions()).toEqual(['A', 'C']);
-      await as(editor).delete(`/v1/markers/${b.body.id}`).expect(404);
+      await as(owner).delete(`/v1/markers/${b.body.id}`).expect(404);
     });
   });
 
@@ -443,7 +445,9 @@ describe('Markers and place matching (integration)', () => {
       const emit = jest.spyOn(app.get(EventEmitter2), 'emit');
 
       await as(stranger).delete(`/v1/days/${dayId}/markers`).expect(403);
-      await as(editor).delete(`/v1/days/${dayId}/markers`).expect(204);
+      // Not all of them are the editor's.
+      await as(editor).delete(`/v1/days/${dayId}/markers`).expect(403);
+      await as(owner).delete(`/v1/days/${dayId}/markers`).expect(204);
 
       expect(await positions()).toEqual(['B']);
       expect(await positions(trip.days[1].id)).toEqual(['Other day']);

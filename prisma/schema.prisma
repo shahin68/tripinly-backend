@@ -391,6 +391,7 @@ model Place {
 
   markers Marker[]
   images  PlaceImage[]
+  photos  Photo[]
 
   @@unique([osmType, osmId])
   @@index([location], type: Gist)
@@ -581,11 +582,14 @@ enum PhotoStatus {
 }
 
 /// Storage keys derive from the id: photos/{id}/original, thumb.webp, display.webp.
+/// A trip photo (on a marker) or a place photo (on a place, no trip); exactly one of markerId and placeId is set.
 model Photo {
   id         String      @id @default(uuid()) @db.Uuid
-  markerId   String      @db.Uuid
-  /// Denormalized from the marker for access checks and cleanup.
-  tripId     String      @db.Uuid
+  markerId   String?     @db.Uuid
+  /// Denormalized from the marker for access checks and cleanup; null for place photos.
+  tripId     String?     @db.Uuid
+  /// Place photos only: stays until its uploader deletes it, or the (user-made) place goes.
+  placeId    String?     @db.Uuid
   /// Restrict: account deletion removes a user's photos (and their files) first.
   uploaderId String      @db.Uuid
   status     PhotoStatus @default(pending_upload)
@@ -602,14 +606,16 @@ model Photo {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  marker   Marker  @relation("MarkerPhotos", fields: [markerId], references: [id], onDelete: Cascade)
-  trip     Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  marker   Marker? @relation("MarkerPhotos", fields: [markerId], references: [id], onDelete: Cascade)
+  trip     Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  place    Place?  @relation(fields: [placeId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
   coverOf  Marker? @relation("MarkerCover")
 
   @@index([markerId, position])
   @@index([tripId])
-  @@index([uploaderId])
+  @@index([uploaderId, createdAt])
+  @@index([placeId, likeCount(sort: Desc), createdAt(sort: Desc)])
   @@index([status, updatedAt])
   @@map("photos")
 }
