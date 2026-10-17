@@ -7,6 +7,7 @@ import {
 } from '../../generated/prisma/client';
 import { TripAccessService } from '../trips/trip-access.service';
 import { normalizePlaceName } from './normalize-name';
+import { PUBLIC_STOP_WHERE } from './popularity';
 
 type Tx = Prisma.TransactionClient;
 
@@ -125,6 +126,24 @@ export class PlaceMatchingService {
       select: { id: true },
     });
     return marker !== null;
+  }
+
+  /**
+   * Whoever can see a place can like it (E1), except a user-made place that no
+   * public trip has: a custom spot that is only in private trips.
+   */
+  async isLikeable(
+    db: Tx,
+    userId: string,
+    place: { id: string; source: PlaceSource; popularity: number },
+  ): Promise<boolean> {
+    if (!(await this.isVisible(db, userId, place))) return false;
+    if (place.source === 'osm' || place.popularity > 0) return true;
+    const stop = await db.marker.findFirst({
+      where: { placeId: place.id, ...PUBLIC_STOP_WHERE },
+      select: { id: true },
+    });
+    return stop !== null;
   }
 
   /** An active place the caller can see (isVisible), else 404. */

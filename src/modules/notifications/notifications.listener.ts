@@ -137,7 +137,7 @@ export class NotificationsListener {
     return this.enqueue({
       kind: 'liked',
       actorId: event.actorId,
-      targetType: targetType as 'trip' | 'marker' | 'photo' | 'comment',
+      targetType: targetType as 'trip' | 'photo' | 'comment',
       targetId,
       tripId: event.tripId,
     });

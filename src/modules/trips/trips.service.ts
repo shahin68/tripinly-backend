@@ -173,8 +173,8 @@ export class TripsService {
         userId,
         { type: 'trip', ids: [trip.id] },
         {
-          type: 'marker',
-          ids: trip.days.flatMap((day) => day.markers.map((m) => m.id)),
+          type: 'place',
+          ids: trip.days.flatMap((day) => day.markers.map((m) => m.placeId)),
         },
       ),
       this.prisma.tripSave.count({ where: { tripId, userId } }),
@@ -245,9 +245,9 @@ export class TripsService {
           data: { ...data, updatedAt: new Date() },
         });
       }
-      // Likes on a trip's markers count toward place popularity only while it is public.
+      // A user-made place's likes count only while a public trip has it.
       if (changed.visibility) {
-        await recomputePopularity(tx, await likedPlaceIds(tx, { tripId }));
+        await recomputePopularity(tx, await userPlaceIds(tx, { tripId }));
       }
     });
 
@@ -285,7 +285,7 @@ export class TripsService {
         where: { tripId },
         select: { placeId: true },
       });
-      const placeIds = await likedPlaceIds(tx, { tripId });
+      const placeIds = await userPlaceIds(tx, { tripId });
       const { count } = await tx.trip.deleteMany({ where: { id: tripId } });
       if (count === 0) return null;
       await recomputePopularity(tx, placeIds);
@@ -439,7 +439,7 @@ export class TripsService {
         select: { id: true },
       });
       photoIds.push(...photos.map((photo) => photo.id));
-      const placeIds = await likedPlaceIds(tx, { dayId });
+      const placeIds = await userPlaceIds(tx, { dayId });
       await tx.tripDay.delete({ where: { id: dayId } });
       await recomputePopularity(tx, placeIds);
       await shiftDaysUp(tx, trip.id, day.position);
@@ -621,13 +621,16 @@ async function shiftDaysUp(
     WHERE "tripId" = ${tripId}::uuid AND position < 0`;
 }
 
-/** Places of markers with likes: the ones whose popularity a change to these markers can move. */
-export async function likedPlaceIds(
+/**
+ * User-made places of these markers: the ones whose popularity a change to the
+ * markers can move, since their likes count only while a public trip has them.
+ */
+export async function userPlaceIds(
   tx: Tx,
   where: Prisma.MarkerWhereInput,
 ): Promise<string[]> {
   const markers = await tx.marker.findMany({
-    where: { ...where, likeCount: { gt: 0 } },
+    where: { ...where, place: { source: 'user' } },
     select: { placeId: true },
     distinct: ['placeId'],
   });

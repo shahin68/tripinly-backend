@@ -49,9 +49,9 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `osmRegion` (Geofabrik region of the last import that saw it; used to deactivate what a region no longer has)
 - `tags` (json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image), `isActive`, `importedAt` (last time an import inserted or changed the row's OSM data; rank changes don't move it)
 - `prominence` (smallint 0–100, how well known the place is, from QRank and OSM tags; see `10-maps-places-routing.md`), `qrank` (int, QRank of its Wikidata item, nullable), `imageTagsHash` (hash of the wikidata, wikimedia_commons and image tags, nullable). Set by the OSM import, also on `user` places that carry OSM ids
-- `popularity` (int, denormalized: likes on public markers + direct place likes)
+- `popularity` (int, denormalized: the place's likes; a `user` place counts them only while a visible stop of a public, visible trip is on it, else 0)
 - GiST index on `location`; index on `popularity desc`; partial GiST index on `location WHERE popularity > 0`; GIN trigram indexes on `normalizedName` and `searchText` (extension `pg_trgm`); indexes on `category` and `osmRegion`.
-- **Listing rule:** only `osm` places and places with `popularity > 0` appear in in-view, search, nearby and popular. Any other `user` place (a custom pin, possibly from a private trip) is visible only to people who can see a marker at it, including through `GET /places/{id}` and when picked by `placeId`.
+- **Listing rule:** only `osm` places and places with `popularity > 0` (so a public user place with likes) appear in in-view, search, nearby and popular. Any other `user` place (a custom pin, possibly from a private trip) is visible only to people who can see a marker at it, including through `GET /places/{id}` and when picked by `placeId`.
 - **No Google data** in this table (see `10-maps-places-routing.md`).
 
 **place_images** — Wikimedia Commons images of a place, copied to our storage with their credits (`10-maps-places-routing.md`). place → places (`CASCADE`), `origin` (`wikidata_p18` | `osm_wikimedia_commons` | `osm_image`, where the place links the file from, in priority order), `commonsTitle` ("File:…"), `objectName`, `wikidataId`, `rank` (display order, 0 first), `width`, `height`, `mime`, `commonsSha1` (a new one means download again), `authorText` (Artist as text), `attributionText` (the uploader's `attribution=` wording, credited instead of the author when set), `licenseCode` (normalized, e.g. `cc-by-sa-4.0`, `cc0`, `pd`), `licenseShortName`, `licenseUrl`, `attributionRequired`, `filePageUrl`, `status` (`pending` | `ready` | `rejected` = failed the licence or size filter, see `rejectReason` | `removed` = gone from Commons or no longer linked, files deleted | `hidden` = by an admin), `fetchedAt`, `checkedAt`. Unique (`placeId`, `commonsTitle`); indexes on (`placeId`, `status`, `rank`) and `commonsTitle`. Files: `place-images/{id}/thumb.webp` (256 px) and `place-images/{id}/display.webp` (≤ 1280 px). Not stored: hotlink URLs, Commons GPS, Commons descriptions. No user data.
@@ -64,7 +64,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `coverPhotoId` → photos (nullable, unique, `SET NULL`): always a ready photo of this marker
 - `createdById` → users (nullable, `ON DELETE SET NULL`)
 - `copiedFromMarkerId` → markers (nullable, `SET NULL`)
-- `likeCount`, `commentCount`, `hiddenAt`
+- `commentCount`, `hiddenAt` (no `likeCount`: a stop's likes are its place's, dropped 2026-10-17)
 
 **photos**
 - A trip photo has `markerId` → markers (`CASCADE`) and `tripId` (denormalized, `CASCADE`); a **place photo** has only `placeId` → places (`CASCADE`) and `position` 0. A check constraint keeps exactly one of the two. `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
@@ -77,9 +77,9 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 
 **comments** — marker → markers (`CASCADE`), `tripId` (denormalized, `CASCADE`), author → users (`CASCADE`), `body` (1–1000 chars), `likeCount`, `hiddenAt`. Deleting a comment removes the row. Index (`markerId`, `createdAt`, `id`) for the oldest-first list.
 
-**likes** — user → users (`CASCADE`), `targetType` (`trip` | `marker` | `photo` | `comment` | `place`), `targetId` (no foreign key). Unique (`userId`, `targetType`, `targetId`). Index (`targetType`, `targetId`). `AFTER DELETE` triggers on trips, markers, photos, comments and places delete the target's likes, so cascades never leave likes behind.
+**likes** — user → users (`CASCADE`), `targetType` (`trip` | `photo` | `comment` | `place`; `marker` stays in the enum but has no rows since 2026-10-17, when stop likes moved to their places), `targetId` (no foreign key). Unique (`userId`, `targetType`, `targetId`). Index (`targetType`, `targetId`). `AFTER DELETE` triggers on trips, markers, photos, comments and places delete the target's likes, so cascades never leave likes behind.
 
-Counters (`likeCount` on trips, markers, photos, comments; `markers.commentCount`; `places.popularity`) are updated in the request transaction with the target row locked, and rebuilt nightly from source rows by the worker (`social` queue, `recount` job).
+Counters (`likeCount` on trips, photos, comments; `markers.commentCount`; `places.popularity`) are updated in the request transaction with the target row locked, and rebuilt nightly from source rows by the worker (`social` queue, `recount` job).
 
 **blocks** — `blockerId`, `blockedId`. Unique pair. Queries check both directions.
 

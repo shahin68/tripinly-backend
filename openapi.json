@@ -3181,7 +3181,6 @@
               "type": "string",
               "enum": [
                 "trip",
-                "marker",
                 "photo",
                 "comment",
                 "place"
@@ -3232,7 +3231,6 @@
               "type": "string",
               "enum": [
                 "trip",
-                "marker",
                 "photo",
                 "comment",
                 "place"
@@ -5006,10 +5004,16 @@
             "type": "number"
           },
           "likeCount": {
-            "type": "number"
+            "type": "number",
+            "description": "The place's likes: a stop's like button likes its place, so every stop at a place shows the same count"
           },
           "likedByMe": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "I liked the place"
+          },
+          "canLike": {
+            "type": "boolean",
+            "description": "False for a custom spot that is only in private trips: it has no like button"
           },
           "commentCount": {
             "type": "number"
@@ -5045,6 +5049,7 @@
           "photoCount",
           "likeCount",
           "likedByMe",
+          "canLike",
           "commentCount",
           "createdBy",
           "createdAt",
@@ -6595,7 +6600,6 @@
             "type": "string",
             "enum": [
               "trip",
-              "marker",
               "photo",
               "comment",
               "place"

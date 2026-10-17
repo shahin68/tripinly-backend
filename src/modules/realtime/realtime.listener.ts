@@ -115,8 +115,8 @@ export class RealtimeListener implements OnModuleDestroy {
 
   @OnEvent(DomainEvents.LIKE_COUNT_CHANGED)
   onLikeCountChanged(event: DomainEvent<LikeData>): void {
-    // Place likes have no trip room.
-    if (!event.tripId) return;
+    // A place's likes show on its stops, so they go to every trip with a stop there.
+    if (!event.tripId && event.data.targetType !== 'place') return;
     this.throttleLike(event);
   }
 
@@ -290,9 +290,18 @@ export class RealtimeListener implements OnModuleDestroy {
     timer.unref();
     this.likeSlots.set(key, { timer });
     const { targetType, targetId, count } = event.data;
-    void this.safely(event, () =>
-      this.toTrip(event, { targetType, targetId, count }),
-    );
+    void this.safely(event, async () => {
+      const data = { targetType, targetId, count };
+      if (event.tripId) return this.toTrip(event, data);
+      const stops = await this.prisma.marker.findMany({
+        where: { placeId: targetId, hiddenAt: null },
+        select: { tripId: true },
+        distinct: ['tripId'],
+      });
+      for (const { tripId } of stops) {
+        await this.toTrip({ ...event, tripId }, data);
+      }
+    });
   }
 
   private async safely(

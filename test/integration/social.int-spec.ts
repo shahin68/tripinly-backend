@@ -92,35 +92,45 @@ describe('Social (integration)', () => {
     (await prisma.place.findUniqueOrThrow({ where: { id } })).popularity;
 
   describe('likes', () => {
-    it('likes a marker once, counts it toward the place, and unlikes', async () => {
+    it("likes a stop's place: every stop there shows its count", async () => {
       const first = await as(stranger)
-        .put(`/v1/likes/marker/${markerId}`)
+        .put(`/v1/likes/place/${placeId}`)
         .expect(200);
       expect(first.body).toEqual({
-        targetType: 'marker',
-        targetId: markerId,
+        targetType: 'place',
+        targetId: placeId,
         liked: true,
         likeCount: 1,
       });
-      // Idempotent.
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
+      // Idempotent: one like per person per place.
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
       const marker = await as(stranger).get(`/v1/markers/${markerId}`);
-      expect(marker.body).toMatchObject({ likeCount: 1, likedByMe: true });
+      expect(marker.body).toMatchObject({
+        likeCount: 1,
+        likedByMe: true,
+        canLike: true,
+      });
       const forOwner = await as(owner).get(`/v1/trips/${trip.id}`);
       expect(forOwner.body.days[0].markers[0]).toMatchObject({
         likeCount: 1,
         likedByMe: false,
       });
+      // Another trip's stop at the same place shows the same like.
+      const other = await createTrip(stranger, 'Vienna too', 'public');
+      const otherMarker = await addMarker(stranger, other.days[0].id, placeId);
+      expect(
+        (await as(stranger).get(`/v1/markers/${otherMarker}`)).body,
+      ).toMatchObject({ likeCount: 1, likedByMe: true });
       expect(await popularity()).toBe(1);
 
       const place = await as(stranger).get(`/v1/places/${placeId}`);
       expect(place.body).toMatchObject({ isTripinly: true, likeCount: 1 });
 
       const removed = await as(stranger)
-        .delete(`/v1/likes/marker/${markerId}`)
+        .delete(`/v1/likes/place/${placeId}`)
         .expect(200);
       expect(removed.body).toMatchObject({ liked: false, likeCount: 0 });
-      await as(stranger).delete(`/v1/likes/marker/${markerId}`).expect(200);
+      await as(stranger).delete(`/v1/likes/place/${placeId}`).expect(200);
       expect(await popularity()).toBe(0);
     });
 
@@ -139,26 +149,44 @@ describe('Social (integration)', () => {
       expect(mine.body.items[0].updatedAt).toBe(detail.body.updatedAt);
     });
 
-    it('keeps private trips to members, and their likes out of popularity', async () => {
+    it('keeps private trips to members, and their custom spots unlikeable', async () => {
       const secret = await createTrip(owner, 'Secret', 'private', ['editor']);
       const secretMarker = await addMarker(owner, secret.days[0].id, placeId);
       await as(stranger).put(`/v1/likes/trip/${secret.id}`).expect(404);
-      await as(stranger).put(`/v1/likes/marker/${secretMarker}`).expect(404);
+      await as(stranger).get(`/v1/markers/${secretMarker}`).expect(404);
 
-      await as(editor).put(`/v1/likes/marker/${secretMarker}`).expect(200);
-      expect(await popularity()).toBe(0);
+      // An OSM place is anyone's to like, from a private trip too.
+      await as(editor).put(`/v1/likes/place/${placeId}`).expect(200);
+      expect(await popularity()).toBe(1);
 
-      // Going public brings the like into the count; private again takes it out.
+      // A custom spot only in private trips has no like button.
+      const pin = await as(owner)
+        .post(`/v1/days/${secret.days[0].id}/markers`)
+        .send({ name: 'Our flat', location: { lat: 48.19, lng: 16.35 } })
+        .expect(201);
+      expect(pin.body).toMatchObject({ canLike: false, likeCount: 0 });
+      await as(editor).put(`/v1/likes/place/${pin.body.placeId}`).expect(404);
+
+      // Going public makes it likeable; private again takes its likes out of the count.
       await as(owner)
         .patch(`/v1/trips/${secret.id}`)
         .send({ visibility: 'public' })
         .expect(200);
-      expect(await popularity()).toBe(1);
+      expect(
+        (await as(editor).get(`/v1/markers/${pin.body.id}`)).body,
+      ).toMatchObject({ canLike: true });
+      await as(editor).put(`/v1/likes/place/${pin.body.placeId}`).expect(200);
+      expect(await popularity(pin.body.placeId)).toBe(1);
       await as(owner)
         .patch(`/v1/trips/${secret.id}`)
         .send({ visibility: 'private' })
         .expect(200);
-      expect(await popularity()).toBe(0);
+      expect(await popularity(pin.body.placeId)).toBe(0);
+      expect(
+        (await as(editor).get(`/v1/markers/${pin.body.id}`)).body,
+      ).toMatchObject({ canLike: false, likeCount: 0 });
+      await as(stranger).get(`/v1/places/${pin.body.placeId}`).expect(404);
+      expect(await popularity()).toBe(1);
     });
 
     it('likes places directly, only places the caller may see', async () => {
@@ -178,8 +206,8 @@ describe('Social (integration)', () => {
       await as(stranger).put(`/v1/likes/place/${pin.body.placeId}`).expect(404);
     });
 
-    it('moves popularity when a liked marker moves or is deleted', async () => {
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
+    it('keeps place likes when stops move or go, until a custom spot goes', async () => {
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
       const other = await insertPlace(app, {
         name: 'Hofburg',
         lat: 48.2065,
@@ -189,19 +217,28 @@ describe('Social (integration)', () => {
         .patch(`/v1/markers/${markerId}`)
         .send({ placeId: other })
         .expect(200);
-      expect(await popularity()).toBe(0);
-      expect(await popularity(other)).toBe(1);
-
-      await as(owner)
-        .delete(`/v1/markers/${markerId}?confirm=true`)
-        .expect(204);
+      expect(await popularity()).toBe(1);
       expect(await popularity(other)).toBe(0);
-      expect(await prisma.like.count()).toBe(0);
+      await as(owner).delete(`/v1/markers/${markerId}`).expect(204);
+      expect(await popularity()).toBe(1);
+
+      // A custom spot goes with its last stop, and its likes with it.
+      const pin = await as(owner)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ name: 'Hot bench', location: { lat: 48.19, lng: 16.35 } })
+        .expect(201);
+      await as(stranger).put(`/v1/likes/place/${pin.body.placeId}`).expect(200);
+      expect(await popularity(pin.body.placeId)).toBe(1);
+      await as(owner).delete(`/v1/markers/${pin.body.id}`).expect(204);
+      expect(
+        await prisma.place.findUnique({ where: { id: pin.body.placeId } }),
+      ).toBeNull();
+      expect(await prisma.like.count()).toBe(1);
     });
 
     it('removes every like with a deleted trip', async () => {
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
       const comment = await as(stranger)
         .post(`/v1/markers/${markerId}/comments`)
         .send({ body: 'Lovely' })
@@ -210,8 +247,9 @@ describe('Social (integration)', () => {
       expect(await prisma.like.count()).toBe(3);
 
       await as(owner).delete(`/v1/trips/${trip.id}`).expect(204);
-      expect(await prisma.like.count()).toBe(0);
-      expect(await popularity()).toBe(0);
+      // The place's like belongs to the place, which stays.
+      expect(await prisma.like.count()).toBe(1);
+      expect(await popularity()).toBe(1);
     });
 
     it('likes ready photos only and removes their likes with them', async () => {
@@ -248,8 +286,10 @@ describe('Social (integration)', () => {
         .put(`/v1/likes/user/${stranger.userId}`)
         .expect(400);
       expect(bad.body.error.details.fields.targetType).toBeDefined();
+      // Stops have no likes of their own.
+      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(400);
       await as(stranger)
-        .put('/v1/likes/marker/00000000-0000-4000-8000-000000000000')
+        .put('/v1/likes/place/00000000-0000-4000-8000-000000000000')
         .expect(404);
     });
   });
@@ -771,9 +811,8 @@ describe('Social (integration)', () => {
     it("doesn't count the owner's own likes", async () => {
       const photoId = await readyPhoto(app, owner, markerId);
       await likePhoto(owner, photoId);
-      await as(owner).put(`/v1/likes/marker/${markerId}`).expect(200);
       await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
-      expect(await popularity()).toBe(2);
+      expect(await popularity()).toBe(1);
 
       expect(await detail(stranger)).toMatchObject({
         coverPhotoId: null,
@@ -903,15 +942,10 @@ describe('Social (integration)', () => {
 
     it('picks the photo with the most outside likes, not the top marker', async () => {
       const [a, b, c] = await outsiders('ada', 'ben', 'cal');
-      // The owner's marker has the most likes overall, with a photo two
-      // outsiders and the editor liked.
+      // The owner's marker has a photo two outsiders and the editor liked.
       const first = await readyPhoto(app, owner, markerId);
       for (const session of [a, b, editor]) await likePhoto(session, first);
-      for (const session of [a, b, c, editor]) {
-        await as(session).put(`/v1/likes/marker/${markerId}`).expect(200);
-      }
-      // Another trip's marker: fewer marker likes, but three outsiders
-      // liked a photo that isn't its cover.
+      // Another trip's marker: three outsiders liked a photo that isn't its cover.
       const otherTrip = await createTrip(stranger, 'Vienna too', 'public');
       const otherMarker = await addMarker(
         stranger,
@@ -955,14 +989,14 @@ describe('Social (integration)', () => {
 
   describe('counters', () => {
     it('rebuilds drifted counters from source rows', async () => {
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
       await as(stranger)
         .post(`/v1/markers/${markerId}/comments`)
         .send({ body: 'Hi' })
         .expect(201);
       await prisma.marker.update({
         where: { id: markerId },
-        data: { likeCount: 7, commentCount: 9 },
+        data: { commentCount: 9 },
       });
       await prisma.place.update({
         where: { id: placeId },
@@ -976,14 +1010,13 @@ describe('Social (integration)', () => {
       const fixed = await new CountersService(prisma).recountAll();
       expect(fixed).toMatchObject({
         'trips.likeCount': 1,
-        'markers.likeCount': 1,
         'markers.commentCount': 1,
         'places.popularity': 1,
       });
       const marker = await prisma.marker.findUniqueOrThrow({
         where: { id: markerId },
       });
-      expect(marker).toMatchObject({ likeCount: 1, commentCount: 1 });
+      expect(marker).toMatchObject({ commentCount: 1 });
       expect(await popularity()).toBe(1);
       expect(
         (await prisma.trip.findUniqueOrThrow({ where: { id: trip.id } }))

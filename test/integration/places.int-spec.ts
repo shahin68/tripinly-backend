@@ -831,15 +831,17 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         name: 'In trip',
         lat: 48.205,
         lng: 16.37,
-        popularity: 4,
       });
-      await insertPlace(app, {
+      const notInTrip = await insertPlace(app, {
         name: 'Not in trip',
         lat: 48.206,
         lng: 16.371,
-        popularity: 2,
       });
       await insertPlace(app, { name: 'OSM only', lat: 48.207, lng: 16.372 });
+      for (const session of [alice, bob]) {
+        await as(session).put(`/v1/likes/place/${inTrip}`).expect(200);
+      }
+      await as(bob).put(`/v1/likes/place/${notInTrip}`).expect(200);
       const trip = await createTrip(alice);
       await as(alice)
         .post(`/v1/places/${inTrip}/add-to-trip`)

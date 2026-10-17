@@ -44,7 +44,7 @@ export type PlanInput =
   | {
       kind: 'liked';
       actorId: string;
-      targetType: 'trip' | 'marker' | 'photo' | 'comment';
+      targetType: 'trip' | 'photo' | 'comment';
       targetId: string;
       tripId: string;
     };

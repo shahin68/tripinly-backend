@@ -429,13 +429,13 @@ describe('Notifications (integration)', () => {
 
   describe('likes', () => {
     it('groups likes into one push per window and counts each person once', async () => {
-      const markerId = await addMarker(owner);
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
-      await as(stranger).delete(`/v1/likes/marker/${markerId}`).expect(200);
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      // Own likes never notify.
-      await as(owner).put(`/v1/likes/marker/${markerId}`).expect(200);
+      // Own likes never notify, and place likes notify no one.
+      await as(owner).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
 
       const [message] = await eventually(
         () =>

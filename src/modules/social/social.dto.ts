@@ -4,13 +4,8 @@ import { IsIn, IsString, IsUUID, Length } from 'class-validator';
 import type { Page } from '../../common/pagination/pagination';
 import { UserSummaryDto } from '../users/user-summary';
 
-export const LIKE_TARGET_TYPES = [
-  'trip',
-  'marker',
-  'photo',
-  'comment',
-  'place',
-] as const;
+/** Stops have no likes of their own: their like button likes the stop's place (E1). */
+export const LIKE_TARGET_TYPES = ['trip', 'photo', 'comment', 'place'] as const;
 export type LikeTargetTypeValue = (typeof LIKE_TARGET_TYPES)[number];
 
 export class LikeParamsDto {

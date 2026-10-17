@@ -193,13 +193,12 @@ describe('Account deletion and export (integration)', () => {
         .send({ body: 'Lovely' })
         .expect(201);
       await as(alice).put(`/v1/likes/trip/${carols.id}`).expect(200);
-      await as(alice).put(`/v1/likes/marker/${carolMarker}`).expect(200);
       await as(alice).put(`/v1/likes/place/${placeId}`).expect(200);
-      await as(carol).put(`/v1/likes/marker/${carolMarker}`).expect(200);
+      await as(carol).put(`/v1/likes/place/${placeId}`).expect(200);
       expect(
         (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
           .popularity,
-      ).toBe(3);
+      ).toBe(2);
       await as(alice).post(`/v1/users/${bob.userId}/block`).expect(204);
       // Alice and Carol follow each other.
       await as(alice).put(`/v1/users/${carol.userId}/follow`).expect(204);
@@ -277,7 +276,6 @@ describe('Account deletion and export (integration)', () => {
       ).toMatchObject({
         coverPhotoId: carolPhoto,
         commentCount: 0,
-        likeCount: 1,
       });
       expect(await prisma.photo.count({ where: { id: alicePhoto } })).toBe(0);
       expect(

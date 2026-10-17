@@ -3,22 +3,21 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Prisma, type LikeTargetType } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { PlaceMatchingService } from '../places/place-matching.service';
 import { recomputePopularity } from '../places/popularity';
 import { TripAccessService } from '../trips/trip-access.service';
-import type { LikeStateDto } from './social.dto';
+import type { LikeStateDto, LikeTargetTypeValue } from './social.dto';
 
 type Tx = Prisma.TransactionClient;
 
 /** Tables that carry a likeCount, by target type. Constants only: used as SQL identifiers. */
 const COUNTED_TABLES = {
   trip: 'trips',
-  marker: 'markers',
   photo: 'photos',
   comment: 'comments',
-} as const satisfies Partial<Record<LikeTargetType, string>>;
+} as const satisfies Partial<Record<LikeTargetTypeValue, string>>;
 
 interface ResolvedTarget {
   /** The trip whose room hears about the change; null for places. */
@@ -28,10 +27,11 @@ interface ResolvedTarget {
 }
 
 /**
- * Likes on trips, markers, photos, comments and places. One like per user
- * and target; liking twice or unliking twice changes nothing. Counters move
- * in the same transaction, with the target row locked so a like can't land
- * on a target that is being deleted (its likes are removed by a trigger).
+ * Likes on trips, photos, comments and places; a stop's like button likes its
+ * place (E1). One like per user and target; liking twice or unliking twice
+ * changes nothing. Counters move in the same transaction, with the target row
+ * locked so a like can't land on a target that is being deleted (its likes are
+ * removed by a trigger).
  */
 @Injectable()
 export class LikesService {
@@ -45,7 +45,7 @@ export class LikesService {
 
   like(
     userId: string,
-    targetType: LikeTargetType,
+    targetType: LikeTargetTypeValue,
     targetId: string,
   ): Promise<LikeStateDto> {
     return this.change(userId, targetType, targetId, true);
@@ -53,7 +53,7 @@ export class LikesService {
 
   unlike(
     userId: string,
-    targetType: LikeTargetType,
+    targetType: LikeTargetTypeValue,
     targetId: string,
   ): Promise<LikeStateDto> {
     return this.change(userId, targetType, targetId, false);
@@ -61,7 +61,7 @@ export class LikesService {
 
   private async change(
     userId: string,
-    targetType: LikeTargetType,
+    targetType: LikeTargetTypeValue,
     targetId: string,
     liked: boolean,
   ): Promise<LikeStateDto> {
@@ -116,25 +116,13 @@ export class LikesService {
    */
   private async resolve(
     userId: string,
-    targetType: LikeTargetType,
+    targetType: LikeTargetTypeValue,
     targetId: string,
   ): Promise<ResolvedTarget> {
     switch (targetType) {
       case 'trip': {
         await this.access.assert(userId, targetId, 'like');
         return { tripId: targetId, placeId: null };
-      }
-      case 'marker': {
-        const { trip } = await this.access.assertForMarker(
-          userId,
-          targetId,
-          'like',
-        );
-        const marker = await this.prisma.marker.findUniqueOrThrow({
-          where: { id: targetId },
-          select: { placeId: true },
-        });
-        return { tripId: trip.id, placeId: marker.placeId };
       }
       case 'photo': {
         const photo = await this.prisma.photo.findUnique({
@@ -185,7 +173,7 @@ export class LikesService {
         });
         if (
           !place ||
-          !(await this.places.isVisible(this.prisma, userId, place))
+          !(await this.places.isLikeable(this.prisma, userId, place))
         ) {
           throw AppException.notFound();
         }
@@ -209,7 +197,7 @@ export class LikesService {
 
 async function lockTarget(
   tx: Tx,
-  targetType: LikeTargetType,
+  targetType: LikeTargetTypeValue,
   targetId: string,
 ): Promise<void> {
   const table = targetType === 'place' ? 'places' : COUNTED_TABLES[targetType];
@@ -232,7 +220,7 @@ async function moveCount(
 
 async function readCount(
   tx: Tx,
-  targetType: LikeTargetType,
+  targetType: LikeTargetTypeValue,
   targetId: string,
 ): Promise<number> {
   const [row] =
