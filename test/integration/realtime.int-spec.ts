@@ -169,7 +169,7 @@ describe('Realtime (integration)', () => {
       expect(typeof event.at).toBe('string');
       await ownerSocket.waitFor('marker.created');
 
-      await as(owner).put(`/v1/likes/marker/${markerId}`).expect(200);
+      await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
       await as(owner)
         .patch(`/v1/markers/${markerId}`)
         .send({ time: '09:30' })
@@ -200,21 +200,25 @@ describe('Realtime (integration)', () => {
       expect(socket.events('photo.processing')).toHaveLength(1);
     });
 
-    it('throttles like counts to one per target per 2 s, ending on the latest count', async () => {
-      const markerId = await addMarker(owner, publicTrip);
+    it('sends place like counts to every trip with a stop there, throttled to one per 2 s', async () => {
+      await addMarker(owner, publicTrip);
+      await addMarker(owner, privateTrip);
       const socket = await subscribed(owner, publicTrip.id);
-      await as(stranger).put(`/v1/likes/marker/${markerId}`).expect(200);
-      await as(editor).put(`/v1/likes/marker/${markerId}`).expect(200);
-      await as(owner).put(`/v1/likes/marker/${markerId}`).expect(200);
+      const memberSocket = await subscribed(editor, privateTrip.id);
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(editor).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
 
       const first = await socket.waitFor<{ count: number }>(
         'like.count_changed',
       );
-      expect(first.data).toEqual({
-        targetType: 'marker',
-        targetId: markerId,
-        count: 1,
+      expect(first).toMatchObject({
+        tripId: publicTrip.id,
+        data: { targetType: 'place', targetId: placeId, count: 1 },
       });
+      expect(
+        await memberSocket.waitFor<{ count: number }>('like.count_changed'),
+      ).toMatchObject({ tripId: privateTrip.id, data: { count: 1 } });
       await sleep(1000);
       expect(socket.events('like.count_changed')).toHaveLength(1);
       const last = await socket.waitFor<{ count: number }>(

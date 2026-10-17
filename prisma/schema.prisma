@@ -489,7 +489,6 @@ model Marker {
   copiedFromMarkerId String?                               @db.Uuid
   /// A ready photo of this marker; the map pin's thumbnail.
   coverPhotoId       String?                               @unique @db.Uuid
-  likeCount          Int                                   @default(0)
   commentCount       Int                                   @default(0)
   hiddenAt           DateTime?
   createdAt          DateTime                              @default(now())

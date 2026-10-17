@@ -25,7 +25,7 @@ import { exportPrefix } from './export-keys';
 
 const BATCH = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const LIKE_TYPES = ['trip', 'marker', 'photo', 'comment'] as const;
+const LIKE_TYPES = ['trip', 'photo', 'comment'] as const;
 
 /** Keyed hash of a deleted user's id: links their consent proofs without naming them. */
 export function consentSubjectHash(userId: string, key: Buffer): string {
@@ -227,20 +227,13 @@ export class AccountDeletionService {
       const idsOf = (type: string) =>
         likes.filter((l) => l.targetType === type).map((l) => l.targetId);
       await this.prisma.$transaction(async (tx) => {
-        const markers = await tx.marker.findMany({
-          where: { id: { in: idsOf('marker') } },
-          select: { placeId: true },
-        });
         await tx.like.deleteMany({
           where: { id: { in: likes.map((like) => like.id) } },
         });
         for (const type of LIKE_TYPES) {
           await recountLikes(tx, type, idsOf(type));
         }
-        await recomputePopularity(tx, [
-          ...markers.map((marker) => marker.placeId),
-          ...idsOf('place'),
-        ]);
+        await recomputePopularity(tx, idsOf('place'));
       });
     }
   }

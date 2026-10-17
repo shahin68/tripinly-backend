@@ -213,15 +213,6 @@ export class NotificationPlanner {
             })
           )?.ownerId ?? null
         );
-      case 'marker':
-        return (
-          (
-            await this.prisma.marker.findUnique({
-              where: { id: targetId },
-              select: { createdById: true },
-            })
-          )?.createdById ?? null
-        );
       case 'photo':
         return (
           (

@@ -100,6 +100,8 @@ export class MarkersService {
           },
           include: MARKER_INCLUDE,
         });
+        // A user-made place's likes count once a public trip has it.
+        await recomputePopularity(tx, [place.id]);
         await touchTrip(tx, trip.id);
         return created;
       }),
@@ -147,7 +149,7 @@ export class MarkersService {
       if (!current) throw AppException.notFound();
       const data: Prisma.MarkerUncheckedUpdateInput = {};
       // The marker's likes count toward its place: moving it moves them.
-      let movedLikes: string[] = [];
+      let movedPlaces: string[] = [];
       let leftPlaceId: string | null = null;
 
       if (input.name !== undefined) data.name = input.name;
@@ -166,8 +168,8 @@ export class MarkersService {
         );
         data.placeId = place.id;
         if (place.id !== current.placeId) leftPlaceId = current.placeId;
-        if (place.id !== current.placeId && current.likeCount > 0) {
-          movedLikes = [current.placeId, place.id];
+        if (place.id !== current.placeId) {
+          movedPlaces = [current.placeId, place.id];
         }
         data.lat = input.location?.lat ?? place.lat;
         data.lng = input.location?.lng ?? place.lng;
@@ -210,7 +212,7 @@ export class MarkersService {
         data,
         include: MARKER_INCLUDE,
       });
-      await recomputePopularity(tx, movedLikes);
+      await recomputePopularity(tx, movedPlaces);
       await touchTrip(tx, trip.id);
       return { updated, leftPlaceId };
     });
@@ -302,7 +304,6 @@ export class MarkersService {
         where: {
           userId,
           OR: [
-            { targetType: 'marker', targetId: markerId },
             {
               targetType: 'photo',
               targetId: { in: otherPhotos.map((p) => p.id) },
@@ -320,12 +321,8 @@ export class MarkersService {
       });
       const unliked = (type: string) =>
         likes.filter((l) => l.targetType === type).map((l) => l.targetId);
-      await recountLikes(tx, 'marker', unliked('marker'));
       await recountLikes(tx, 'photo', unliked('photo'));
       await recountLikes(tx, 'comment', unliked('comment'));
-      if (unliked('marker').length > 0) {
-        await recomputePopularity(tx, [marker.placeId]);
-      }
       await tx.marker.update({
         where: { id: markerId },
         data: { commentCount: otherComments.length },
@@ -344,11 +341,7 @@ export class MarkersService {
           data: { coverPhotoId },
         });
       }
-      const counts = await tx.marker.findUniqueOrThrow({
-        where: { id: markerId },
-        select: { likeCount: true },
-      });
-      return { photoIds, commentIds, coverPhotoId, unliked: likes, counts };
+      return { photoIds, commentIds, coverPhotoId };
     });
 
     await this.photoJobs.deleteFiles(result.photoIds);
@@ -365,14 +358,6 @@ export class MarkersService {
     }
     for (const commentId of result.commentIds) {
       emit(DomainEvents.COMMENT_DELETED, { commentId, markerId });
-    }
-    if (result.unliked.some((l) => l.targetType === 'marker')) {
-      emit(DomainEvents.LIKE_COUNT_CHANGED, {
-        targetType: 'marker',
-        targetId: markerId,
-        count: result.counts.likeCount,
-        liked: false,
-      });
     }
   }
 
@@ -404,9 +389,7 @@ export class MarkersService {
         select: { id: true },
       });
       await tx.marker.delete({ where: { id: markerId } });
-      if (marker.likeCount > 0) {
-        await recomputePopularity(tx, [marker.placeId]);
-      }
+      await recomputePopularity(tx, [marker.placeId]);
       await tx.marker.updateMany({
         where: { dayId: marker.dayId, position: { gt: marker.position } },
         data: { position: { decrement: 1 } },
@@ -456,7 +439,6 @@ export class MarkersService {
         select: {
           id: true,
           placeId: true,
-          likeCount: true,
           hiddenAt: true,
           createdById: true,
         },
@@ -474,13 +456,10 @@ export class MarkersService {
         select: { id: true },
       });
       await tx.marker.deleteMany({ where: { id: { in: markerIds } } });
-      const liked = deleted.filter((m) => m.likeCount > 0);
-      if (liked.length > 0) {
-        await recomputePopularity(
-          tx,
-          liked.map((m) => m.placeId),
-        );
-      }
+      await recomputePopularity(
+        tx,
+        deleted.map((m) => m.placeId),
+      );
       for (const [position, marker] of markers
         .filter((m) => m.hiddenAt)
         .entries()) {
@@ -558,6 +537,7 @@ export class MarkersService {
         },
         include: MARKER_INCLUDE,
       });
+      await recomputePopularity(tx, [source.placeId]);
       await touchTrip(tx, trip.id);
       return created;
     });
@@ -635,7 +615,7 @@ export class MarkersService {
     );
     const [hidden, liked] = await Promise.all([
       this.blocks.blockedAmong(userId, people),
-      likedAmong(this.prisma, userId, { type: 'marker', ids: [marker.id] }),
+      likedAmong(this.prisma, userId, { type: 'place', ids: [marker.placeId] }),
     ]);
     return toMarkerDto(marker, this.storage, hidden, liked);
   }

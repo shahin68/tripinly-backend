@@ -226,7 +226,10 @@ describe('Place photos and stop deletion (integration)', () => {
         .post(`/v1/markers/${stop.id}/comments`)
         .send({ body: 'Lovely' })
         .expect(201);
-      await as(stranger).put(`/v1/likes/marker/${stop.id}`).expect(200);
+      const photoId = await readyPhoto(app, owner, stop.id);
+      await as(stranger).put(`/v1/likes/photo/${photoId}`).expect(200);
+      // A like on the stop's place isn't on the stop: it stays.
+      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
 
       const warned = await as(owner)
         .delete(`/v1/markers/${stop.id}`)
@@ -279,10 +282,9 @@ describe('Place photos and stop deletion (integration)', () => {
         .post(`/v1/markers/${stop.id}/comments`)
         .send({ body: 'Theirs' })
         .expect(201);
-      await as(editor).put(`/v1/likes/marker/${stop.id}`).expect(200);
       await as(editor).put(`/v1/likes/photo/${ownersPhoto}`).expect(200);
       await as(editor).put(`/v1/likes/comment/${ownersComment}`).expect(200);
-      await as(owner).put(`/v1/likes/marker/${stop.id}`).expect(200);
+      await as(editor).put(`/v1/likes/place/${placeId}`).expect(200);
 
       await as(editor).delete(`/v1/markers/${stop.id}/mine`).expect(204);
 
@@ -290,7 +292,6 @@ describe('Place photos and stop deletion (integration)', () => {
         where: { id: stop.id },
       });
       expect(marker).toMatchObject({
-        likeCount: 1,
         commentCount: 1,
         coverPhotoId: ownersPhoto,
       });
@@ -304,9 +305,13 @@ describe('Place photos and stop deletion (integration)', () => {
           where: { id: ownersComment },
         }),
       ).toMatchObject({ likeCount: 0 });
+      // Only the like on the place is left: it's the place's, not the stop's.
       expect(
-        await prisma.like.count({ where: { userId: editor.userId } }),
-      ).toBe(0);
+        await prisma.like.findMany({
+          where: { userId: editor.userId },
+          select: { targetType: true },
+        }),
+      ).toEqual([{ targetType: 'place' }]);
       expect(await queuedDeletes()).toContain(editorsPhoto);
     });
   });

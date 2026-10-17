@@ -6,7 +6,6 @@ import { recomputeAllPopularity } from '../places/popularity';
 /** Tables with a likeCount and the like target type they count. Constants only. */
 const LIKE_COUNTED = [
   ['trips', 'trip'],
-  ['markers', 'marker'],
   ['photos', 'photo'],
   ['comments', 'comment'],
 ] as const;
@@ -64,7 +63,6 @@ export class CountersService {
         GROUP BY m2.id
       ) c
       WHERE m.id = c.id AND m."commentCount" <> c.count`;
-    // After marker likes, which it sums.
     fixed['places.popularity'] = await recomputeAllPopularity(this.prisma);
 
     const drift = Object.entries(fixed).filter(([, rows]) => rows > 0);

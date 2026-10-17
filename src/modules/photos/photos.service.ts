@@ -382,7 +382,10 @@ export class PhotosService {
           (id): id is string => !!id,
         ),
       ),
-      likedAmong(this.prisma, userId, { type: 'marker', ids: [marker.id] }),
+      likedAmong(this.prisma, userId, {
+        type: 'place',
+        ids: [marker.placeId],
+      }),
     ]);
     return toMarkerDto(marker, this.storage, hidden, liked);
   }

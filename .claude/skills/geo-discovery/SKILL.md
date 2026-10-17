@@ -27,9 +27,8 @@ Reject any field that looks like a Google place ID (`ChIJ…` / `googlePlaceId`)
 
 ## Popularity
 
-- `places.popularity` = likes on markers at the place **whose trip is public and not hidden** + direct likes on the place.
-- Update incrementally on like/unlike of qualifying markers and places.
-- Recompute affected places when: trip visibility changes, trip/marker deleted or hidden, marker moved to another place, account deleted.
+- `places.popularity` = the place's likes (stops have none of their own; their like button likes the place). A `user` place counts them only while a visible stop of a public, visible trip is on it, else 0 (`popularity.ts`).
+- Recompute on every place like/unlike, and for user places when: trip visibility changes, a stop is created, copied, moved, deleted or hidden, a trip or day is deleted or hidden, an account is deleted (`userPlaceIds`).
 - Nightly full recompute to fix drift.
 
 ## In-view — `GET /places/in-view`

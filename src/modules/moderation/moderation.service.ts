@@ -20,7 +20,7 @@ import { PhotosService } from '../photos/photos.service';
 import { placeImageThumbUrl } from '../places/place-image-keys';
 import { recomputePopularity } from '../places/popularity';
 import { CommentsService } from '../social/comments.service';
-import { likedPlaceIds, lockTrip, TripsService } from '../trips/trips.service';
+import { lockTrip, TripsService, userPlaceIds } from '../trips/trips.service';
 import {
   describeTargets,
   type TargetInfo,
@@ -185,7 +185,7 @@ export class ModerationService {
           });
           await recomputePopularity(
             tx,
-            await likedPlaceIds(tx, { tripId: ref.targetId }),
+            await userPlaceIds(tx, { tripId: ref.targetId }),
           );
         });
         return;
@@ -194,11 +194,9 @@ export class ModerationService {
           const marker = await tx.marker.update({
             where: { id: ref.targetId },
             data: { hiddenAt: now },
-            select: { placeId: true, likeCount: true },
+            select: { placeId: true },
           });
-          if (marker.likeCount > 0) {
-            await recomputePopularity(tx, [marker.placeId]);
-          }
+          await recomputePopularity(tx, [marker.placeId]);
         });
         return;
       case 'photo':

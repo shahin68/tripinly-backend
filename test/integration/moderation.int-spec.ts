@@ -183,8 +183,8 @@ describe('Moderation (integration)', () => {
       });
     });
 
-    it('hides a marker: gone for others and from popularity, audited, all reports resolved', async () => {
-      await as(other).put(`/v1/likes/marker/${markerId}`).expect(200);
+    it('hides a marker: gone for others, audited, all reports resolved', async () => {
+      await as(other).put(`/v1/likes/place/${placeId}`).expect(200);
       expect(
         (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
           .popularity,
@@ -205,10 +205,11 @@ describe('Moderation (integration)', () => {
 
       await as(other).get(`/v1/markers/${markerId}`).expect(404);
       await as(owner).get(`/v1/markers/${markerId}`).expect(200);
+      // The like is the place's, which stays.
       expect(
         (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
           .popularity,
-      ).toBe(0);
+      ).toBe(1);
       expect(await openReports()).toEqual([]);
       expect(await prisma.adminAuditLog.findMany()).toEqual([
         expect.objectContaining({

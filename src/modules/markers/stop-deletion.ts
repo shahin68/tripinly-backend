@@ -14,7 +14,7 @@ export interface OthersContent {
 /**
  * Who may delete a stop with everything on it (B4, B5): whoever added it,
  * and the trip owner. Everyone else may only remove their own photos,
- * comments and likes from it.
+ * comments and likes on them from it.
  */
 export function mayDeleteStop(
   userId: string,
@@ -24,7 +24,10 @@ export function mayDeleteStop(
   return userId === tripOwnerId || stop.createdById === userId;
 }
 
-/** Photos, comments and likes by anyone but `userId` on these stops (and on their photos and comments). */
+/**
+ * Photos, comments and likes by anyone but `userId` on these stops: likes on
+ * their photos and comments (a stop's own like is its place's, which stays).
+ */
 export async function othersContent(
   tx: Tx,
   markerIds: string[],
@@ -39,8 +42,7 @@ export async function othersContent(
         WHERE c."markerId" = ANY(${markerIds}::uuid[]) AND c."authorId" <> ${userId}::uuid)::int AS comments,
       (SELECT count(*) FROM likes l
         WHERE l."userId" <> ${userId}::uuid AND (
-          (l."targetType" = 'marker' AND l."targetId" = ANY(${markerIds}::uuid[]))
-          OR (l."targetType" = 'photo' AND l."targetId" IN (
+          (l."targetType" = 'photo' AND l."targetId" IN (
             SELECT id FROM photos WHERE "markerId" = ANY(${markerIds}::uuid[])))
           OR (l."targetType" = 'comment' AND l."targetId" IN (
             SELECT id FROM comments WHERE "markerId" = ANY(${markerIds}::uuid[])))
