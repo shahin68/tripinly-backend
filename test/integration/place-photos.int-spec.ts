@@ -113,6 +113,57 @@ describe('Place photos and stop deletion (integration)', () => {
       });
     });
 
+    it('also shows the liked public trip photos taken there, once each', async () => {
+      const fan = await onboardedUser(app, 'fan');
+      const stop = await addStop(owner, { placeId });
+      const tripPhoto = await readyPhoto(app, owner, stop.id);
+      const placePhoto = await readyPlacePhoto(app, editor, placeId);
+      const likeBoth = async (session: Session) => {
+        await as(session).put(`/v1/likes/photo/${tripPhoto}`).expect(200);
+        await as(session).put(`/v1/likes/photo/${placePhoto}`).expect(200);
+      };
+
+      // The uploader's own like doesn't count; two others aren't enough yet.
+      await as(owner).put(`/v1/likes/photo/${tripPhoto}`).expect(200);
+      await likeBoth(stranger);
+      await likeBoth(fan);
+      expect((await placeGallery(stranger)).map((p) => p.id)).toEqual([
+        placePhoto,
+      ]);
+
+      await as(editor).put(`/v1/likes/photo/${tripPhoto}`).expect(200);
+      await as(owner).put(`/v1/likes/photo/${placePhoto}`).expect(200);
+      const gallery = await placeGallery(stranger);
+      expect(gallery.map((p) => p.id)).toEqual([tripPhoto, placePhoto]);
+      expect(gallery[0]).toMatchObject({ markerId: stop.id, placeId: null });
+    });
+
+    it('never shows trip photos from private trips', async () => {
+      const privateTrip = (
+        await as(owner)
+          .post('/v1/trips')
+          .send({ title: 'Secret', visibility: 'private' })
+          .expect(201)
+      ).body as TripBody;
+      const stop = await addStop(owner, { placeId }, privateTrip.days[0].id);
+      const photo = await readyPhoto(app, owner, stop.id);
+      const fan = await onboardedUser(app, 'fan');
+      for (const session of [editor, stranger, fan]) {
+        await prisma.like.create({
+          data: {
+            userId: session.userId,
+            targetType: 'photo',
+            targetId: photo,
+          },
+        });
+      }
+      await prisma.photo.update({
+        where: { id: photo },
+        data: { likeCount: 3 },
+      });
+      expect(await placeGallery(stranger)).toEqual([]);
+    });
+
     it('enforces the daily limit per person', async () => {
       const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000);
       const today = new Date();

@@ -16,7 +16,8 @@ const DEFAULT_RETRY_AFTER_S = 5;
 const MAX_RETRY_AFTER_S = 120;
 /** At most about one request a second (Wikimedia robot policy). */
 const REQUEST_GAP_MS = 1_000;
-const UPLOAD_HOST = 'upload.wikimedia.org';
+/** Wikimedia's file hosts: originals on upload, thumbnails on thumb (since 2026-10). */
+const UPLOAD_HOSTS = new Set(['upload.wikimedia.org', 'thumb.wikimedia.org']);
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -93,12 +94,12 @@ export class WikimediaClient {
   }
 
   /**
-   * A Commons thumbnail the imageinfo API returned. Only Wikimedia's upload
-   * host is fetched, and files over 25 MB are refused.
+   * A Commons thumbnail the imageinfo API returned. Only Wikimedia's file
+   * hosts are fetched, and files over 25 MB are refused.
    */
   async download(thumbUrl: string): Promise<Buffer> {
     const url = new URL(thumbUrl);
-    if (url.protocol !== 'https:' || url.hostname !== UPLOAD_HOST) {
+    if (url.protocol !== 'https:' || !UPLOAD_HOSTS.has(url.hostname)) {
       throw new WikimediaError('not a Commons upload URL');
     }
     const response = await this.send(url, 'image/*', DOWNLOAD_TIMEOUT_MS);
