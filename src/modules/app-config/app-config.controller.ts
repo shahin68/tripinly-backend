@@ -37,6 +37,15 @@ export class AppConfigController {
         infer: true,
       }),
       mapMaxPins: this.config.get('APP_MAP_MAX_PINS', { infer: true }),
+      photoPinMinProminence: this.config.get('APP_PHOTO_PIN_MIN_PROMINENCE', {
+        infer: true,
+      }),
+      photoPinMinLikes: this.config.get('APP_PHOTO_PIN_MIN_LIKES', {
+        infer: true,
+      }),
+      mapMaxPhotoPins: this.config.get('APP_MAP_MAX_PHOTO_PINS', {
+        infer: true,
+      }),
     };
   }
 }

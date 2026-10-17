@@ -245,7 +245,7 @@ export class PlaceItemDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)',
+      'Id of the cover when it is a Tripinly photo (a place photo or a trip photo), or null (a Commons cover has only coverImageId)',
   })
   coverPhotoId: string | null;
 
@@ -254,7 +254,7 @@ export class PlaceItemDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null',
+      'Id of the cover image, a Tripinly photo or a Commons image (stable; cache the image by it and coverSource), or null',
   })
   coverImageId: string | null;
 
@@ -262,7 +262,7 @@ export class PlaceItemDto {
     enum: COVER_SOURCES,
     nullable: true,
     description:
-      '`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover',
+      '`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover',
   })
   coverSource: CoverSource | null;
 
@@ -270,7 +270,7 @@ export class PlaceItemDto {
     type: String,
     nullable: true,
     description:
-      "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h",
+      "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h",
   })
   coverThumbUrl: string | null;
 
@@ -559,14 +559,14 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
     type: [String],
     deprecated: true,
     description:
-      'Use images. Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first',
+      'Use images. Up to 10 photos that may represent the place (same rule as coverThumbUrl), most likes first',
   })
   photoThumbUrls: string[];
 
   @ApiProperty({
     type: () => [PlaceImageDto],
     description:
-      'Images for the card: up to 10 trip photos that may represent the place (most outside likes first), then its Wikimedia Commons images. The first one is the cover',
+      'Images for the card: up to 10 photos that may represent the place (place photos and public trip photos, most likes first), then its Wikimedia Commons images. The first one is the cover',
   })
   images: PlaceImageDto[];
 

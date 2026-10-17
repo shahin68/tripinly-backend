@@ -20,7 +20,7 @@ describe('validateEnv', () => {
       APP_PHOTO_MAX_EDGE_PX: 2560,
       APP_PHOTO_JPEG_QUALITY: 85,
       APP_PHOTO_PARALLEL_UPLOADS: 2,
-      APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: 2,
+      APP_PLACE_PHOTO_PIN_MIN_LIKES: 3,
       APP_PLACE_RANK_MIN_LIKES: 1,
       APP_PLACE_PHOTO_DAILY_LIMIT: 20,
       APP_EXPLORE_NEARBY_RADIUS_KM: 50,
@@ -144,13 +144,13 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...valid, PORT: '8080' }).PORT).toBe(8080);
   });
 
-  it('needs at least one outside like for place photos', () => {
+  it('needs at least one like for a photo to represent a place', () => {
     expect(
-      validateEnv({ ...valid, APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: '3' })
-        .APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES,
-    ).toBe(3);
+      validateEnv({ ...valid, APP_PLACE_PHOTO_PIN_MIN_LIKES: '5' })
+        .APP_PLACE_PHOTO_PIN_MIN_LIKES,
+    ).toBe(5);
     expect(() =>
-      validateEnv({ ...valid, APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: '0' }),
+      validateEnv({ ...valid, APP_PLACE_PHOTO_PIN_MIN_LIKES: '0' }),
     ).toThrow(EnvValidationError);
   });
 
