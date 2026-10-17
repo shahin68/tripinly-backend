@@ -170,18 +170,24 @@ describe('WikimediaClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('downloads thumbnails from the Commons upload host only', async () => {
+  it('downloads thumbnails from the Commons file hosts only', async () => {
     fetchMock.mockResolvedValueOnce(new Response(Buffer.from('jpeg-bytes')));
     await expect(
       client.download('https://upload.wikimedia.org/thumb/1280px-A.jpg'),
     ).resolves.toEqual(Buffer.from('jpeg-bytes'));
+    fetchMock.mockResolvedValueOnce(new Response(Buffer.from('thumb-bytes')));
+    await expect(
+      client.download(
+        'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/A.JPG/1280px-A.JPG?utm_source=commons.wikimedia.org',
+      ),
+    ).resolves.toEqual(Buffer.from('thumb-bytes'));
     await expect(client.download('https://example.com/A.jpg')).rejects.toThrow(
       'not a Commons upload URL',
     );
     await expect(
       client.download('http://upload.wikimedia.org/A.jpg'),
     ).rejects.toThrow('not a Commons upload URL');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('refuses downloads over 25 MB', async () => {
