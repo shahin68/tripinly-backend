@@ -17,6 +17,7 @@ import {
 } from '../markers/markers.dto';
 import { BlocksService } from '../moderation/blocks.service';
 import { PlaceMatchingService } from '../places/place-matching.service';
+import { PlacesService } from '../places/places.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import { lockTrip } from '../trips/trips.service';
@@ -60,6 +61,7 @@ export class PhotosService {
     private readonly storage: StorageService,
     private readonly jobs: PhotoJobsService,
     private readonly places: PlaceMatchingService,
+    private readonly placesService: PlacesService,
     private readonly config: ConfigService<Env, true>,
     private readonly events: EventEmitter2,
   ) {}
@@ -257,21 +259,33 @@ export class PhotosService {
   }
 
   /**
-   * A place's photos, most liked first, then newest (at most MAX_PLACE_GALLERY).
-   * The uploader also sees their own photos still processing or failed. Blocks
-   * don't hide place photos (C7), only who uploaded them.
+   * A place's photos, most liked first, then newest (at most MAX_PLACE_GALLERY):
+   * the photos added to the place, and the public trip photos taken there that
+   * may represent it (enough likes, see PlacesService.representativePhotos).
+   * Trip photos are the trip's own rows, never copies. The uploader also sees
+   * their own place photos still processing or failed. Blocks don't hide place
+   * photos (C7), only who uploaded them.
    */
   async placeGallery(userId: string, placeId: string): Promise<PhotoDto[]> {
     await this.places.assertVisible(this.prisma, userId, placeId);
+    const representative = await this.placesService.representativePhotoIds(
+      userId,
+      placeId,
+    );
     const photos = await this.prisma.photo.findMany({
       where: {
-        placeId,
         OR: [
-          { status: 'ready', hiddenAt: null },
           {
-            uploaderId: userId,
-            status: { in: ['processing', 'ready', 'failed'] },
+            placeId,
+            OR: [
+              { status: 'ready', hiddenAt: null },
+              {
+                uploaderId: userId,
+                status: { in: ['processing', 'ready', 'failed'] },
+              },
+            ],
           },
+          { id: { in: representative } },
         ],
       },
       orderBy: [{ likeCount: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],

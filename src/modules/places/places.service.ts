@@ -450,6 +450,19 @@ export class PlacesService {
     });
   }
 
+  /**
+   * Ids of the photos that may represent the place (see `representativePhotos`),
+   * so its gallery can show the liked public trip photos taken there too.
+   */
+  async representativePhotoIds(
+    userId: string,
+    placeId: string,
+  ): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT q.id FROM (${this.representativePhotos(userId, [placeId])}) q`;
+    return rows.map((row) => row.id);
+  }
+
   /** Up to 10 photos that may represent the place, most likes first. */
   private async placeTripPhotos(
     userId: string,

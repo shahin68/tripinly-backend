@@ -26,6 +26,7 @@ description: Use for Tripinly photo work — pre-signed uploads, upload confirma
 ## Place photos
 
 - `POST /places/{id}/photos/upload-url`: a photo on a place, not a trip (`placeId` set, `markerId`/`tripId` null; a check constraint enforces one or the other). The place must be visible to the caller (`PlaceMatchingService.assertVisible`). Lock the place row, then count the uploader's place photos of the last 24 h against `APP_PLACE_PHOTO_DAILY_LIMIT` → `DAILY_PHOTO_LIMIT_REACHED`.
+- `GET /places/{id}/photos`: the place's own photos plus the public trip photos taken there that pass the photo-pin likes rule (`PlacesService.representativePhotoIds`). Trip photos are referenced by id, never copied into the place.
 - No cover, no order (`position` 0); the gallery is most liked first. Only the uploader deletes one. `photo.ready`/`photo.failed` go to the uploader's user room.
 - Every photo code path must handle both kinds: never assume `tripId` or `markerId`.
 - A user place goes with its last stop (`releaseUserPlaces` after the commit): its place photos' rows cascade, their files are queued for deletion.

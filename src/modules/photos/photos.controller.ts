@@ -74,7 +74,7 @@ export class PhotosController {
   @ApiOperation({
     summary: "A place's photos",
     description:
-      'Ready place photos, most liked first, then newest; at most 100. Your own photos still processing or failed are included. A photo by someone you blocked (or who blocked you) shows without its uploader.',
+      "Ready place photos, plus photos on stops here in public trips that APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than the uploader liked (the same photos, not copies; markerId set), most liked first, then newest; at most 100. Your own place photos still processing or failed are included. A place photo by someone you blocked (or who blocked you) shows without its uploader; their trip photos don't show.",
   })
   @ApiOkResponse({ type: [PhotoDto] })
   placeGallery(
