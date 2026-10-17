@@ -10,7 +10,7 @@ import {
 } from '../utils/auth-helpers';
 import { api, type TripBody } from '../utils/api';
 import { createTestApp } from '../utils/create-test-app';
-import { readyPhoto } from '../utils/photos';
+import { readyPhoto, readyPlacePhoto } from '../utils/photos';
 import { insertPlace } from '../utils/places';
 
 interface CommentBody {
@@ -789,10 +789,10 @@ describe('Social (integration)', () => {
     const likePhoto = (session: Session, photoId: string) =>
       as(session).put(`/v1/likes/photo/${photoId}`).expect(200);
 
-    const outsiders = (...subjects: string[]) =>
+    const people = (...subjects: string[]) =>
       Promise.all(subjects.map((subject) => onboardedUser(app, subject)));
 
-    it('shows no cover or detail photo for a photo nobody outside liked', async () => {
+    it('shows no cover or detail photo for a photo nobody liked', async () => {
       await readyPhoto(app, owner, markerId);
       await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
 
@@ -808,44 +808,34 @@ describe('Social (integration)', () => {
       expect(place.photoThumbUrls).toEqual([]);
     });
 
-    it("doesn't count the owner's own likes", async () => {
+    it("counts three likes from anyone but the uploader, the trip's members too", async () => {
       const photoId = await readyPhoto(app, owner, markerId);
       await likePhoto(owner, photoId);
-      await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
-      expect(await popularity()).toBe(1);
-
-      expect(await detail(stranger)).toMatchObject({
-        coverPhotoId: null,
-        photoThumbUrls: [],
-      });
-    });
-
-    it("doesn't count likes from the trip's editors", async () => {
-      const editor2 = await onboardedUser(app, 'editor2');
-      await as(owner)
-        .post(`/v1/trips/${trip.id}/members`)
-        .send({ username: 'editor2' })
-        .expect(200);
-      const photoId = await readyPhoto(app, owner, markerId);
       await likePhoto(editor, photoId);
-      await likePhoto(editor2, photoId);
-
+      await likePhoto(stranger, photoId);
       expect(await detail(stranger)).toMatchObject({
         coverPhotoId: null,
         photoThumbUrls: [],
       });
+
+      const [other] = await people('other');
+      await likePhoto(other, photoId);
+      expect((await detail(stranger)).coverPhotoId).toBe(photoId);
     });
 
-    it('shows a photo two outside people liked, in every place shape', async () => {
+    it('shows a photo three people liked, in every place shape', async () => {
       const photoId = await readyPhoto(app, owner, markerId);
-      const [other] = await outsiders('other');
+      const [other] = await people('other');
       await likePhoto(stranger, photoId);
-      expect((await detail(stranger)).coverPhotoId).toBeNull();
+      await likePhoto(editor, photoId);
       await likePhoto(other, photoId);
       await as(other).put(`/v1/likes/place/${placeId}`).expect(200);
 
       const item = await inViewItem(stranger);
-      expect(item).toMatchObject({ coverPhotoId: photoId });
+      expect(item).toMatchObject({
+        coverPhotoId: photoId,
+        coverSource: 'trip',
+      });
       expect(item.coverThumbUrl).toContain(`photos/${photoId}/thumb.webp`);
       const place = await detail(stranger);
       expect(place.coverPhotoId).toBe(photoId);
@@ -871,7 +861,7 @@ describe('Social (integration)', () => {
       ).toMatchObject({ coverPhotoId: photoId });
     });
 
-    it('falls back to the Commons image, with its credit, until a trip photo qualifies', async () => {
+    it('falls back to the Commons image, with its credit, until a photo qualifies', async () => {
       const commons = await app.get(PrismaService).placeImage.create({
         data: {
           placeId,
@@ -924,9 +914,8 @@ describe('Social (integration)', () => {
       ]);
 
       const photoId = await readyPhoto(app, owner, markerId);
-      const [other] = await outsiders('other');
-      await likePhoto(stranger, photoId);
-      await likePhoto(other, photoId);
+      for (const session of await people('ada', 'ben', 'cal'))
+        await likePhoto(session, photoId);
       expect(await inViewItem(stranger)).toMatchObject({
         coverPhotoId: photoId,
         coverImageId: photoId,
@@ -940,35 +929,42 @@ describe('Social (integration)', () => {
       expect(after.images[0].credit).toBeNull();
     });
 
-    it('picks the photo with the most outside likes, not the top marker', async () => {
-      const [a, b, c] = await outsiders('ada', 'ben', 'cal');
-      // The owner's marker has a photo two outsiders and the editor liked.
-      const first = await readyPhoto(app, owner, markerId);
-      for (const session of [a, b, editor]) await likePhoto(session, first);
-      // Another trip's marker: three outsiders liked a photo that isn't its cover.
-      const otherTrip = await createTrip(stranger, 'Vienna too', 'public');
-      const otherMarker = await addMarker(
-        stranger,
-        otherTrip.days[0].id,
-        placeId,
-      );
-      await readyPhoto(app, stranger, otherMarker);
-      const best = await readyPhoto(app, stranger, otherMarker);
-      for (const session of [a, b, c]) await likePhoto(session, best);
+    it("picks the most liked photo, the place's own photos too, the newer on a tie", async () => {
+      const [a, b, c] = await people('ada', 'ben', 'cal');
+      const tripPhoto = await readyPhoto(app, owner, markerId);
+      for (const session of [a, b, c]) await likePhoto(session, tripPhoto);
+      const best = await readyPlacePhoto(app, stranger, placeId);
+      for (const session of [a, b, c, editor]) await likePhoto(session, best);
+      const newer = await readyPlacePhoto(app, editor, placeId);
+      for (const session of [a, b, c]) await likePhoto(session, newer);
 
       const place = await detail(owner);
       expect(place.coverPhotoId).toBe(best);
-      expect(place.photoThumbUrls).toHaveLength(2);
-      expect(place.photoThumbUrls[0]).toContain(`photos/${best}/`);
-      expect(place.photoThumbUrls[1]).toContain(`photos/${first}/`);
+      expect(place.images.map((image) => [image.id, image.source])).toEqual([
+        [best, 'trip'],
+        [newer, 'trip'],
+        [tripPhoto, 'trip'],
+      ]);
     });
 
-    it('leaves out photos by someone with a block with the viewer', async () => {
-      const [a, b] = await outsiders('ada', 'ben');
+    it('leaves out photos of suspended people', async () => {
+      const photoId = await readyPlacePhoto(app, editor, placeId);
+      for (const session of await people('ada', 'ben', 'cal'))
+        await likePhoto(session, photoId);
+      expect((await detail(stranger)).coverPhotoId).toBe(photoId);
+
+      await prisma.user.update({
+        where: { id: editor.userId },
+        data: { status: 'suspended' },
+      });
+      expect((await detail(stranger)).coverPhotoId).toBeNull();
+    });
+
+    it("leaves out trip photos across a block, but not the place's own photos", async () => {
+      const likers = await people('ada', 'ben', 'cal');
       // The editor's photo in the owner's public trip.
       const photoId = await readyPhoto(app, editor, markerId);
-      await likePhoto(a, photoId);
-      await likePhoto(b, photoId);
+      for (const session of likers) await likePhoto(session, photoId);
       expect((await detail(stranger)).coverPhotoId).toBe(photoId);
 
       await as(editor).post(`/v1/users/${stranger.userId}/block`).expect(204);
@@ -978,12 +974,19 @@ describe('Social (integration)', () => {
         photoThumbUrls: [],
       });
       // Others still see it.
-      expect((await detail(a)).coverPhotoId).toBe(photoId);
+      expect((await detail(likers[0])).coverPhotoId).toBe(photoId);
 
-      // A block with the trip owner hides it too.
+      // A place photo stays the place's image for everyone: the pin names no one.
+      const placePhoto = await readyPlacePhoto(app, editor, placeId);
+      for (const session of likers) await likePhoto(session, placePhoto);
+      expect((await detail(stranger)).coverPhotoId).toBe(placePhoto);
+
+      // A block with the trip owner hides the trip photo too.
       await as(stranger).delete(`/v1/users/${editor.userId}/block`);
       await as(stranger).post(`/v1/users/${owner.userId}/block`).expect(204);
-      expect((await detail(stranger)).coverPhotoId).toBeNull();
+      expect((await detail(stranger)).images.map((image) => image.id)).toEqual([
+        placePhoto,
+      ]);
     });
   });
 

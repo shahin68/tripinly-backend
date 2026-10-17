@@ -51,7 +51,7 @@ Adding anything else: state the reason.
 
 ## Environment variables
 
-**`APP_` prefix (Shahin, 2026-10-11):** values that tune behaviour, numbers we adjust like feature flags (refresh times, thresholds, limits), start with `APP_` so they stand apart on the Railway dashboard. That holds whether the apps receive them through `GET /v1/app-config` or the server uses them itself (e.g. `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES`). Every other variable (platform, secrets, URLs, service config) keeps its plain name.
+**`APP_` prefix (Shahin, 2026-10-11):** values that tune behaviour, numbers we adjust like feature flags (refresh times, thresholds, limits), start with `APP_` so they stand apart on the Railway dashboard. That holds whether the apps receive them through `GET /v1/app-config` or the server uses them itself (e.g. `APP_PLACE_PHOTO_PIN_MIN_LIKES`). Every other variable (platform, secrets, URLs, service config) keeps its plain name.
 
 `.env.example` lists every variable with empty values (Railway imports it into new services, so it must hold no defaults or example secrets); `.env.local.example` holds the local development values. Empty values count as unset.
 
@@ -75,7 +75,7 @@ Adding anything else: state the reason.
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. `ORS_BASE_URL` defaults to `https://api.heigit.org/openrouteservice` (the old api.openrouteservice.org host was shut down 2026-08-24; existing keys work on the new host). Without a key, routes are straight lines (`degraded`) |
 | `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |
-| `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES` | How many people outside a trip (not the uploader, trip owner or members) must like a trip photo before it can represent a place (place `coverThumbUrl`, detail `photoThumbUrls`). Integer ≥ 1, default 2. API only; takes effect after a restart |
+| `APP_PLACE_PHOTO_PIN_MIN_LIKES` | Likes a photo needs, not counting its uploader's (trip owner and members count), before it can represent a place: its cover, so its map pin photo, and its detail photos. Integer ≥ 1, default 3. API only; takes effect after a restart. Replaces `APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES`, which can be removed from Railway |
 | `APP_EXPLORE_NEARBY_RADIUS_KM` | Explore's Nearby filter keeps trips with a stop within this many km of the user. Number 1–500, default 50. API only |
 | `APP_PLACE_RANK_MIN_LIKES` | Likes (`popularity`) a place needs to rank on the map by its likes, ahead of every place below it; places below it rank by prominence (QRank and tags). Integer ≥ 1, default 1. API only; takes effect after a restart (in-view answers are cached 60 s) |
 | `APP_PLACE_PHOTO_DAILY_LIMIT` | Place photos one person may add in 24 hours, across all places (failed uploads don't count) → 422 `DAILY_PHOTO_LIMIT_REACHED`. Integer ≥ 1, default 20. API only; takes effect after a restart |
@@ -92,6 +92,7 @@ Adding anything else: state the reason.
 | `APP_PLACES_REFRESH_SECONDS` | Sent to the apps by `GET /app-config`: how old a map square's places may get before the app reloads them in the background (default 300, at least 10) |
 | `APP_PIN_LARGE_MIN_PROMINENCE`, `APP_PIN_MEDIUM_MIN_PROMINENCE` | Sent to the apps by `GET /app-config` (`pinLargeMinProminence`, `pinMediumMinProminence`): a place's `prominence` from which its map pin is drawn largest (default 95) and middle-sized (default 60); below it, smallest. 0–100 |
 | `APP_MAP_MAX_PINS` | Sent to the apps by `GET /app-config` (`mapMaxPins`): most place pins the app draws as map markers at once, liked places first, then the best known (default 150, 20–1000) |
+| `APP_PHOTO_PIN_MIN_PROMINENCE`, `APP_PHOTO_PIN_MIN_LIKES`, `APP_MAP_MAX_PHOTO_PINS` | Sent to the apps by `GET /app-config` (`photoPinMinProminence`, `photoPinMinLikes`, `mapMaxPhotoPins`): a pin shows its place's photo when the place's prominence is at least 90 (0–100) or it has at least 3 likes, at most 30 photo pins at once (0–500) |
 | `APP_PHOTO_MAX_EDGE_PX`, `APP_PHOTO_JPEG_QUALITY`, `APP_PHOTO_PARALLEL_UPLOADS` | Sent to the apps by `GET /app-config`: how the app shrinks and encodes photos before uploading (default 2560 px, 1024–4096; quality 85, 50–100) and how many it uploads at once (default 2, 1–4) |
 
 All validated at startup (`src/common/config/env.ts`); the app refuses to boot if one is missing. Each variable is added to the schema by the stage that first uses it, so local development never needs keys for features that don't exist yet.

@@ -52,4 +52,25 @@ export class AppConfigDto {
       'Most place pins the app draws on the map at once: liked places first, then the best known.',
   })
   mapMaxPins!: number;
+
+  @ApiProperty({
+    example: 90,
+    description:
+      "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or it has `photoPinMinLikes` likes.",
+  })
+  photoPinMinProminence!: number;
+
+  @ApiProperty({
+    example: 3,
+    description:
+      "A place's pin shows its photo when it has at least this many likes, or `photoPinMinProminence`.",
+  })
+  photoPinMinLikes!: number;
+
+  @ApiProperty({
+    example: 30,
+    description:
+      'Most pins the app draws with a photo at once, in pin order (liked places first, then the best known); the rest keep their icon.',
+  })
+  mapMaxPhotoPins!: number;
 }

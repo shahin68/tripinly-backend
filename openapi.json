@@ -4180,6 +4180,21 @@
             "type": "number",
             "example": 150,
             "description": "Most place pins the app draws on the map at once: liked places first, then the best known."
+          },
+          "photoPinMinProminence": {
+            "type": "number",
+            "example": 90,
+            "description": "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or it has `photoPinMinLikes` likes."
+          },
+          "photoPinMinLikes": {
+            "type": "number",
+            "example": 3,
+            "description": "A place's pin shows its photo when it has at least this many likes, or `photoPinMinProminence`."
+          },
+          "mapMaxPhotoPins": {
+            "type": "number",
+            "example": 30,
+            "description": "Most pins the app draws with a photo at once, in pin order (liked places first, then the best known); the rest keep their icon."
           }
         },
         "required": [
@@ -4189,7 +4204,10 @@
           "photoParallelUploads",
           "pinLargeMinProminence",
           "pinMediumMinProminence",
-          "mapMaxPins"
+          "mapMaxPins",
+          "photoPinMinProminence",
+          "photoPinMinLikes",
+          "mapMaxPhotoPins"
         ]
       },
       "GoogleSignInDto": {
@@ -5430,13 +5448,13 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+            "description": "Id of the cover when it is a Tripinly photo (a place photo or a trip photo), or null (a Commons cover has only coverImageId)"
           },
           "coverImageId": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+            "description": "Id of the cover image, a Tripinly photo or a Commons image (stable; cache the image by it and coverSource), or null"
           },
           "coverSource": {
             "type": "string",
@@ -5445,12 +5463,12 @@
               "commons"
             ],
             "nullable": true,
-            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
+            "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5721,13 +5739,13 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+            "description": "Id of the cover when it is a Tripinly photo (a place photo or a trip photo), or null (a Commons cover has only coverImageId)"
           },
           "coverImageId": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+            "description": "Id of the cover image, a Tripinly photo or a Commons image (stable; cache the image by it and coverSource), or null"
           },
           "coverSource": {
             "type": "string",
@@ -5736,12 +5754,12 @@
               "commons"
             ],
             "nullable": true,
-            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
+            "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -5979,13 +5997,13 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover when it is a trip photo, or null (a Commons cover has only coverImageId)"
+            "description": "Id of the cover when it is a Tripinly photo (a place photo or a trip photo), or null (a Commons cover has only coverImageId)"
           },
           "coverImageId": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Id of the cover image, a trip photo or a Commons image (stable; cache the image by it and coverSource), or null"
+            "description": "Id of the cover image, a Tripinly photo or a Commons image (stable; cache the image by it and coverSource), or null"
           },
           "coverSource": {
             "type": "string",
@@ -5994,12 +6012,12 @@
               "commons"
             ],
             "nullable": true,
-            "description": "`trip`: a trip photo; `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
+            "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Thumbnail of the cover: the most liked public trip photo here that at least APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES (2) people outside its trip liked (not the uploader, owner or members), else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
+            "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
           "likedByMe": {
             "type": "boolean"
@@ -6033,14 +6051,14 @@
           },
           "photoThumbUrls": {
             "deprecated": true,
-            "description": "Use images. Up to 10 public trip photos that may represent the place (same rule as coverThumbUrl), most outside likes first",
+            "description": "Use images. Up to 10 photos that may represent the place (same rule as coverThumbUrl), most likes first",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "images": {
-            "description": "Images for the card: up to 10 trip photos that may represent the place (most outside likes first), then its Wikimedia Commons images. The first one is the cover",
+            "description": "Images for the card: up to 10 photos that may represent the place (place photos and public trip photos, most likes first), then its Wikimedia Commons images. The first one is the cover",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PlaceImageDto"

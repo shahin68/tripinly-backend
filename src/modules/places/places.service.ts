@@ -54,6 +54,9 @@ import {
 
 const DEFAULT_IN_VIEW_LIMIT = 100;
 /** OSM fill is spread over a GRID × GRID split of the bbox. */
+/** The best photo first: the most likes, then the newest. */
+const BEST_PHOTO_FIRST = Prisma.sql`q.likes DESC, q."createdAt" DESC, q.id`;
+
 /** OSM places are spread over cells of a quarter tile; clusters group by whole tiles. */
 const OSM_FILL_CELLS_PER_TILE = 4;
 /** From this zoom on, the overview adds notable OSM places while hot spots are few. */
@@ -408,8 +411,8 @@ export class PlacesService {
 
   /**
    * Fills each place's cover and likedByMe for this viewer. The cover is its
-   * most liked trip photo that may represent it (see `representativePhotos`;
-   * left out across blocks), else its first ready Commons image.
+   * photo with the most likes that may represent it (see
+   * `representativePhotos`), else its first ready Commons image.
    */
   async personalize<T extends PlaceItem>(
     userId: string,
@@ -420,11 +423,8 @@ export class PlacesService {
     const [covers, commons, liked] = await Promise.all([
       this.prisma.$queryRaw<{ placeId: string; photoId: string }[]>`
         SELECT DISTINCT ON (q."placeId") q."placeId" AS "placeId", q.id AS "photoId"
-        FROM (${this.representativePhotos(
-          userId,
-          Prisma.sql`m."placeId" = ANY(${ids}::uuid[])`,
-        )}) q
-        ORDER BY q."placeId", q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id`,
+        FROM (${this.representativePhotos(userId, ids)}) q
+        ORDER BY q."placeId", ${BEST_PHOTO_FIRST}`,
       this.prisma.$queryRaw<{ placeId: string; imageId: string }[]>`
         SELECT DISTINCT ON ("placeId") "placeId", id AS "imageId"
         FROM place_images
@@ -450,7 +450,7 @@ export class PlacesService {
     });
   }
 
-  /** Up to 10 photos that may represent the place, most outside likes first. */
+  /** Up to 10 photos that may represent the place, most likes first. */
   private async placeTripPhotos(
     userId: string,
     placeId: string,
@@ -458,12 +458,9 @@ export class PlacesService {
     const rows = await this.prisma.$queryRaw<
       { id: string; width: number | null; height: number | null }[]
     >`
-      SELECT q.id, p.width, p.height FROM (${this.representativePhotos(
-        userId,
-        Prisma.sql`m."placeId" = ${placeId}::uuid`,
-      )}) q
+      SELECT q.id, p.width, p.height FROM (${this.representativePhotos(userId, [placeId])}) q
       JOIN photos p ON p.id = q.id
-      ORDER BY q."outsideLikes" DESC, q."likeCount" DESC, q."createdAt" DESC, q.id
+      ORDER BY ${BEST_PHOTO_FIRST}
       LIMIT ${PLACE_PHOTO_LIMIT}`;
     return rows.map((row) => ({
       id: row.id,
@@ -504,39 +501,40 @@ export class PlacesService {
   }
 
   /**
-   * Ready photos in public trips that may represent a place: at least
-   * APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES people liked them who are neither the
-   * uploader, the trip owner nor a member of that trip, so nobody can make
-   * their own photo a place's image. Hidden content, suspended owners and
-   * blocks either way with the viewer (uploader or owner) are left out.
-   * Columns: id, placeId, outsideLikes, likeCount, createdAt.
+   * Ready photos that may represent one of [placeIds] (its cover, so its map
+   * pin, and the detail photos): the place's own photos and photos on stops
+   * there in public trips, liked by at least APP_PLACE_PHOTO_PIN_MIN_LIKES
+   * people other than the uploader (the trip's owner and members count). Hidden
+   * content and suspended uploaders or trip owners are left out. A block with
+   * the viewer leaves out trip photos, never place photos (the pin names no
+   * one). Columns: id, placeId, likes, createdAt.
    */
-  private representativePhotos(
-    userId: string,
-    placeFilter: Prisma.Sql,
-  ): Prisma.Sql {
-    const minLikes = this.config.get('APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES', {
+  private representativePhotos(userId: string, placeIds: string[]): Prisma.Sql {
+    const minLikes = this.config.get('APP_PLACE_PHOTO_PIN_MIN_LIKES', {
       infer: true,
     });
+    const likes = Prisma.sql`(
+      SELECT count(*)::int FROM likes l
+      WHERE l."targetType" = 'photo' AND l."targetId" = ph.id AND l."userId" <> ph."uploaderId")`;
+    const ready = Prisma.sql`ph.status = 'ready' AND ph."hiddenAt" IS NULL
+      AND ph."likeCount" >= ${minLikes} AND ${ownerActive(Prisma.sql`ph."uploaderId"`)}`;
     return Prisma.sql`
-      SELECT ph.id, m."placeId", outside.n AS "outsideLikes", ph."likeCount", ph."createdAt"
-      FROM photos ph
-      JOIN markers m ON m.id = ph."markerId"
-      JOIN trips t ON t.id = m."tripId"
-      CROSS JOIN LATERAL (
-        SELECT count(*)::int AS n FROM likes l
-        WHERE l."targetType" = 'photo' AND l."targetId" = ph.id
-          AND l."userId" <> ph."uploaderId" AND l."userId" <> t."ownerId"
-          AND NOT EXISTS (
-            SELECT 1 FROM trip_members tm WHERE tm."tripId" = t.id AND tm."userId" = l."userId")
-      ) outside
-      WHERE ${placeFilter} AND ph.status = 'ready' AND ph."hiddenAt" IS NULL
-        AND ph."likeCount" >= ${minLikes}
-        AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
-        AND ${ownerActive(Prisma.sql`t."ownerId"`)}
-        AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
-        AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
-        AND outside.n >= ${minLikes}`;
+      SELECT id, "placeId", likes, "createdAt" FROM (
+        SELECT ph.id, ph."placeId", ${likes} AS likes, ph."createdAt"
+        FROM photos ph
+        WHERE ph."placeId" = ANY(${placeIds}::uuid[]) AND ${ready}
+        UNION ALL
+        SELECT ph.id, m."placeId", ${likes} AS likes, ph."createdAt"
+        FROM photos ph
+        JOIN markers m ON m.id = ph."markerId"
+        JOIN trips t ON t.id = m."tripId"
+        WHERE m."placeId" = ANY(${placeIds}::uuid[]) AND ${ready}
+          AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
+          AND ${ownerActive(Prisma.sql`t."ownerId"`)}
+          AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
+          AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
+      ) photo
+      WHERE likes >= ${minLikes}`;
   }
 
   /**

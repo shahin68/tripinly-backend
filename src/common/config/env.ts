@@ -77,6 +77,17 @@ export const envSchema = z
       .default(60),
     /** Most place pins the app draws on the map at once, the best known and most liked first. */
     APP_MAP_MAX_PINS: z.coerce.number().int().min(20).max(1000).default(150),
+    /** A pin shows its place's photo when the place's prominence is at least this... */
+    APP_PHOTO_PIN_MIN_PROMINENCE: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .default(90),
+    /** ...or the place has at least this many likes. */
+    APP_PHOTO_PIN_MIN_LIKES: z.coerce.number().int().min(1).default(3),
+    /** Most pins drawn with a photo at once, the best ranked first. */
+    APP_MAP_MAX_PHOTO_PINS: z.coerce.number().int().min(0).max(500).default(30),
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),
@@ -128,14 +139,10 @@ export const envSchema = z
       .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
       .default('https://photon.komoot.io'),
     /**
-     * People outside a trip (not the uploader, owner or members) who must like
-     * a photo before it can represent a place (cover, place detail photos).
+     * Likes a photo needs, not counting its uploader's, before it can represent
+     * a place (cover, so the map pin's photo, and the place detail photos).
      */
-    APP_PLACE_PHOTO_MIN_OUTSIDE_LIKES: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .default(2),
+    APP_PLACE_PHOTO_PIN_MIN_LIKES: z.coerce.number().int().min(1).default(3),
     /**
      * Likes (popularity) a place needs before it ranks on the map by its likes,
      * ahead of every unliked place; below it, prominence (QRank) ranks it.
