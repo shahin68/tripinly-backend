@@ -217,7 +217,7 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | `mapMaxPins` | Most place pins the app draws on the map at once (map markers keep their screen size, so each costs the app): liked places first, then the best known (20–1000) | 150 |
 | `photoPinMinProminence` | A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this (0–100)… | 90 |
 | `photoPinMinLikes` | …or when it has at least this many likes | 3 |
-| `mapMaxPhotoPins` | Most pins drawn with a photo at once, in pin order; the rest keep their icon (0–500) | 30 |
+| `mapMaxPhotoPins` | Most pins drawn with a photo at once, in pin order; the rest keep their icon (0–500) | 100 |
 
 ## Stable error codes (starter set)
 

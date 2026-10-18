@@ -87,7 +87,12 @@ export const envSchema = z
     /** ...or the place has at least this many likes. */
     APP_PHOTO_PIN_MIN_LIKES: z.coerce.number().int().min(1).default(3),
     /** Most pins drawn with a photo at once, the best ranked first. */
-    APP_MAP_MAX_PHOTO_PINS: z.coerce.number().int().min(0).max(500).default(30),
+    APP_MAP_MAX_PHOTO_PINS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(500)
+      .default(100),
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),
