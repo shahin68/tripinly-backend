@@ -68,6 +68,7 @@ Project → **Settings** → **Shared Variables** → environment `staging` → 
    - `DATABASE_URL` → **Add Reference** → `postgres` → `DATABASE_URL`.
    - `REDIS_URL` → **Add Reference** → `redis` → `REDIS_URL`.
    - `DEV_AUTH_ENABLED` = `true` and `DEV_AUTH_SECRET` 🔑 = from step 2 (test sign-in while Google and Apple aren't set up; refused on production).
+   - `DEV_ACCOUNTS_PRO` = `true` (dev sign-in accounts get every Pro feature, e.g. routes, until the paywall exists; needs `DEV_AUTH_ENABLED`; refused on production). The smoke test's route step needs it.
    - `ORS_API_KEY` 🔑 = your openrouteservice key (optional; without it routes are straight lines). Leave `ORS_BASE_URL` unset: it defaults to `https://api.heigit.org/openrouteservice`, and keys from the openrouteservice dashboard work there.
 4. **Deploy.** The first deploy runs all migrations.
 
@@ -127,7 +128,7 @@ DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://
 | Shared | `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY` | generated (step 2) |
 | Shared | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare (step 3) |
 | api + worker | `DATABASE_URL`, `REDIS_URL` | Railway references |
-| api | `DEV_AUTH_ENABLED`, `DEV_AUTH_SECRET` | staging only |
+| api | `DEV_AUTH_ENABLED`, `DEV_AUTH_SECRET`, `DEV_ACCOUNTS_PRO` | staging only |
 | api | `ORS_API_KEY` | you hold it |
 | worker | `REVENUECAT_API_KEY` | you hold it |
 | worker | `FIREBASE_SERVICE_ACCOUNT_JSON` | from Firebase, when ready |
