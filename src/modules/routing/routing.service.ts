@@ -336,7 +336,7 @@ export class RoutingService {
               : Prisma.empty
           }
       )
-      SELECT id, name, names, category, lat, lng, popularity, distance, frac FROM (
+      SELECT id, name, names, category, lat, lng, popularity, prominence, distance, frac FROM (
         SELECT near.*, row_number() OVER (
           PARTITION BY least(floor(frac * ${ALONG_SEGMENTS}), ${ALONG_SEGMENTS - 1})
           ORDER BY (popularity > 0) DESC, popularity DESC, priority, id
