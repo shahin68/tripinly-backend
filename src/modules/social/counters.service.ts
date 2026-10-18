@@ -8,6 +8,7 @@ const LIKE_COUNTED = [
   ['trips', 'trip'],
   ['photos', 'photo'],
   ['comments', 'comment'],
+  ['place_images', 'place_image'],
 ] as const;
 
 type Tx = Pick<Prisma.TransactionClient, '$executeRaw'>;

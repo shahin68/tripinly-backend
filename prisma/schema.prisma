@@ -455,6 +455,7 @@ model PlaceImage {
   licenseUrl          String?
   attributionRequired Boolean          @default(true)
   filePageUrl         String?
+  likeCount           Int              @default(0)
   status              PlaceImageStatus @default(pending)
   rejectReason        String?
   fetchedAt           DateTime?
@@ -650,6 +651,7 @@ enum LikeTargetType {
   photo
   comment
   place
+  place_image
 }
 
 /// One like per user and target. Likes on a deleted trip, marker, photo or

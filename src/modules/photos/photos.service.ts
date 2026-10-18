@@ -17,7 +17,9 @@ import {
 } from '../markers/markers.dto';
 import { BlocksService } from '../moderation/blocks.service';
 import { PlaceMatchingService } from '../places/place-matching.service';
-import { PlacesService } from '../places/places.service';
+import { placeImageCredit } from '../places/commons-metadata';
+import { placeImageKeys } from '../places/place-image-keys';
+import { COMMONS_ORDER, PlacesService } from '../places/places.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import { lockTrip } from '../trips/trips.service';
@@ -259,12 +261,13 @@ export class PhotosService {
   }
 
   /**
-   * A place's photos, most liked first, then newest (at most MAX_PLACE_GALLERY):
-   * the photos added to the place, and the public trip photos taken there that
-   * may represent it (enough likes, see PlacesService.representativePhotos).
-   * Trip photos are the trip's own rows, never copies. The uploader also sees
-   * their own place photos still processing or failed. Blocks don't hide place
-   * photos (C7), only who uploaded them.
+   * A place's photos (at most MAX_PLACE_GALLERY). First people's photos, most
+   * liked first, then newest: the photos added to the place, and the public
+   * trip photos taken there that may represent it (enough likes, see
+   * PlacesService.representativePhotos). Then the place's Commons images, most
+   * liked first. Trip photos and Commons images are their own rows, never
+   * copies. The uploader also sees their own place photos still processing or
+   * failed. Blocks don't hide place photos (C7), only who uploaded them.
    */
   async placeGallery(userId: string, placeId: string): Promise<PhotoDto[]> {
     await this.places.assertVisible(this.prisma, userId, placeId);
@@ -292,19 +295,46 @@ export class PhotosService {
       take: MAX_PLACE_GALLERY,
       include: PHOTO_INCLUDE,
     });
+    const commons = await this.prisma.placeImage.findMany({
+      where: { placeId, status: 'ready' },
+      orderBy: COMMONS_ORDER,
+      take: MAX_PLACE_GALLERY - photos.length,
+    });
     const [hidden, liked] = await Promise.all([
       this.blocks.blockedAmong(
         userId,
         photos.map((photo) => photo.uploaderId),
       ),
-      likedAmong(this.prisma, userId, {
-        type: 'photo',
-        ids: photos.map((photo) => photo.id),
-      }),
+      likedAmong(
+        this.prisma,
+        userId,
+        { type: 'photo', ids: photos.map((photo) => photo.id) },
+        { type: 'place_image', ids: commons.map((image) => image.id) },
+      ),
     ]);
-    return photos.map((photo) =>
-      toPhotoDto(photo, this.storage, hidden, liked),
-    );
+    return [
+      ...photos.map((photo) => toPhotoDto(photo, this.storage, hidden, liked)),
+      ...commons.map((image): PhotoDto => {
+        const keys = placeImageKeys(image.id);
+        return {
+          id: image.id,
+          markerId: null,
+          placeId,
+          status: 'ready',
+          thumbUrl: this.storage.signedGetUrl(keys.thumb),
+          displayUrl: this.storage.signedGetUrl(keys.display),
+          width: image.width,
+          height: image.height,
+          position: 0,
+          likeCount: image.likeCount,
+          likedByMe: liked.has(image.id),
+          uploader: null,
+          createdAt: image.createdAt.toISOString(),
+          source: 'commons',
+          credit: placeImageCredit(image),
+        };
+      }),
+    ];
   }
 
   /** `photoIds` must be exactly the marker's processing and ready photos. */

@@ -68,7 +68,7 @@ export class AppConfigDto {
   photoPinMinLikes!: number;
 
   @ApiProperty({
-    example: 30,
+    example: 100,
     description:
       'Most pins the app draws with a photo at once, in pin order (liked places first, then the best known); the rest keep their icon.',
   })

@@ -10,6 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import type { Photo, PhotoStatus } from '../../generated/prisma/client';
+import { ImageCreditDto } from '../places/places.dto';
 import { toUserSummary, UserSummaryDto } from '../users/user-summary';
 import { photoKeys, type UrlSigner } from './photo-keys';
 
@@ -24,6 +25,9 @@ export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 export const MAX_PHOTOS_PER_MARKER = 30;
 /** A place's gallery shows at most this many photos, the most liked first. */
 export const MAX_PLACE_GALLERY = 100;
+
+export const PHOTO_SOURCES = ['user', 'commons'] as const;
+export type PhotoSource = (typeof PHOTO_SOURCES)[number];
 
 export class UploadUrlRequestDto {
   @ApiProperty({
@@ -104,6 +108,21 @@ export class PhotoDto {
 
   @ApiProperty()
   createdAt: string;
+
+  @ApiProperty({
+    enum: PHOTO_SOURCES,
+    description:
+      "`user`: uploaded by someone in the app. `commons`: one of a place's Wikimedia Commons images, only in a place's Photos list; like it with targetType place_image, and show its credit",
+  })
+  source: PhotoSource;
+
+  @ApiProperty({
+    type: ImageCreditDto,
+    nullable: true,
+    description:
+      'Commons images only: show "© author · licence · Wikimedia Commons" with it. Null for photos people uploaded',
+  })
+  credit: ImageCreditDto | null;
 }
 
 export class UploadUrlResponseDto {
@@ -184,5 +203,7 @@ export function toPhotoDto(
       ? null
       : toUserSummary(photo.uploader),
     createdAt: photo.createdAt.toISOString(),
+    source: 'user',
+    credit: null,
   };
 }

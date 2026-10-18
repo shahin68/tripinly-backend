@@ -17,6 +17,7 @@ const COUNTED_TABLES = {
   trip: 'trips',
   photo: 'photos',
   comment: 'comments',
+  place_image: 'place_images',
 } as const satisfies Partial<Record<LikeTargetTypeValue, string>>;
 
 interface ResolvedTarget {
@@ -27,7 +28,7 @@ interface ResolvedTarget {
 }
 
 /**
- * Likes on trips, photos, comments and places; a stop's like button likes its
+ * Likes on trips, photos, comments, places and places' Commons images; a stop's like button likes its
  * place (E1). One like per user and target; liking twice or unliking twice
  * changes nothing. Counters move in the same transaction, with the target row
  * locked so a like can't land on a target that is being deleted (its likes are
@@ -178,6 +179,16 @@ export class LikesService {
           throw AppException.notFound();
         }
         return { tripId: null, placeId: place.id };
+      }
+      case 'place_image': {
+        // A Commons image: whoever can see its place, while it is shown.
+        const image = await this.prisma.placeImage.findUnique({
+          where: { id: targetId },
+          select: { placeId: true, status: true },
+        });
+        if (!image || image.status !== 'ready') throw AppException.notFound();
+        await this.places.assertVisible(this.prisma, userId, image.placeId);
+        return { tripId: null, placeId: null };
       }
     }
   }
