@@ -101,7 +101,7 @@ Counters (`likeCount` on trips, photos, comments; `markers.commentCount`; `place
 
 **notification_settings** — `userId` (PK, `CASCADE`), `commentOnMarker`, `addedToTrip`, `tripChangedByCollaborator`, `likesGrouped`, `joinRequested` (booleans, default true). No row = all on.
 
-**entitlements** — user → users (`CASCADE`), `feature` (`best_route_realtime`), `source` (`revenuecat`, or `manual` from `npm run entitlement:grant`), `expiresAt` (null = never), `externalRef`. Unique (`userId`, `feature`, `source`). Active = no `expiresAt` or one in the future.
+**entitlements** — user → users (`CASCADE`), `feature` (`routes`), `source` (`revenuecat`, or `manual` from `npm run entitlement:grant`), `expiresAt` (null = never), `externalRef`. Unique (`userId`, `feature`, `source`). Active = no `expiresAt` or one in the future.
 
 ## Deletion behaviour (FK summary)
 

@@ -1,6 +1,6 @@
 ---
 name: routing
-description: Use for Tripinly routes — openrouteservice integration, route lines between points or through a day's markers, places along the way, best-route optimization (straight-line free, ORS matrix premium), caching and fallbacks.
+description: Use for Tripinly routes — openrouteservice integration, route lines between points or through a day's markers, places along the way, best-order optimization (free, ORS matrix travel times), routes Pro-only, caching and fallbacks.
 ---
 
 # Routing
@@ -60,9 +60,9 @@ ORDER BY frac;
 ## Best route — `POST /days/{id}/optimize`
 
 - Requires `edit_content` to apply; ≤ 25 markers; first marker fixed as start.
-- **Free** (no entitlement): straight-line (haversine) distances → nearest neighbour + 2-opt → `mode: "straight_line"`, no `savedMinutes`.
-- **Premium** (`EntitlementService.has(user, 'best_route_realtime')`): ORS matrix durations → same algorithm → `mode: "travel_time"`, `savedMinutes` = current order duration − new order duration (rounded, ≥ 0).
-- ORS failure on premium → straight-line with `degraded: true`.
+- **Free for everyone:** ORS matrix durations → nearest neighbour + 2-opt → `mode: "travel_time"`, `savedMinutes` = current order duration − new order duration (rounded, ≥ 0).
+- ORS failure → straight-line (haversine) distances, same algorithm, `mode: "straight_line"`, `degraded: true`.
+- Route lines (`GET /routes`, `GET /days/{id}/route`) need `EntitlementService.has(user, 'routes')`, else 403 `PREMIUM_REQUIRED`.
 - `?apply=true` writes positions in one transaction, emits `markers.reordered`, invalidates the day route cache.
 
 ## Quotas
@@ -71,4 +71,4 @@ Track ORS calls per day in Redis; at 80% of the plan quota log a warning; at 100
 
 ## Tests
 
-Provider mocked: route/along-the-way response shape, buffer by mode, segment spreading, exclusion of trip places, cache hit and invalidation, optimize free vs premium, degraded fallback, 25-marker limit, access checks.
+Provider mocked: route/along-the-way response shape, buffer by mode, segment spreading, exclusion of trip places, cache hit and invalidation, routes with and without Pro, optimize by travel time and its fallback, degraded fallback, 25-marker limit, access checks.

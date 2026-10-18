@@ -11,7 +11,7 @@ This file records the map architecture decided with the product owner. It overri
 | Place search (search box) | 1) our `places` table (POIs by name), 2) **Photon** (OSM geocoder) for addresses, streets, cities | Backend proxies both | Free (public Photon at first, self-host later) |
 | Routing (route lines, travel times, matrix) | **openrouteservice (ORS)** | Backend calls it | Free plan to start, paid/self-host later |
 | Places along a route | PostGIS query on our `places` table against the ORS route line | Backend | Free |
-| Premium best route | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later) | Backend | Free/low |
+| Best order (free) | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later) | Backend | Free/low |
 
 ## Legal rules (non-negotiable)
 
@@ -118,8 +118,8 @@ Returns:
 **Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
 
 **Free vs premium:**
-- Showing a route line for a day, and along-the-way places: **free for everyone** (ORS cost is low). If ORS quota becomes a problem, fall back to straight segments between markers for free users and tell the product owner.
-- **Best route (reorder a day):** free = straight-line ordering (no provider call); premium = ORS matrix (`/v2/matrix/{profile}`, durations) + our ordering (nearest neighbour + 2-opt, first marker fixed) + `savedMinutes`.
+- Route lines (a day's route and A→B) with along-the-way places: **Tripinly Pro** (entitlement `routes`; 403 `PREMIUM_REQUIRED` otherwise). Without Pro the app joins the day's stops with its own curved direction lines (no server call). (Product owner, 2026-10-18.)
+- **Best order (reorder a day):** **free for everyone**, a simple reordering: ORS matrix (`/v2/matrix/{profile}`, durations) + our ordering (nearest neighbour + 2-opt, first marker fixed) + `savedMinutes`; straight-line distances with `degraded: true` when travel times are unavailable.
 - Limits: ≤ 25 markers per optimization, ≤ 50 waypoints per day route.
 - Anyone who can see the trip may ask for a proposal; saving it (`apply=true`) needs owner or editor.
 

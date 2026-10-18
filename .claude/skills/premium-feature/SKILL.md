@@ -1,6 +1,6 @@
 ---
 name: premium-feature
-description: Use when building or changing anything behind a Tripinly paid entitlement — currently best route with real travel times — including entitlement checks, free fallbacks and the billing module.
+description: Use when building or changing anything behind a Tripinly paid entitlement — currently routes along streets — including entitlement checks, free fallbacks and the billing module.
 ---
 
 # Premium features
@@ -9,7 +9,7 @@ description: Use when building or changing anything behind a Tripinly paid entit
 
 | Feature key | What it unlocks | Free fallback |
 |---|---|---|
-| `best_route_realtime` | `POST /days/{id}/optimize` using real travel times (openrouteservice matrix), returns `savedMinutes` | Straight-line ordering (nearest neighbour from the first marker, then 2-opt improvement), no time estimate |
+| `routes` | `GET /routes` and `GET /days/{id}/route`: route lines along streets with places along the way | None on the server (403 `PREMIUM_REQUIRED`); the app draws curved direction lines between stops |
 
 ## Rules
 
@@ -22,13 +22,13 @@ description: Use when building or changing anything behind a Tripinly paid entit
 ## Billing: RevenueCat (decided 2026-09-28)
 
 - Purchases happen in the apps through the RevenueCat SDK. The client calls `Purchases.logIn(<our user UUID>)`, so RevenueCat's `app_user_id` is our user ID.
-- RevenueCat entitlement **`tripinly_pro`** unlocks our feature keys (today: `best_route_realtime`). Products: `monthly`, `yearly`, `lifetime`.
+- RevenueCat entitlement **`tripinly_pro`** unlocks our feature keys (today: `routes`). Products: `monthly`, `yearly`, `lifetime`.
 - `POST /v1/billing/revenuecat/webhook` (public, authenticated by comparing the `Authorization` header with `REVENUECAT_WEBHOOK_AUTH` in constant time) upserts `entitlements` rows: `source = revenuecat`, `externalRef` = RevenueCat transaction/original ID, `expiresAt` from the event, **`null` for lifetime** (never expires). Treat events as idempotent and out-of-order safe: re-fetch the subscriber with `REVENUECAT_API_KEY` (`GET /v1/subscribers/{app_user_id}`) and write the resulting state rather than applying deltas.
 - Staging accepts `SANDBOX` events; production ignores them.
 - Account deletion also deletes the RevenueCat customer (`DELETE /v1/subscribers/{app_user_id}`), see the `account-deletion` skill.
 - Until the webhook is live, `EntitlementService` reads the `entitlements` table and has an admin/dev-only way to grant an entitlement for testing.
 
-Route lines and places along the way are **free for everyone**; only reordering by real travel time is premium.
+Route lines and places along the way are **premium** (`routes`); the best order by real travel times is **free for everyone** (product owner, 2026-10-18).
 
 ## Adding a new premium feature
 

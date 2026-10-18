@@ -3370,7 +3370,7 @@
     },
     "/v1/routes": {
       "get": {
-        "description": "Free for everyone. 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).",
+        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).",
         "operationId": "Routing_route",
         "parameters": [
           {
@@ -3453,7 +3453,7 @@
     },
     "/v1/days/{id}/route": {
       "get": {
-        "description": "With places along the way (not the trip's own). route is null for fewer than two markers.",
+        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers.",
         "operationId": "Routing_dayRoute",
         "parameters": [
           {
@@ -3515,7 +3515,7 @@
     },
     "/v1/days/{id}/optimize": {
       "post": {
-        "description": "The first marker stays first. Tripinly Pro: by real travel times, with savedMinutes. Otherwise by straight-line distance. Up to 25 markers. apply=true saves the order (owner or editor) and emits markers.reordered.",
+        "description": "Free for everyone. The first marker stays first. By real travel times for mode, with savedMinutes; by straight-line distance with degraded=true when travel times are unavailable. Up to 25 markers. apply=true saves the order (owner or editor) and emits markers.reordered.",
         "operationId": "Routing_optimize",
         "parameters": [
           {
@@ -3531,7 +3531,7 @@
             "name": "mode",
             "required": false,
             "in": "query",
-            "description": "Travel mode for premium travel times",
+            "description": "Travel mode for the travel times",
             "schema": {
               "default": "walking",
               "type": "string",
@@ -4459,7 +4459,7 @@
           },
           "entitlements": {
             "example": [
-              "best_route_realtime"
+              "routes"
             ],
             "description": "Active premium features. Show paid UI from this, never from a local flag.",
             "type": "array",
@@ -6806,7 +6806,7 @@
               "straight_line",
               "travel_time"
             ],
-            "description": "travel_time with Tripinly Pro, otherwise straight_line"
+            "description": "travel_time, or straight_line when travel times are unavailable"
           },
           "savedMinutes": {
             "type": "number",
@@ -6815,7 +6815,7 @@
           },
           "degraded": {
             "type": "boolean",
-            "description": "Pro user, but travel times were unavailable: straight_line was used"
+            "description": "Travel times were unavailable: straight_line was used"
           },
           "applied": {
             "type": "boolean",

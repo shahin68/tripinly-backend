@@ -36,7 +36,7 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Route from A to B with places along the way',
     description:
-      'Free for everyone. 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).',
+      'Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).',
   })
   @ApiOkResponse({ type: RouteResponseDto })
   route(
@@ -61,7 +61,7 @@ export class RoutingController {
   @ApiOperation({
     summary: "Route through a day's markers in order",
     description:
-      "With places along the way (not the trip's own). route is null for fewer than two markers.",
+      "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers.",
   })
   @ApiOkResponse({ type: RouteResponseDto })
   dayRoute(
@@ -84,7 +84,7 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Best order for a day',
     description:
-      'The first marker stays first. Tripinly Pro: by real travel times, with savedMinutes. Otherwise by straight-line distance. Up to 25 markers. apply=true saves the order (owner or editor) and emits markers.reordered.',
+      'Free for everyone. The first marker stays first. By real travel times for mode, with savedMinutes; by straight-line distance with degraded=true when travel times are unavailable. Up to 25 markers. apply=true saves the order (owner or editor) and emits markers.reordered.',
   })
   @ApiOkResponse({ type: OptimizeResultDto })
   optimize(

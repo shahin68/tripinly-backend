@@ -68,7 +68,7 @@ export class MeDto {
 
   @ApiProperty({
     type: [String],
-    example: ['best_route_realtime'],
+    example: ['routes'],
     description:
       'Active premium features. Show paid UI from this, never from a local flag.',
   })

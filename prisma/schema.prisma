@@ -677,7 +677,7 @@ model Like {
 model Entitlement {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @db.Uuid
-  /// Feature key, e.g. best_route_realtime.
+  /// Feature key, e.g. routes.
   feature     String
   /// Who granted it: revenuecat, or manual (grant script).
   source      String

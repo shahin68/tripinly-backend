@@ -17,7 +17,7 @@ class GrantScriptModule {}
  * Grants a premium feature without a purchase, for testing until the
  * RevenueCat webhook is live:
  *
- *   npm run entitlement:grant -- <username> best_route_realtime [days]
+ *   npm run entitlement:grant -- <username> routes [days]
  *
  * Without days it never expires; 0 days revokes it.
  */

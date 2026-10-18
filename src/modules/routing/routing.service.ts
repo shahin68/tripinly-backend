@@ -59,9 +59,9 @@ interface Waypoint extends LatLng {
 }
 
 /**
- * Route lines (day and A→B), places along the way, and best route
- * (routing skill). Route lines are free for everyone; ordering by real
- * travel time needs the best_route_realtime entitlement.
+ * Route lines (day and A→B), places along the way, and best order
+ * (routing skill). Route lines need the routes entitlement (Tripinly Pro);
+ * the best order by real travel times is free for everyone.
  */
 @Injectable()
 export class RoutingService {
@@ -91,6 +91,7 @@ export class RoutingService {
     if (input.excludeTripId) {
       await this.access.assert(userId, input.excludeTripId, 'view');
     }
+    await this.assertRoutes(userId);
     return this.build(
       userId,
       [
@@ -113,6 +114,7 @@ export class RoutingService {
     lang: string,
   ): Promise<RouteResponseDto> {
     const { trip } = await this.access.assertForDay(userId, dayId, 'view');
+    await this.assertRoutes(userId);
     const markers = await this.dayMarkers(dayId);
     if (markers.length < 2) {
       return {
@@ -133,9 +135,9 @@ export class RoutingService {
   }
 
   /**
-   * Best order for a day, the first marker fixed. With the entitlement:
-   * by openrouteservice travel times, reporting minutes saved; otherwise,
-   * or when travel times are unavailable, by straight-line distance.
+   * Best order for a day, the first marker fixed, for everyone: by
+   * openrouteservice travel times, reporting minutes saved; by straight-line
+   * distance when travel times are unavailable (degraded).
    */
   async optimize(
     userId: string,
@@ -152,14 +154,9 @@ export class RoutingService {
     if (markers.length > MAX_OPTIMIZE_MARKERS) {
       throw limitReached('optimizeMarkers', MAX_OPTIMIZE_MARKERS);
     }
-    const premium = await this.entitlements.has(
-      userId,
-      PremiumFeature.BEST_ROUTE_REALTIME,
-    );
-
     let durations: CostMatrix | null = null;
     let degraded = false;
-    if (premium && markers.length > 2) {
+    if (markers.length > 2) {
       try {
         const matrix = await this.provider.matrix(markers, mode);
         // Unreachable pairs: estimate from the straight line.
@@ -184,7 +181,7 @@ export class RoutingService {
 
     if (apply) await this.markers.reorder(userId, dayId, markerIds);
     const current = [...markers.keys()];
-    const travelTime = premium && !degraded;
+    const travelTime = !degraded;
     return {
       dayId,
       markerIds,
@@ -202,6 +199,13 @@ export class RoutingService {
       degraded,
       applied: apply,
     };
+  }
+
+  /** Routes are Tripinly Pro (premium-feature skill). */
+  private async assertRoutes(userId: string): Promise<void> {
+    if (!(await this.entitlements.has(userId, PremiumFeature.ROUTES))) {
+      throw new AppException(ErrorCode.PREMIUM_REQUIRED, HttpStatus.FORBIDDEN);
+    }
   }
 
   private async build(
