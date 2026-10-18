@@ -699,11 +699,11 @@ describe('Social (integration)', () => {
         lng: 19.0456,
       });
       await addMarker(editor, budapest.days[0].id, pest);
-      // Vienna was liked twice long ago, Budapest once this week.
+      // Vienna was created 40 days ago and liked twice, Budapest this week and liked once.
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      await prisma.like.updateMany({
-        where: { targetId: trip.id },
+      await prisma.trip.update({
+        where: { id: trip.id },
         data: { createdAt: new Date(Date.now() - 40 * 86_400_000) },
       });
       await as(stranger).put(`/v1/likes/trip/${budapest.id}`).expect(200);
@@ -714,8 +714,9 @@ describe('Social (integration)', () => {
         ).map((t) => t.title);
 
       expect(await titles('period=all')).toEqual(['Vienna', 'Budapest']);
-      expect(await titles('period=week')).toEqual(['Budapest', 'Vienna']);
-      expect(await titles('period=month')).toEqual(['Budapest', 'Vienna']);
+      // Week, month and year keep the trips created in that window, ranked by likes.
+      expect(await titles('period=week')).toEqual(['Budapest']);
+      expect(await titles('period=month')).toEqual(['Budapest']);
       expect(await titles('period=year')).toEqual(['Vienna', 'Budapest']);
 
       // Season: only trips travelled in the current season.
@@ -736,7 +737,8 @@ describe('Social (integration)', () => {
       // Nearby: a stop within the radius (50 km), with any period.
       const near = `lat=${ALBERTINA.lat}&lng=${ALBERTINA.lng}`;
       expect(await titles(near)).toEqual(['Vienna']);
-      expect(await titles(`${near}&period=week`)).toEqual(['Vienna']);
+      expect(await titles(`${near}&period=year`)).toEqual(['Vienna']);
+      expect(await titles(`${near}&period=week`)).toEqual([]);
       expect(await titles('lat=47.5&lng=19.05')).toEqual(['Budapest']);
 
       await as(stranger).get('/v1/explore/trips?period=day').expect(400);

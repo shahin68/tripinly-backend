@@ -3274,7 +3274,7 @@
     },
     "/v1/explore/trips": {
       "get": {
-        "description": "Ranked by likes only (saves never count), newest on ties; period picks which likes count or the season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.",
+        "description": "Ranked by likes only (saves never count), newest on ties; period week/month/year keeps the trips created in the last 7/30/365 days, season the trips travelled in the current season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.",
         "operationId": "Explore_trips",
         "parameters": [
           {
@@ -3311,7 +3311,7 @@
             "name": "period",
             "required": false,
             "in": "query",
-            "description": "Ranks by all likes (all), by the likes of the last 7, 30 or 365 days (week, month, year), or keeps trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov) ranked by all likes",
+            "description": "Every trip (all), only trips created in the last 7, 30 or 365 days (week, month, year), or trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov); always ranked by likes, newest first on ties",
             "schema": {
               "default": "all",
               "type": "string",
@@ -4755,6 +4755,10 @@
             "type": "boolean",
             "description": "In my trips because I saved it (role is viewer then, unless I am also a member)"
           },
+          "createdAt": {
+            "type": "string",
+            "description": "When the trip was created (apps show \"3 days ago\")"
+          },
           "updatedAt": {
             "type": "string"
           }
@@ -4775,6 +4779,7 @@
           "likedByMe",
           "saveCount",
           "savedByMe",
+          "createdAt",
           "updatedAt"
         ]
       },

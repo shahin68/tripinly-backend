@@ -20,7 +20,7 @@ export class ExploreController {
   @ApiOperation({
     summary: 'Public trips, mine included, ranked by likes',
     description:
-      'Ranked by likes only (saves never count), newest on ties; period picks which likes count or the season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.',
+      'Ranked by likes only (saves never count), newest on ties; period week/month/year keeps the trips created in the last 7/30/365 days, season the trips travelled in the current season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.',
   })
   @ApiOkResponse({ type: TripSummaryPageDto })
   trips(

@@ -298,6 +298,11 @@ export class TripSummaryDto {
   })
   savedByMe: boolean;
 
+  @ApiProperty({
+    description: 'When the trip was created (apps show "3 days ago")',
+  })
+  createdAt: string;
+
   @ApiProperty()
   updatedAt: string;
 }
