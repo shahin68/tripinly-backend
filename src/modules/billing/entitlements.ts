@@ -1,7 +1,7 @@
 /** Paid feature keys (premium-feature skill). RevenueCat's `tripinly_pro` unlocks all of them. */
 export const PremiumFeature = {
-  /** Best route by real travel times (openrouteservice matrix). */
-  BEST_ROUTE_REALTIME: 'best_route_realtime',
+  /** Routes along streets with places along the way (day and A→B). */
+  ROUTES: 'routes',
 } as const;
 
 export type PremiumFeatureKey =

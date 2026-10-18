@@ -11,7 +11,7 @@
 
 External: Cloudflare R2 (photos, exports), Firebase (FCM), Resend (email), Google and Apple identity endpoints, **openrouteservice** (routing, API key), **Photon** (search; public komoot instance at first with fair use, self-hosted Railway service later), **Geofabrik** extracts (OSM import), **QRank** (`qrank.csv.gz` from qrank.toolforge.org, read by every OSM import to rank places), **Wikidata and Wikimedia Commons APIs** (place images: main images and file licences, read by the worker about once a second with a contact User-Agent; images are copied to R2, never hotlinked).
 
-Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> best_route_realtime [days]` (0 days revokes).
+Premium testing before the RevenueCat webhook exists: `npm run entitlement:grant -- <username> routes [days]` (0 days revokes).
 
 Nightly counter rebuild: BullMQ queue `social`, job `recount` at 03:40 UTC in the worker (like and comment counters, place popularity).
 
@@ -72,6 +72,7 @@ Adding anything else: state the reason.
 | `DEPLOY_ENV` | `local` (default), `staging` or `production`. Separates the Railway environments, which all run with `NODE_ENV=production` |
 | `DEV_AUTH_ENABLED` | `true` enables `POST /v1/auth/dev` and `DELETE /v1/auth/dev/accounts` for work without Google/Apple accounts. Refused at boot when `DEPLOY_ENV=production`, or when `NODE_ENV=production` outside staging |
 | `DEV_AUTH_SECRET` | Required (32+ chars) when dev auth is on in staging; callers send it as `X-Dev-Auth-Secret`. Optional locally |
+| `DEV_ACCOUNTS_PRO` | `true`/`false`, default `false`. Dev sign-in accounts get every premium feature (testing until the paywall exists). Needs `DEV_AUTH_ENABLED`, so never in production |
 | `ORS_API_KEY`, `ORS_BASE_URL` | openrouteservice. `ORS_BASE_URL` defaults to `https://api.heigit.org/openrouteservice` (the old api.openrouteservice.org host was shut down 2026-08-24; existing keys work on the new host). Without a key, routes are straight lines (`degraded`) |
 | `ORS_DIRECTIONS_DAILY_QUOTA`, `ORS_MATRIX_DAILY_QUOTA` | Calls per UTC day before falling back to straight lines (default 2000 / 500, the free plan) |
 | `PHOTON_BASE_URL` | Photon geocoder (public or self-hosted). Default `https://photon.komoot.io` |

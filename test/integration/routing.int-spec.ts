@@ -59,6 +59,14 @@ describe('Routing (integration)', () => {
     ors.requests = [];
     owner = await onboardedUser(app, 'owner');
     stranger = await onboardedUser(app, 'stranger');
+    // Routes are Tripinly Pro; both have it unless a test takes it away.
+    await prisma.entitlement.createMany({
+      data: [owner, stranger].map((user) => ({
+        userId: user.userId,
+        feature: 'routes',
+        source: 'manual',
+      })),
+    });
     // ~110 m north of the line, and ~1.1 km north of it.
     near = await insertPlace(app, {
       name: 'Café Near',
@@ -227,6 +235,34 @@ describe('Routing (integration)', () => {
     });
   });
 
+  describe('Tripinly Pro', () => {
+    it('routes only with an active routes entitlement', async () => {
+      await addMarker(48.2, 16.36);
+      await addMarker(48.2, 16.38);
+      const me = await as(owner).get('/v1/me').expect(200);
+      expect(me.body.entitlements).toEqual(['routes']);
+
+      await prisma.entitlement.deleteMany({
+        where: { userId: stranger.userId },
+      });
+      const day = await as(stranger)
+        .get(`/v1/days/${trip.days[0].id}/route`)
+        .expect(403);
+      expect(day.body.error.code).toBe('PREMIUM_REQUIRED');
+      const points = await as(stranger)
+        .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}`)
+        .expect(403);
+      expect(points.body.error.code).toBe('PREMIUM_REQUIRED');
+
+      // Expired entitlements don't count.
+      await prisma.entitlement.updateMany({
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+      await as(owner).get(`/v1/days/${trip.days[0].id}/route`).expect(403);
+      expect(ors.requests).toHaveLength(0);
+    });
+  });
+
   describe('GET /v1/days/:id/route', () => {
     it("routes through the day's markers and leaves the trip's places out", async () => {
       const a = await addMarker(FROM.lat, FROM.lng, 'Start');
@@ -290,23 +326,28 @@ describe('Routing (integration)', () => {
       ];
     }
 
-    it('orders by straight line without Pro, first marker fixed', async () => {
-      const a = await addMarker(48.2, 16.36, 'A');
-      const c = await addMarker(48.2, 16.38, 'C');
-      const b = await addMarker(48.2, 16.37, 'B');
+    it('orders by travel time for everyone, first marker fixed', async () => {
+      const [a, b, c] = await lineOfThree();
+      // By travel time, C is on the way to B.
+      ors.matrix = [
+        [0, 1000, 100],
+        [1000, 0, 1000],
+        [100, 100, 0],
+      ];
 
+      // No Pro needed: the stranger can see the public trip.
       const { body } = await as(stranger)
-        .post(`/v1/days/${trip.days[0].id}/optimize`)
+        .post(`/v1/days/${trip.days[0].id}/optimize?mode=cycling`)
         .expect(200);
       expect(body).toEqual({
         dayId: trip.days[0].id,
-        markerIds: [a, b, c],
-        mode: 'straight_line',
-        savedMinutes: null,
+        markerIds: [a, c, b],
+        mode: 'travel_time',
+        savedMinutes: 30,
         degraded: false,
         applied: false,
       });
-      expect(ors.requests).toHaveLength(0);
+      expect(ors.requests[0].path).toBe('/v2/matrix/cycling-regular');
 
       // Viewers get a proposal; saving it takes an owner or editor.
       await as(stranger)
@@ -319,60 +360,23 @@ describe('Routing (integration)', () => {
       const saved = await as(owner).get(`/v1/trips/${trip.id}`);
       expect(
         saved.body.days[0].markers.map((m: { id: string }) => m.id),
-      ).toEqual([a, b, c]);
+      ).toEqual([a, c, b]);
     });
 
-    it('orders by travel time with Pro and reports minutes saved', async () => {
-      const [a, b, c] = await lineOfThree();
-      await prisma.entitlement.create({
-        data: {
-          userId: owner.userId,
-          feature: 'best_route_realtime',
-          source: 'manual',
-        },
-      });
-      const me = await as(owner).get('/v1/me').expect(200);
-      expect(me.body.entitlements).toEqual(['best_route_realtime']);
-
-      // By travel time, C is on the way to B.
-      ors.matrix = [
-        [0, 1000, 100],
-        [1000, 0, 1000],
-        [100, 100, 0],
-      ];
-      const { body } = await as(owner)
-        .post(`/v1/days/${trip.days[0].id}/optimize?mode=cycling`)
-        .expect(200);
-      expect(body).toMatchObject({
-        markerIds: [a, c, b],
-        mode: 'travel_time',
-        savedMinutes: 30,
-        degraded: false,
-      });
-      expect(ors.requests[0].path).toBe('/v2/matrix/cycling-regular');
-
-      // Travel times unavailable: straight line, flagged.
+    it('orders by straight line when travel times are unavailable', async () => {
+      const a = await addMarker(48.2, 16.36, 'A');
+      const c = await addMarker(48.2, 16.38, 'C');
+      const b = await addMarker(48.2, 16.37, 'B');
       ors.mode = 'error';
-      const fallback = await as(owner)
+
+      const { body } = await as(owner)
         .post(`/v1/days/${trip.days[0].id}/optimize`)
         .expect(200);
-      expect(fallback.body).toMatchObject({
+      expect(body).toMatchObject({
         markerIds: [a, b, c],
         mode: 'straight_line',
         savedMinutes: null,
         degraded: true,
-      });
-
-      // Expired entitlements don't count.
-      await prisma.entitlement.updateMany({
-        data: { expiresAt: new Date(Date.now() - 1000) },
-      });
-      const expired = await as(owner)
-        .post(`/v1/days/${trip.days[0].id}/optimize`)
-        .expect(200);
-      expect(expired.body).toMatchObject({
-        mode: 'straight_line',
-        degraded: false,
       });
     });
 

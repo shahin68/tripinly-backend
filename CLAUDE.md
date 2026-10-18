@@ -107,5 +107,5 @@ The KMP client already exists (Google Maps, Home with My Trips, Social, trip cre
 | `routing` | openrouteservice routes, along-the-way places, best route optimization |
 | `account-deletion` | Account deletion and GDPR data export |
 | `moderation` | Reports, blocking, admin review |
-| `premium-feature` | Anything behind a paid entitlement (e.g. best route) |
+| `premium-feature` | Anything behind a paid entitlement (e.g. routes) |
 | `deploy-railway` | Environments, env vars, releases, running migrations on Railway |

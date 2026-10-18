@@ -227,6 +227,11 @@ export const envSchema = z
     DEV_AUTH_ENABLED: booleanFlag,
     /** Staging: dev sign-in also needs this value in the X-Dev-Auth-Secret header. */
     DEV_AUTH_SECRET: optionalString,
+    /**
+     * Testing until the paywall exists: accounts made by dev sign-in have
+     * every premium feature. Needs DEV_AUTH_ENABLED; refused in production.
+     */
+    DEV_ACCOUNTS_PRO: booleanFlag,
   })
   .superRefine((env, ctx) => {
     const apple = [
@@ -292,6 +297,13 @@ export const envSchema = z
         code: 'custom',
         path: ['DEV_AUTH_ENABLED'],
         message: 'must not be enabled in production',
+      });
+    }
+    if (env.DEV_ACCOUNTS_PRO && !env.DEV_AUTH_ENABLED) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DEV_ACCOUNTS_PRO'],
+        message: 'needs DEV_AUTH_ENABLED (never in production)',
       });
     }
     if (

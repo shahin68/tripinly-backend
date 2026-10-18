@@ -62,7 +62,7 @@ export class OptimizeQueryDto {
   @ApiPropertyOptional({
     enum: ROUTING_MODES,
     default: 'walking',
-    description: 'Travel mode for premium travel times',
+    description: 'Travel mode for the travel times',
   })
   @IsOptional()
   @IsIn(ROUTING_MODES)
@@ -166,7 +166,8 @@ export class OptimizeResultDto {
 
   @ApiProperty({
     enum: OPTIMIZE_MODES,
-    description: 'travel_time with Tripinly Pro, otherwise straight_line',
+    description:
+      'travel_time, or straight_line when travel times are unavailable',
   })
   mode: (typeof OPTIMIZE_MODES)[number];
 
@@ -178,8 +179,7 @@ export class OptimizeResultDto {
   savedMinutes: number | null;
 
   @ApiProperty({
-    description:
-      'Pro user, but travel times were unavailable: straight_line was used',
+    description: 'Travel times were unavailable: straight_line was used',
   })
   degraded: boolean;
 
