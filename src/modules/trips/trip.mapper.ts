@@ -186,6 +186,7 @@ export function toTripSummaryDto(
     likedByMe: likedIds.has(trip.id),
     saveCount: trip._count.saves,
     savedByMe: trip.saves.length > 0,
+    createdAt: trip.createdAt.toISOString(),
     updatedAt: trip.updatedAt.toISOString(),
   };
 }

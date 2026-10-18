@@ -36,7 +36,7 @@ export class ExploreTripsQueryDto extends PageQueryDto {
     enum: EXPLORE_PERIODS,
     default: 'all',
     description:
-      'Ranks by all likes (all), by the likes of the last 7, 30 or 365 days (week, month, year), or keeps trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov) ranked by all likes',
+      'Every trip (all), only trips created in the last 7, 30 or 365 days (week, month, year), or trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov); always ranked by likes, newest first on ties',
   })
   @IsOptional()
   @IsIn(EXPLORE_PERIODS)

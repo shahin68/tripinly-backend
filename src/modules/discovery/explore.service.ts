@@ -20,7 +20,7 @@ export interface ExploreFilter {
   near?: { lat: number; lng: number };
 }
 
-/** How far back each period counts likes. */
+/** How far back each period reaches: only trips created since then show. */
 const PERIOD_DAYS: Partial<Record<ExplorePeriod, number>> = {
   week: 7,
   month: 30,
@@ -39,9 +39,9 @@ interface ExploreCursor {
  * Explore: public, visible trips with at least one marker, the viewer's own
  * included (Shahin 2026-10-16: a popular trip shows to its owner too; `role`
  * tells the app not to offer Save; `includeMine` false leaves them out), owner without a block with the viewer.
- * Ranked by likes only (saves never count, Shahin 2026-10-16), newest first on ties: all likes
- * for `all` and `season` (trips travelled in the current season), the likes of the last 7, 30
- * or 365 days for `week`, `month`, `year`. `near` keeps trips with a stop within
+ * Ranked by likes only (saves never count, Shahin 2026-10-16), newest first on ties. `week`,
+ * `month` and `year` keep the trips created in the last 7, 30 or 365 days (Shahin 2026-10-18);
+ * `season` keeps trips travelled in the current season; `all` keeps every trip. `near` keeps trips with a stop within
  * `APP_EXPLORE_NEARBY_RADIUS_KM`.
  */
 @Injectable()
@@ -61,12 +61,11 @@ export class ExploreService {
     const after = cursor ? decodeExploreCursor(cursor) : null;
     const ref = after ? new Date(after.ref) : new Date();
     const days = PERIOD_DAYS[filter.period];
-    const likes =
+    // Week, month and year keep the trips created in that window (Shahin 2026-10-18), ranked by their likes.
+    const createdSince =
       days === undefined
-        ? Prisma.sql`t."likeCount"`
-        : Prisma.sql`(SELECT count(*) FROM likes l
-            WHERE l."targetType" = 'trip' AND l."targetId" = t.id
-              AND l."createdAt" > ${ref.toISOString()}::timestamp - make_interval(days => ${days}::int))`;
+        ? Prisma.sql`true`
+        : Prisma.sql`t."createdAt" > ${ref.toISOString()}::timestamp - make_interval(days => ${days}::int)`;
     const season =
       filter.period === 'season'
         ? Prisma.sql`(extract(month FROM t."startDate")::int IN (${Prisma.join(seasonMonths(ref))})
@@ -84,12 +83,13 @@ export class ExploreService {
     >`
       SELECT id, score, "createdAt" FROM (
         SELECT t.id, t."createdAt",
-               (${likes})::float8 AS score
+               t."likeCount"::float8 AS score
         FROM trips t
         WHERE t.visibility = 'public' AND t."hiddenAt" IS NULL
           -- Suspended (or deleting) owners' trips leave discovery.
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)
+          AND ${createdSince}
           AND ${season}
           AND ${near}
           AND ${
