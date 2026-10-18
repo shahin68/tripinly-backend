@@ -15,7 +15,7 @@ import { ORS_STUB_KEY, startOrsStub, type OrsStub } from '../utils/ors-stub';
 import { insertPlace } from '../utils/places';
 
 interface AlongBody {
-  place: { id: string; name: string };
+  place: { id: string; name: string; prominence: number };
   distanceFromRouteMeters: number;
   positionAlongRoute: number;
   etaFromStartSeconds: number;
@@ -135,6 +135,8 @@ describe('Routing (integration)', () => {
         near,
       ]);
       const [cafe] = body.alongTheWay as AlongBody[];
+      // Every PlaceItem field is there, or the app can't read the answer.
+      expect(cafe.place.prominence).toEqual(expect.any(Number));
       expect(cafe.distanceFromRouteMeters).toBeGreaterThan(90);
       expect(cafe.distanceFromRouteMeters).toBeLessThan(130);
       expect(cafe.positionAlongRoute).toBeCloseTo(0.25, 1);
