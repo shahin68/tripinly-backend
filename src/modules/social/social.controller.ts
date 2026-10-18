@@ -87,7 +87,7 @@ export class SocialController {
 
   @Put('likes/:targetType/:targetId')
   @ApiOperation({
-    summary: 'Like a trip, marker, photo, comment or place',
+    summary: "Like a trip, photo, comment, place or a place's Commons image",
     description: 'Idempotent. Returns the new like state and count.',
   })
   @ApiOkResponse({ type: LikeStateDto })

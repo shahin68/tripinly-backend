@@ -25,7 +25,7 @@ import { exportPrefix } from './export-keys';
 
 const BATCH = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const LIKE_TYPES = ['trip', 'photo', 'comment'] as const;
+const LIKE_TYPES = ['trip', 'photo', 'comment', 'place_image'] as const;
 
 /** Keyed hash of a deleted user's id: links their consent proofs without naming them. */
 export function consentSubjectHash(userId: string, key: Buffer): string {

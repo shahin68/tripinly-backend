@@ -21,7 +21,7 @@ import {
 } from './bbox';
 import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
-import { buildCredit } from './commons-metadata';
+import { placeImageCredit } from './commons-metadata';
 import { PhotonClient } from './photon.client';
 import { placeImageKeys, placeImageThumbUrl } from './place-image-keys';
 import {
@@ -56,6 +56,12 @@ const DEFAULT_IN_VIEW_LIMIT = 100;
 /** OSM fill is spread over a GRID × GRID split of the bbox. */
 /** The best photo first: the most likes, then the newest. */
 const BEST_PHOTO_FIRST = Prisma.sql`q.likes DESC, q."createdAt" DESC, q.id`;
+/** A place's Commons images: most liked first, then in Commons order. */
+export const COMMONS_ORDER = [
+  { likeCount: 'desc' },
+  { rank: 'asc' },
+  { id: 'asc' },
+] satisfies Prisma.PlaceImageOrderByWithRelationInput[];
 
 /** OSM places are spread over cells of a quarter tile; clusters group by whole tiles. */
 const OSM_FILL_CELLS_PER_TILE = 4;
@@ -412,7 +418,8 @@ export class PlacesService {
   /**
    * Fills each place's cover and likedByMe for this viewer. The cover is its
    * photo with the most likes that may represent it (see
-   * `representativePhotos`), else its first ready Commons image.
+   * `representativePhotos`), else its most liked ready Commons image (the
+   * first in Commons order on a tie).
    */
   async personalize<T extends PlaceItem>(
     userId: string,
@@ -429,7 +436,7 @@ export class PlacesService {
         SELECT DISTINCT ON ("placeId") "placeId", id AS "imageId"
         FROM place_images
         WHERE "placeId" = ANY(${ids}::uuid[]) AND status = 'ready'
-        ORDER BY "placeId", rank, id`,
+        ORDER BY "placeId", "likeCount" DESC, rank, id`,
       likedAmong(this.prisma, userId, { type: 'place', ids }),
     ]);
     const coverOf = new Map(covers.map((row) => [row.placeId, row.photoId]));
@@ -486,11 +493,11 @@ export class PlacesService {
     }));
   }
 
-  /** The place's ready Commons images in rank order, each with its credit. */
+  /** The place's ready Commons images, most liked first, each with its credit. */
   private async placeCommonsImages(placeId: string): Promise<PlaceImageDto[]> {
     const rows = await this.prisma.placeImage.findMany({
       where: { placeId, status: 'ready' },
-      orderBy: [{ rank: 'asc' }, { id: 'asc' }],
+      orderBy: COMMONS_ORDER,
     });
     return rows.map((row) => {
       const keys = placeImageKeys(row.id);
@@ -501,14 +508,7 @@ export class PlacesService {
         displayUrl: this.storage.signedGetUrl(keys.display),
         width: row.width,
         height: row.height,
-        credit: buildCredit(row.commonsTitle, {
-          license: row.licenseCode ?? '',
-          licenseShortName: row.licenseShortName ?? '',
-          licenseUrl: row.licenseUrl,
-          authorText: row.authorText,
-          attributionText: row.attributionText,
-          objectName: row.objectName,
-        }),
+        credit: placeImageCredit(row),
       };
     });
   }

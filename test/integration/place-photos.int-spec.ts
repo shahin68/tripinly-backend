@@ -23,6 +23,8 @@ interface PhotoBody {
   likeCount: number;
   likedByMe: boolean;
   uploader: { username: string } | null;
+  source: string;
+  credit: { author: string | null; license: string } | null;
 }
 
 const SPOT = { lat: 48.2085, lng: 16.3721 };
@@ -162,6 +164,88 @@ describe('Place photos and stop deletion (integration)', () => {
         data: { likeCount: 3 },
       });
       expect(await placeGallery(stranger)).toEqual([]);
+    });
+
+    it("shows the place's Commons images after people's photos, and lets people like them", async () => {
+      const commonsImage = (commonsTitle: string, rank: number) =>
+        prisma.placeImage.create({
+          data: {
+            placeId,
+            origin: 'wikidata_p18',
+            commonsTitle,
+            rank,
+            status: 'ready',
+            authorText: 'Jane Doe',
+            licenseCode: 'cc-by-sa-4.0',
+            licenseShortName: 'CC BY-SA 4.0',
+          },
+        });
+      const first = await commonsImage('File:Stephansdom.jpg', 0);
+      const second = await commonsImage('File:Stephansdom innen.jpg', 1);
+      const pending = await prisma.placeImage.create({
+        data: { placeId, origin: 'osm_image', commonsTitle: 'File:Later.jpg' },
+      });
+      const photo = await readyPlacePhoto(app, stranger, placeId);
+
+      expect((await placeGallery(owner)).map((p) => p.id)).toEqual([
+        photo,
+        first.id,
+        second.id,
+      ]);
+      await as(owner).put(`/v1/likes/place_image/${second.id}`).expect(200);
+      await as(editor).put(`/v1/likes/place_image/${second.id}`).expect(200);
+      // Liking twice changes nothing.
+      const liked = await as(editor)
+        .put(`/v1/likes/place_image/${second.id}`)
+        .expect(200);
+      expect(liked.body).toMatchObject({ liked: true, likeCount: 2 });
+
+      // People's photos stay on top, however liked the Commons images are.
+      const gallery = await placeGallery(owner);
+      expect(gallery.map((p) => p.id)).toEqual([photo, second.id, first.id]);
+      expect(gallery[0]).toMatchObject({ source: 'user', credit: null });
+      expect(gallery[1]).toEqual({
+        id: second.id,
+        markerId: null,
+        placeId,
+        status: 'ready',
+        thumbUrl: expect.stringContaining(
+          `place-images/${second.id}/thumb.webp`,
+        ),
+        displayUrl: expect.stringContaining(
+          `place-images/${second.id}/display.webp`,
+        ),
+        width: null,
+        height: null,
+        position: 0,
+        likeCount: 2,
+        likedByMe: true,
+        uploader: null,
+        createdAt: expect.any(String),
+        source: 'commons',
+        credit: expect.objectContaining({
+          author: 'Jane Doe',
+          license: 'CC BY-SA 4.0',
+        }),
+      });
+      // The most liked Commons image becomes the cover while no photo qualifies.
+      const place = await as(stranger).get(`/v1/places/${placeId}`).expect(200);
+      expect(place.body).toMatchObject({
+        coverImageId: second.id,
+        coverSource: 'commons',
+      });
+
+      await as(owner).delete(`/v1/likes/place_image/${second.id}`).expect(200);
+      expect(
+        await prisma.placeImage.findUniqueOrThrow({ where: { id: second.id } }),
+      ).toMatchObject({ likeCount: 1 });
+      // Images not shown can't be liked.
+      await as(owner).put(`/v1/likes/place_image/${pending.id}`).expect(404);
+      // Their likes go with them.
+      await prisma.placeImage.delete({ where: { id: second.id } });
+      expect(
+        await prisma.like.count({ where: { targetType: 'place_image' } }),
+      ).toBe(0);
     });
 
     it('enforces the daily limit per person', async () => {

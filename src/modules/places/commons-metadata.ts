@@ -119,6 +119,26 @@ export function buildCredit(
   };
 }
 
+/** The credit of a stored place image (see `buildCredit`). */
+export function placeImageCredit(image: {
+  commonsTitle: string;
+  licenseCode: string | null;
+  licenseShortName: string | null;
+  licenseUrl: string | null;
+  authorText: string | null;
+  attributionText: string | null;
+  objectName: string | null;
+}): CommonsCredit {
+  return buildCredit(image.commonsTitle, {
+    license: image.licenseCode ?? '',
+    licenseShortName: image.licenseShortName ?? '',
+    licenseUrl: image.licenseUrl,
+    authorText: image.authorText,
+    attributionText: image.attributionText,
+    objectName: image.objectName,
+  });
+}
+
 /** "File:Stephansdom, Wien.jpg" → "Stephansdom, Wien". */
 export function titleFromFileName(commonsTitle: string): string {
   return commonsTitle.replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '');
