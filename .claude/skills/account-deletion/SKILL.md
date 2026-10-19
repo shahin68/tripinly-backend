@@ -9,7 +9,7 @@ The rules are product decisions in `docs/knowledge/02-domain-rules.md` → "Acco
 
 ## Deletion flow
 
-1. **Request** `DELETE /me` (recent sign-in required: access token issued within the last 10 minutes, otherwise `REAUTH_REQUIRED` so the client re-signs in with Google/Apple).
+1. **Request** `DELETE /me` (recent sign-in required: Google/Apple sign-in within the last 10 minutes, otherwise `REAUTH_REQUIRED`), or `POST /me/deletion` with a fresh Google/Apple token that must belong to the same account (`REAUTH_FAILED` otherwise; no session is created from it).
 2. Capture the provider email for the confirmation email, set `users.status = 'deleting'`, revoke all refresh tokens, disconnect sockets, remove devices. Respond `202 Accepted`. From now on the user can't sign in.
 3. Enqueue `account.delete` (worker, idempotent, resumable — each step checks what's already done).
 

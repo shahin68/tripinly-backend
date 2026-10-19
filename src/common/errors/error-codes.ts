@@ -34,6 +34,8 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   ACCOUNT_SUSPENDED: 'ACCOUNT_SUSPENDED',
   REAUTH_REQUIRED: 'REAUTH_REQUIRED',
+  /** The Google/Apple proof sent to confirm account deletion is invalid or belongs to another account (403). */
+  REAUTH_FAILED: 'REAUTH_FAILED',
   ROUTING_UNAVAILABLE: 'ROUTING_UNAVAILABLE',
   BBOX_TOO_LARGE: 'BBOX_TOO_LARGE',
   /** The Idempotency-Key was already used for a different request (422). */

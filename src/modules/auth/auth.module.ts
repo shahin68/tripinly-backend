@@ -28,6 +28,7 @@ import { SessionRevocationService } from './session-revocation.service';
     RefreshTokenService,
     SessionRevocationService,
     AppleIdentityVerifier,
+    GoogleIdentityVerifier,
   ],
 })
 export class AuthModule {}

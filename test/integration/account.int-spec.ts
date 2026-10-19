@@ -2,6 +2,7 @@ import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Test } from '@nestjs/testing';
 import { unzipSync, strFromU8 } from 'fflate';
+import { OAuth2Client, type LoginTicket } from 'google-auth-library';
 import { SignJWT } from 'jose';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
@@ -362,6 +363,105 @@ describe('Account deletion and export (integration)', () => {
       await eventually(() => email.sent.length === 1, 10_000, 'email');
       expect(email.sent[0]).toMatchObject({ to: 'alice@example.com' });
       expect(email.sent[0].subject).toContain('deleted');
+    });
+  });
+
+  describe('POST /me/deletion', () => {
+    const google = {
+      iss: 'https://accounts.google.com',
+      sub: 'google-alice',
+      email: 'alice@example.com',
+    };
+
+    function mockGoogle(payload: Record<string, unknown> | Error) {
+      return jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockImplementation((() =>
+          payload instanceof Error
+            ? Promise.reject(payload)
+            : Promise.resolve({
+                getPayload: () => payload,
+              } as unknown as LoginTicket)) as never);
+    }
+
+    /** Signed in with Google long ago, so DELETE /me alone is refused. */
+    async function googleUser(): Promise<Session> {
+      mockGoogle(google);
+      const { body } = await api(app)
+        .anonymous.post('/v1/auth/google')
+        .send({ idToken: 'x' })
+        .expect(200);
+      const { userId } = await prisma.authIdentity.findFirstOrThrow({
+        where: { providerSubject: google.sub },
+      });
+      return {
+        userId,
+        accessToken: await signToken(userId, 60 * 60),
+        refreshToken: body.refreshToken as string,
+      };
+    }
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('deletes with a fresh sign-in of the same account', async () => {
+      const alice = await googleUser();
+      await as(alice).delete('/v1/me').expect(403);
+
+      mockGoogle(google);
+      const { body } = await as(alice)
+        .post('/v1/me/deletion')
+        .send({ provider: 'google', token: 'fresh' })
+        .expect(202);
+      expect(body).toEqual({ status: 'deleting' });
+      await eventually(
+        async () =>
+          (await prisma.user.count({ where: { id: alice.userId } })) === 0,
+        10_000,
+        'alice deleted',
+      );
+    });
+
+    it('refuses another account and creates none', async () => {
+      const alice = await googleUser();
+      const users = await prisma.user.count();
+
+      mockGoogle({ ...google, sub: 'google-someone-else' });
+      const { body } = await as(alice)
+        .post('/v1/me/deletion')
+        .send({ provider: 'google', token: 'other' })
+        .expect(403);
+      expect(body.error.code).toBe('REAUTH_FAILED');
+      expect(await prisma.user.count()).toBe(users);
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: alice.userId } }))
+          .status,
+      ).toBe('active');
+    });
+
+    it('answers a rejected token with 403, not 401', async () => {
+      const alice = await googleUser();
+      mockGoogle(new Error('Token used too late'));
+      const { body } = await as(alice)
+        .post('/v1/me/deletion')
+        .send({ provider: 'google', token: 'expired' })
+        .expect(403);
+      expect(body.error.code).toBe('REAUTH_FAILED');
+    });
+
+    it('validates the provider', async () => {
+      const alice = await googleUser();
+      const { body } = await as(alice)
+        .post('/v1/me/deletion')
+        .send({ provider: 'dev', token: 'x' })
+        .expect(400);
+      expect(body.error.code).toBe('VALIDATION_FAILED');
+    });
+
+    it('needs a session', async () => {
+      await api(app)
+        .anonymous.post('/v1/me/deletion')
+        .send({ provider: 'google', token: 'x' })
+        .expect(401);
     });
   });
 
