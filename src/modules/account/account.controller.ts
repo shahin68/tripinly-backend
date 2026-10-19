@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -18,7 +19,11 @@ import {
   type AuthUser,
   CurrentUser,
 } from '../../common/auth/auth.decorators';
-import { AccountDeletionDto, DataExportDto } from './account.dto';
+import {
+  AccountDeletionDto,
+  ConfirmedDeletionDto,
+  DataExportDto,
+} from './account.dto';
 import { AccountService } from './account.service';
 
 /**
@@ -37,11 +42,27 @@ export class AccountController {
   @ApiOperation({
     summary: 'Delete my account',
     description:
-      'Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; sign in again, then retry). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.',
+      'Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; then confirm with POST /me/deletion). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.',
   })
   @ApiAcceptedResponse({ type: AccountDeletionDto })
   delete(@CurrentUser() user: AuthUser): Promise<AccountDeletionDto> {
     return this.account.requestDeletion(user);
+  }
+
+  @Post('deletion')
+  @AllowDuringOnboarding()
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Delete my account after confirming it is me',
+    description:
+      'For when DELETE /me answers REAUTH_REQUIRED: the app signs in with Google or Apple again and sends that token here instead of switching sessions. The token must belong to this account, else 403 REAUTH_FAILED and nothing is deleted. Then the same as DELETE /me.',
+  })
+  @ApiAcceptedResponse({ type: AccountDeletionDto })
+  deleteConfirmed(
+    @CurrentUser() user: AuthUser,
+    @Body() body: ConfirmedDeletionDto,
+  ): Promise<AccountDeletionDto> {
+    return this.account.confirmDeletion(user, body);
   }
 
   @Post('export')

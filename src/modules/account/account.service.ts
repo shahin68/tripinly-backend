@@ -7,9 +7,15 @@ import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { type DataExport, Prisma } from '../../generated/prisma/client';
+import { AppleIdentityVerifier } from '../auth/identity/apple-identity.verifier';
+import { GoogleIdentityVerifier } from '../auth/identity/google-identity.verifier';
 import { RefreshTokenService } from '../auth/refresh-token.service';
 import { SessionRevocationService } from '../auth/session-revocation.service';
-import type { AccountDeletionDto, DataExportDto } from './account.dto';
+import type {
+  AccountDeletionDto,
+  ConfirmedDeletionDto,
+  DataExportDto,
+} from './account.dto';
 import { normalizeUsername } from '../users/username';
 import { AccountJobsService } from './account.queue';
 import { exportKey } from './export-keys';
@@ -30,6 +36,8 @@ export class AccountService {
     private readonly jobs: AccountJobsService,
     private readonly storage: StorageService,
     private readonly events: EventEmitter2,
+    private readonly google: GoogleIdentityVerifier,
+    private readonly apple: AppleIdentityVerifier,
   ) {}
 
   /**
@@ -42,6 +50,54 @@ export class AccountService {
     }
     await this.closeAndDelete(user.id, { releaseUsername: false });
     return { status: 'deleting' };
+  }
+
+  /**
+   * POST /me/deletion: the same deletion, proven by a fresh Google/Apple
+   * sign-in of this account instead of a recent one. The token only proves
+   * identity; no session is created, so picking another account in the
+   * sign-in sheet neither deletes nor creates anything.
+   */
+  async confirmDeletion(
+    user: AuthUser,
+    proof: ConfirmedDeletionDto,
+  ): Promise<AccountDeletionDto> {
+    const identity = await this.verifyProof(proof);
+    const owner = await this.prisma.authIdentity.findUnique({
+      where: {
+        provider_providerSubject: {
+          provider: identity.provider,
+          providerSubject: identity.subject,
+        },
+      },
+      select: { userId: true },
+    });
+    if (owner?.userId !== user.id) {
+      throw new AppException(ErrorCode.REAUTH_FAILED, HttpStatus.FORBIDDEN, {
+        reason: 'other_account',
+      });
+    }
+    await this.closeAndDelete(user.id, { releaseUsername: false });
+    return { status: 'deleting' };
+  }
+
+  /** A rejected token is 403 here, not 401: the session itself is fine. */
+  private async verifyProof(proof: ConfirmedDeletionDto) {
+    try {
+      return proof.provider === 'google'
+        ? await this.google.verify(proof.token)
+        : await this.apple.verify(proof.token);
+    } catch (error) {
+      if (
+        error instanceof AppException &&
+        error.code === ErrorCode.UNAUTHENTICATED
+      ) {
+        throw new AppException(ErrorCode.REAUTH_FAILED, HttpStatus.FORBIDDEN, {
+          reason: 'invalid_identity_token',
+        });
+      }
+      throw error;
+    }
   }
 
   /**

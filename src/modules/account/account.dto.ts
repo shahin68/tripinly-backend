@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 export class AccountDeletionDto {
   @ApiProperty({ enum: ['deleting'], example: 'deleting' })
@@ -37,6 +37,21 @@ export class DataExportDto {
       'Signed ZIP download link while ready, valid until expiresAt. Never log it.',
   })
   downloadUrl!: string | null;
+}
+
+/** A fresh Google/Apple sign-in of the account being deleted. */
+export class ConfirmedDeletionDto {
+  @ApiProperty({ enum: ['google', 'apple'] })
+  @IsIn(['google', 'apple'])
+  provider!: 'google' | 'apple';
+
+  @ApiProperty({
+    description:
+      'Google ID token or Apple identity token, as for POST /auth/google or /auth/apple',
+  })
+  @IsString()
+  @Length(1, 8192)
+  token!: string;
 }
 
 /** Exactly one of `subject` or `username` (checked by the service). */

@@ -346,7 +346,7 @@
         ]
       },
       "delete": {
-        "description": "Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; sign in again, then retry). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.",
+        "description": "Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; then confirm with POST /me/deletion). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.",
         "operationId": "Account_delete",
         "parameters": [],
         "responses": {
@@ -3719,6 +3719,44 @@
         ]
       }
     },
+    "/v1/me/deletion": {
+      "post": {
+        "description": "For when DELETE /me answers REAUTH_REQUIRED: the app signs in with Google or Apple again and sends that token here instead of switching sessions. The token must belong to this account, else 403 REAUTH_FAILED and nothing is deleted. Then the same as DELETE /me.",
+        "operationId": "Account_deleteConfirmed",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmedDeletionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete my account after confirming it is me",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/me/export": {
       "post": {
         "description": "Starts a ZIP export and emails a download link valid 7 days when ready. One at a time (a pending export is returned again) and one per 24 hours (429 RATE_LIMITED with details.retryAfterSeconds).",
@@ -4108,6 +4146,7 @@
               "RATE_LIMITED",
               "ACCOUNT_SUSPENDED",
               "REAUTH_REQUIRED",
+              "REAUTH_FAILED",
               "ROUTING_UNAVAILABLE",
               "BBOX_TOO_LARGE",
               "IDEMPOTENCY_KEY_REUSED",
@@ -7045,6 +7084,26 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "ConfirmedDeletionDto": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "google",
+              "apple"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "description": "Google ID token or Apple identity token, as for POST /auth/google or /auth/apple"
+          }
+        },
+        "required": [
+          "provider",
+          "token"
         ]
       },
       "DataExportDto": {

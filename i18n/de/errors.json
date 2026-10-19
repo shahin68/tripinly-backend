@@ -25,6 +25,7 @@
   "RATE_LIMITED": "Zu viele Anfragen. Bitte versuche es gleich noch einmal.",
   "ACCOUNT_SUSPENDED": "Dein Konto wurde gesperrt.",
   "REAUTH_REQUIRED": "Bitte melde dich erneut an, um zu bestätigen, dass du es bist.",
+  "REAUTH_FAILED": "Diese Anmeldung hat dieses Konto nicht bestätigt. Wähle das Konto, das du für Tripinly nutzt.",
   "ROUTING_UNAVAILABLE": "Routen sind gerade nicht verfügbar. Bitte versuche es später erneut.",
   "BBOX_TOO_LARGE": "Zoome hinein, um Orte in diesem Bereich zu sehen.",
   "IDEMPOTENCY_KEY_REUSED": "Dieser Anfrageschlüssel wurde bereits für eine andere Anfrage verwendet.",
