@@ -183,7 +183,7 @@ Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notification
 ### Ops
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads, pinLargeMinProminence, pinMediumMinProminence, mapMaxPins, photoPinMinProminence, photoPinMinLikes, mapMaxPhotoPins }`. See "App settings" below |
+| GET | `/app-config` | Settings for the apps (no auth): `{ placesRefreshSeconds, photoMaxEdgePx, photoJpegQuality, photoParallelUploads, pinLargeMinProminence, pinMediumMinProminence, mapMaxPins, photoPinMinProminence, photoPinMinLikes, mapMaxPhotoPins, pinDotBelowZoom }`. See "App settings" below |
 | GET | `/health` | Liveness (no auth). Full path `/v1/health` |
 | GET | `/health/ready` | DB + Redis reachable and every migration this build ships with applied (none failed); `checks: { database, redis, migrations }`, 503 `SERVICE_UNAVAILABLE` with `details.checks` otherwise. Full path `/v1/health/ready` |
 | GET | `/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association` | Android App Links / iOS Universal Links for invite and share URLs (served on the app-link domain) |
@@ -218,6 +218,7 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | `photoPinMinProminence` | A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this (0–100)… | 90 |
 | `photoPinMinLikes` | …or when it has at least this many likes | 3 |
 | `mapMaxPhotoPins` | Most pins drawn with a photo at once, in pin order; the rest keep their icon (0–500) | 100 |
+| `pinDotBelowZoom` | Below this camera zoom the app draws place pins as small dots and grows them back when zoomed in, so route lines stay readable; the tapped place stays a pin (0–22) | 14 |
 
 ## Stable error codes (starter set)
 

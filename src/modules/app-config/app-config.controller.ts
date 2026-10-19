@@ -46,6 +46,9 @@ export class AppConfigController {
       mapMaxPhotoPins: this.config.get('APP_MAP_MAX_PHOTO_PINS', {
         infer: true,
       }),
+      pinDotBelowZoom: this.config.get('APP_PIN_DOT_BELOW_ZOOM', {
+        infer: true,
+      }),
     };
   }
 }
