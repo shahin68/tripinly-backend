@@ -135,3 +135,29 @@ DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://
 | worker | `OSM_IMPORT_ENABLED` | `true` |
 | worker | `PLACE_IMAGES_SYNC_ENABLED` | `true` (copies Commons images of places; the first run takes hours at one request a second) |
 | later | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL`, `REVENUECAT_WEBHOOK_AUTH` | need the domain, developer accounts or the webhook |
+| api | the `APP_*` tuning values below | optional: the default applies while unset |
+
+### App tuning values (api)
+
+Each one is optional and has a default. A value outside its range stops the api from booting, so check the range before changing one. The ones the apps read are sent by `GET /v1/app-config` and apply after the api restarts and the app relaunches.
+
+| Variable | Default | Range | What it changes |
+|---|---|---|---|
+| `APP_PLACES_REFRESH_SECONDS` | 300 | ≥ 10 | How old a map square's places get before the app reloads them |
+| `APP_PHOTO_MAX_EDGE_PX` | 2560 | 1024–4096 | Longest photo edge the app uploads |
+| `APP_PHOTO_JPEG_QUALITY` | 85 | 50–100 | JPEG quality of uploaded photos |
+| `APP_PHOTO_PARALLEL_UPLOADS` | 2 | 1–4 | Photos uploaded at once |
+| `APP_PIN_LARGE_MIN_PROMINENCE` | 95 | 0–100 | Prominence from which a place pin is largest |
+| `APP_PIN_MEDIUM_MIN_PROMINENCE` | 60 | 0–100 | Prominence from which a place pin is middle-sized |
+| `APP_MAP_MAX_PINS` | 150 | 20–1000 | Most place pins on the map at once |
+| `APP_PHOTO_PIN_MIN_PROMINENCE` | 90 | 0–100 | Prominence from which a pin shows its place's photo… |
+| `APP_PHOTO_PIN_MIN_LIKES` | 3 | ≥ 1 | …or the likes from which it does |
+| `APP_MAP_MAX_PHOTO_PINS` | 100 | 0–500 | Most photo pins at once |
+| `APP_PIN_DOT_BELOW_ZOOM` | 14 | 0–22 | Below this camera zoom, place pins are small dots |
+| `APP_TRIP_MAX_MEMBERS` | 50 | ≥ 2 | Most people in one trip, owner included |
+| `APP_PLACE_PHOTO_PIN_MIN_LIKES` | 3 | ≥ 1 | Likes from people other than the uploader before a stop photo can represent its place |
+| `APP_PLACE_RANK_MIN_LIKES` | 1 | ≥ 1 | Likes from which a place ranks by likes instead of prominence |
+| `APP_PLACE_PHOTO_DAILY_LIMIT` | 20 | ≥ 1 | Place photos one person may add a day |
+| `APP_EXPLORE_NEARBY_RADIUS_KM` | 50 | 1–500 | Radius of Explore's nearby trips |
+
+A PR that adds, renames or removes a variable adds its row here in the same change.

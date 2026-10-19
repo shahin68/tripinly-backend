@@ -73,7 +73,7 @@ If the code and the docs disagree, the docs win unless the user says otherwise. 
 3. **Use the matching skill** from `.claude/skills/` when one applies.
 4. **Test what you build**: unit tests for rules, integration tests for endpoints including the unhappy paths (unauthorized, private trip, blocked user, validation errors).
 5. **Before saying you're done**: typecheck, lint, run the tests, regenerate the OpenAPI spec, and update knowledge files if behaviour changed.
-6. **Report briefly**: what changed, anything the client team must know (new endpoints, changed fields, new events), and any follow-ups.
+6. **Report briefly**: what changed, anything the client team must know (new endpoints, changed fields, new events), and any follow-ups. **Every new, renamed or removed environment variable goes in the reply to the user itself, not only in the PR body**: its name, service (api or worker), default, accepted range and whether to add it now. Check `git diff src/common/config/env.ts` before every report (Shahin, 2026-10-18; missed twice).
 
 ## Build order (first build)
 
