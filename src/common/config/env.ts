@@ -93,6 +93,8 @@ export const envSchema = z
       .min(0)
       .max(500)
       .default(100),
+    /** Below this camera zoom, place pins shrink to dots so route lines and stops stay readable. */
+    APP_PIN_DOT_BELOW_ZOOM: z.coerce.number().min(0).max(22).default(14),
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),

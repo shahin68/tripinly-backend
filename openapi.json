@@ -4197,6 +4197,11 @@
             "type": "number",
             "example": 100,
             "description": "Most pins the app draws with a photo at once, in pin order (liked places first, then the best known); the rest keep their icon."
+          },
+          "pinDotBelowZoom": {
+            "type": "number",
+            "example": 14,
+            "description": "Below this camera zoom (0–22), the app draws place pins as small dots, growing back to pins when zoomed in; the tapped place stays a pin."
           }
         },
         "required": [
@@ -4209,7 +4214,8 @@
           "mapMaxPins",
           "photoPinMinProminence",
           "photoPinMinLikes",
-          "mapMaxPhotoPins"
+          "mapMaxPhotoPins",
+          "pinDotBelowZoom"
         ]
       },
       "GoogleSignInDto": {

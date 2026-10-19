@@ -73,4 +73,11 @@ export class AppConfigDto {
       'Most pins the app draws with a photo at once, in pin order (liked places first, then the best known); the rest keep their icon.',
   })
   mapMaxPhotoPins!: number;
+
+  @ApiProperty({
+    example: 14,
+    description:
+      'Below this camera zoom (0–22), the app draws place pins as small dots, growing back to pins when zoomed in; the tapped place stays a pin.',
+  })
+  pinDotBelowZoom!: number;
 }

@@ -25,6 +25,7 @@ describe('App config (integration)', () => {
       photoPinMinProminence: 90,
       photoPinMinLikes: 3,
       mapMaxPhotoPins: 100,
+      pinDotBelowZoom: 14,
     });
   });
 });
