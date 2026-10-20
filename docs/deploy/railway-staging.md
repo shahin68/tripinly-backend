@@ -130,11 +130,12 @@ DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://
 | api + worker | `DATABASE_URL`, `REDIS_URL` | Railway references |
 | api | `DEV_AUTH_ENABLED`, `DEV_AUTH_SECRET`, `DEV_ACCOUNTS_PRO` | staging only |
 | api | `ORS_API_KEY` | you hold it |
-| worker | `REVENUECAT_API_KEY` | you hold it |
+| api + worker | `REVENUECAT_API_KEY` | you hold it (api: the purchase webhook reads purchases with it; worker: account deletion) |
+| api | `REVENUECAT_WEBHOOK_AUTH` | a long random value; the same value goes in RevenueCat's webhook Authorization header |
 | worker | `FIREBASE_SERVICE_ACCOUNT_JSON` | from Firebase, when ready |
 | worker | `OSM_IMPORT_ENABLED` | `true` |
 | worker | `PLACE_IMAGES_SYNC_ENABLED` | `true` (copies Commons images of places; the first run takes hours at one request a second) |
-| later | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL`, `REVENUECAT_WEBHOOK_AUTH` | need the domain, developer accounts or the webhook |
+| later | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL` | need the domain, developer accounts or the webhook |
 | api | the `APP_*` tuning values below | optional: the default applies while unset |
 
 ### App tuning values (api)

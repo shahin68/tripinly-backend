@@ -97,6 +97,8 @@ export default async function globalSetup(): Promise<void> {
     // test/utils/ors-stub.ts listens here.
     ORS_BASE_URL: ORS_STUB_URL,
     ORS_API_KEY: ORS_STUB_KEY,
+    // The billing tests replace the RevenueCat client; no API key, so deletion skips it.
+    REVENUECAT_WEBHOOK_AUTH: 'test-revenuecat-webhook-auth',
     R2_ENDPOINT: s3Endpoint,
     R2_ACCESS_KEY_ID: S3_KEY,
     R2_SECRET_ACCESS_KEY: S3_SECRET,
