@@ -181,8 +181,13 @@ export const envSchema = z
     RESEND_API_KEY: optionalString,
     /** Sender, e.g. "Tripinly <no-reply@mail.tripinly.app>" on a domain verified in Resend. */
     EMAIL_FROM: optionalString,
-    /** RevenueCat secret API key (v1). Account deletion deletes the customer; skipped while unset. */
+    /** RevenueCat secret API key (v1): the webhook reads purchases with it, account deletion deletes the customer. */
     REVENUECAT_API_KEY: optionalString,
+    /**
+     * The Authorization header value set on the RevenueCat webhook. The webhook
+     * refuses every call while unset.
+     */
+    REVENUECAT_WEBHOOK_AUTH: optionalString,
     /** Comma-separated Geofabrik extracts, e.g. europe/austria,europe/hungary. */
     OSM_IMPORT_REGIONS: z
       .string()
