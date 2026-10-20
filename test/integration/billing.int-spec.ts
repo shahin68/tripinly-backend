@@ -149,6 +149,12 @@ describe('Billing (integration)', () => {
     expect(revenueCat.getSubscriber).not.toHaveBeenCalled();
   });
 
+  it('accepts the shared secret with or without a Bearer prefix', async () => {
+    const event = { event: { type: 'TEST', app_user_id: 'not-ours' } };
+    await webhook(event, `Bearer ${AUTH}`).expect(204);
+    await webhook(event, ` ${AUTH} `).expect(204);
+  });
+
   it('refuses a body without an event', async () => {
     const response = await webhook({ api_version: '1.0' }).expect(400);
     expect(response.body.error.code).toBe('VALIDATION_FAILED');

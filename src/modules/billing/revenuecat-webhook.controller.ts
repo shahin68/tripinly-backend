@@ -61,8 +61,13 @@ export class RevenueCatWebhookController {
 
   private authorized(given: string | undefined): boolean {
     if (!this.auth || !given) return false;
-    const a = Buffer.from(this.auth);
-    const b = Buffer.from(given);
+    const a = Buffer.from(secret(this.auth));
+    const b = Buffer.from(secret(given));
     return a.length === b.length && timingSafeEqual(a, b);
   }
+}
+
+/** The shared secret, whether or not it was entered with a `Bearer ` prefix. */
+function secret(value: string): string {
+  return value.trim().replace(/^Bearer\s+/i, '');
 }
