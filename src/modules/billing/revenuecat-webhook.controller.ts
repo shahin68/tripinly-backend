@@ -4,6 +4,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Logger,
   Post,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +26,7 @@ import { RevenueCatWebhookService } from './revenuecat-webhook.service';
 @ApiTags('billing')
 @Controller('billing/revenuecat')
 export class RevenueCatWebhookController {
+  private readonly logger = new Logger(RevenueCatWebhookController.name);
   private readonly auth?: string;
 
   constructor(
@@ -50,7 +52,9 @@ export class RevenueCatWebhookController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: RevenueCatWebhookDto,
   ): Promise<void> {
-    if (!this.authorized(authorization)) {
+    const refusal = this.refusal(authorization);
+    if (refusal) {
+      this.logger.warn(`RevenueCat webhook refused: ${refusal}`);
       throw new AppException(
         ErrorCode.UNAUTHENTICATED,
         HttpStatus.UNAUTHORIZED,
@@ -59,11 +63,14 @@ export class RevenueCatWebhookController {
     await this.webhook.handle(body.event);
   }
 
-  private authorized(given: string | undefined): boolean {
-    if (!this.auth || !given) return false;
+  /** Why the call is refused, or null when its secret matches. Never names the secret. */
+  private refusal(given: string | undefined): string | null {
+    if (!this.auth) return 'REVENUECAT_WEBHOOK_AUTH is not set on this service';
+    if (!given) return 'the call has no Authorization header';
     const a = Buffer.from(secret(this.auth));
     const b = Buffer.from(secret(given));
-    return a.length === b.length && timingSafeEqual(a, b);
+    if (a.length === b.length && timingSafeEqual(a, b)) return null;
+    return `the Authorization header doesn't match (${b.length} characters received)`;
   }
 }
 
