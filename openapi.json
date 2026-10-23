@@ -4816,6 +4816,12 @@
               "viewer"
             ]
           },
+          "coverPhotoId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The cover photo shown as coverThumbUrl: cache the image by this id, since the URL is re-signed",
+            "format": "uuid"
+          },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
@@ -4861,6 +4867,7 @@
           "visibility",
           "owner",
           "role",
+          "coverPhotoId",
           "coverThumbUrl",
           "dayCount",
           "markerCount",
