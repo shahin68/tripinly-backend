@@ -3212,7 +3212,6 @@
                 "trip",
                 "photo",
                 "comment",
-                "place",
                 "place_image"
               ]
             }
@@ -3244,7 +3243,7 @@
             "bearer": []
           }
         ],
-        "summary": "Like a trip, photo, comment, place or a place's Commons image",
+        "summary": "Like a trip, photo, comment or a place's Commons image",
         "tags": [
           "social"
         ]
@@ -3263,7 +3262,6 @@
                 "trip",
                 "photo",
                 "comment",
-                "place",
                 "place_image"
               ]
             }
@@ -3296,6 +3294,80 @@
           }
         ],
         "summary": "Remove my like",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/v1/places/{id}/hot": {
+      "put": {
+        "description": "Idempotent. A stop's flame marks its place. Not for a custom spot that is only in private trips (404). Returns the new state and hotCount.",
+        "operationId": "Social_markHot",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotStateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark a place hot",
+        "tags": [
+          "social"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent.",
+        "operationId": "Social_unmarkHot",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotStateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove my hot mark",
         "tags": [
           "social"
         ]
@@ -4254,12 +4326,12 @@
           "photoPinMinProminence": {
             "type": "number",
             "example": 90,
-            "description": "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or it has `photoPinMinLikes` likes."
+            "description": "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or its `hotCount` reaches `photoPinMinHotCount`."
           },
-          "photoPinMinLikes": {
+          "photoPinMinHotCount": {
             "type": "number",
             "example": 3,
-            "description": "A place's pin shows its photo when it has at least this many likes, or `photoPinMinProminence`."
+            "description": "A place's pin shows its photo when its `hotCount` is at least this, or `photoPinMinProminence`."
           },
           "mapMaxPhotoPins": {
             "type": "number",
@@ -4281,7 +4353,7 @@
           "pinMediumMinProminence",
           "mapMaxPins",
           "photoPinMinProminence",
-          "photoPinMinLikes",
+          "photoPinMinHotCount",
           "mapMaxPhotoPins",
           "pinDotBelowZoom"
         ]
@@ -5125,17 +5197,17 @@
           "photoCount": {
             "type": "number"
           },
-          "likeCount": {
+          "hotCount": {
             "type": "number",
-            "description": "The place's likes: a stop's like button likes its place, so every stop at a place shows the same count"
+            "description": "How many people marked the place hot: a stop's flame marks its place, so every stop at a place shows the same count"
           },
-          "likedByMe": {
+          "hotByMe": {
             "type": "boolean",
-            "description": "I liked the place"
+            "description": "I marked the place hot"
           },
-          "canLike": {
+          "canMarkHot": {
             "type": "boolean",
-            "description": "False for a custom spot that is only in private trips: it has no like button"
+            "description": "False for a custom spot that is only in private trips: it has no flame button"
           },
           "commentCount": {
             "type": "number"
@@ -5169,9 +5241,9 @@
           "coverPhotoId",
           "coverThumbUrl",
           "photoCount",
-          "likeCount",
-          "likedByMe",
-          "canLike",
+          "hotCount",
+          "hotByMe",
+          "canMarkHot",
           "commentCount",
           "createdBy",
           "createdAt",
@@ -5536,11 +5608,11 @@
           },
           "isTripinly": {
             "type": "boolean",
-            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+            "description": "A hot spot (hotCount > 0); show the Tripinly pin style"
           },
-          "likeCount": {
+          "hotCount": {
             "type": "number",
-            "description": "Popularity: likes on public markers here + place likes"
+            "description": "How many people marked the place hot (a stop's flame marks its place); a custom spot counts only while a public trip has it"
           },
           "prominence": {
             "type": "number",
@@ -5574,8 +5646,9 @@
             "nullable": true,
             "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
-          "likedByMe": {
-            "type": "boolean"
+          "hotByMe": {
+            "type": "boolean",
+            "description": "I marked the place hot"
           }
         },
         "required": [
@@ -5584,13 +5657,13 @@
           "category",
           "location",
           "isTripinly",
-          "likeCount",
+          "hotCount",
           "prominence",
           "coverPhotoId",
           "coverImageId",
           "coverSource",
           "coverThumbUrl",
-          "likedByMe"
+          "hotByMe"
         ]
       },
       "PlaceClusterDto": {
@@ -5732,7 +5805,7 @@
           "isTripinly": {
             "type": "boolean"
           },
-          "likeCount": {
+          "hotCount": {
             "type": "number"
           },
           "type": {
@@ -5769,7 +5842,7 @@
           "category",
           "location",
           "isTripinly",
-          "likeCount",
+          "hotCount",
           "type",
           "address",
           "osmType",
@@ -5827,11 +5900,11 @@
           },
           "isTripinly": {
             "type": "boolean",
-            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+            "description": "A hot spot (hotCount > 0); show the Tripinly pin style"
           },
-          "likeCount": {
+          "hotCount": {
             "type": "number",
-            "description": "Popularity: likes on public markers here + place likes"
+            "description": "How many people marked the place hot (a stop's flame marks its place); a custom spot counts only while a public trip has it"
           },
           "prominence": {
             "type": "number",
@@ -5865,8 +5938,9 @@
             "nullable": true,
             "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
-          "likedByMe": {
-            "type": "boolean"
+          "hotByMe": {
+            "type": "boolean",
+            "description": "I marked the place hot"
           },
           "distanceMeters": {
             "type": "number",
@@ -5879,13 +5953,13 @@
           "category",
           "location",
           "isTripinly",
-          "likeCount",
+          "hotCount",
           "prominence",
           "coverPhotoId",
           "coverImageId",
           "coverSource",
           "coverThumbUrl",
-          "likedByMe",
+          "hotByMe",
           "distanceMeters"
         ]
       },
@@ -6085,11 +6159,11 @@
           },
           "isTripinly": {
             "type": "boolean",
-            "description": "Liked on Tripinly (popularity > 0); show the Tripinly pin style"
+            "description": "A hot spot (hotCount > 0); show the Tripinly pin style"
           },
-          "likeCount": {
+          "hotCount": {
             "type": "number",
-            "description": "Popularity: likes on public markers here + place likes"
+            "description": "How many people marked the place hot (a stop's flame marks its place); a custom spot counts only while a public trip has it"
           },
           "prominence": {
             "type": "number",
@@ -6123,8 +6197,9 @@
             "nullable": true,
             "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
           },
-          "likedByMe": {
-            "type": "boolean"
+          "hotByMe": {
+            "type": "boolean",
+            "description": "I marked the place hot"
           },
           "source": {
             "type": "string",
@@ -6191,13 +6266,13 @@
           "category",
           "location",
           "isTripinly",
-          "likeCount",
+          "hotCount",
           "prominence",
           "coverPhotoId",
           "coverImageId",
           "coverSource",
           "coverThumbUrl",
-          "likedByMe",
+          "hotByMe",
           "source",
           "isActive",
           "osmType",
@@ -6755,7 +6830,6 @@
               "trip",
               "photo",
               "comment",
-              "place",
               "place_image"
             ]
           },
@@ -6768,7 +6842,7 @@
           },
           "likeCount": {
             "type": "number",
-            "description": "The target's like count after the change (a place's popularity for places)"
+            "description": "The target's like count after the change"
           }
         },
         "required": [
@@ -6776,6 +6850,28 @@
           "targetId",
           "liked",
           "likeCount"
+        ]
+      },
+      "HotStateDto": {
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hot": {
+            "type": "boolean",
+            "description": "I marked the place hot"
+          },
+          "hotCount": {
+            "type": "number",
+            "description": "The place's hotCount after the change"
+          }
+        },
+        "required": [
+          "placeId",
+          "hot",
+          "hotCount"
         ]
       },
       "RouteLegDto": {

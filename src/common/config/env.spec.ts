@@ -21,7 +21,7 @@ describe('validateEnv', () => {
       APP_PHOTO_JPEG_QUALITY: 85,
       APP_PHOTO_PARALLEL_UPLOADS: 2,
       APP_PLACE_PHOTO_PIN_MIN_LIKES: 3,
-      APP_PLACE_RANK_MIN_LIKES: 1,
+      APP_PLACE_RANK_MIN_HOT_COUNT: 1,
       APP_PLACE_PHOTO_DAILY_LIMIT: 20,
       APP_EXPLORE_NEARBY_RADIUS_KM: 50,
       APP_TRIP_MAX_MEMBERS: 50,
@@ -156,11 +156,11 @@ describe('validateEnv', () => {
 
   it('needs at least one like for a place to rank by likes', () => {
     expect(
-      validateEnv({ ...valid, APP_PLACE_RANK_MIN_LIKES: '3' })
-        .APP_PLACE_RANK_MIN_LIKES,
+      validateEnv({ ...valid, APP_PLACE_RANK_MIN_HOT_COUNT: '3' })
+        .APP_PLACE_RANK_MIN_HOT_COUNT,
     ).toBe(3);
     expect(() =>
-      validateEnv({ ...valid, APP_PLACE_RANK_MIN_LIKES: '0' }),
+      validateEnv({ ...valid, APP_PLACE_RANK_MIN_HOT_COUNT: '0' }),
     ).toThrow(EnvValidationError);
   });
 

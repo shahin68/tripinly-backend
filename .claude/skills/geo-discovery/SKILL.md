@@ -27,18 +27,18 @@ Reject any field that looks like a Google place ID (`ChIJ…` / `googlePlaceId`)
 
 ## Popularity
 
-- `places.popularity` = the place's likes (stops have none of their own; their like button likes the place). A `user` place counts them only while a visible stop of a public, visible trip is on it, else 0 (`popularity.ts`).
-- Recompute on every place like/unlike, and for user places when: trip visibility changes, a stop is created, copied, moved, deleted or hidden, a trip or day is deleted or hidden, an account is deleted (`userPlaceIds`).
+- `places.popularity` = the place's hot count (`hotCount`; stops have none of their own, their flame marks the place; stored as likes of type `place`). A `user` place counts them only while a visible stop of a public, visible trip is on it, else 0 (`popularity.ts`).
+- Recompute on every hot mark/unmark, and for user places when: trip visibility changes, a stop is created, copied, moved, deleted or hidden, a trip or day is deleted or hidden, an account is deleted (`userPlaceIds`).
 - Nightly full recompute to fix drift.
 
 ## In-view — `GET /places/in-view`
 
-Follow the algorithm in `10-maps-places-routing.md` (places with at least `APP_PLACE_RANK_MIN_LIKES` likes first, by popularity; then a fill of the places below it at zoom ≥ 14, well-known only (prominence ≥ 60) at zoom 10–13 while hot spots are few; well-known places always by prominence alone so a place shown at one zoom stays at closer zooms, the rest spread over map-fixed cells by category priority, most prominent first; every Place carries `prominence`; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
+Follow the algorithm in `10-maps-places-routing.md` (places with at least `APP_PLACE_RANK_MIN_HOT_COUNT` likes first, by popularity; then a fill of the places below it at zoom ≥ 14, well-known only (prominence ≥ 60) at zoom 10–13 while hot spots are few; well-known places always by prominence alone so a place shown at one zoom stays at closer zooms, the rest spread over map-fixed cells by category priority, most prominent first; every Place carries `prominence`; server clusters per map tile at low zoom; bbox size limit → `BBOX_TOO_LARGE`; 60 s Redis cache per rounded tile).
 
 Response item:
 ```json
 { "id": "…", "name": "…", "category": "cafe", "location": {"lat":…, "lng":…},
-  "isTripinly": true, "likeCount": 1200, "coverPhotoId": "uuid|null", "coverThumbUrl": "…|null", "likedByMe": false }
+  "isTripinly": true, "hotCount": 1200, "coverPhotoId": "uuid|null", "coverThumbUrl": "…|null", "hotByMe": false }
 ```
 or `{ "cluster": true, "count": 37, "location": {…} }`. Include `"attribution": "© OpenStreetMap contributors"` at the top level.
 

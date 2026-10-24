@@ -184,7 +184,7 @@ describe('Moderation (integration)', () => {
     });
 
     it('hides a marker: gone for others, audited, all reports resolved', async () => {
-      await as(other).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(other).put(`/v1/places/${placeId}/hot`).expect(200);
       expect(
         (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
           .popularity,

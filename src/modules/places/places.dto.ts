@@ -223,15 +223,15 @@ export class PlaceItemDto {
   location: LocationDto;
 
   @ApiProperty({
-    description:
-      'Liked on Tripinly (popularity > 0); show the Tripinly pin style',
+    description: 'A hot spot (hotCount > 0); show the Tripinly pin style',
   })
   isTripinly: boolean;
 
   @ApiProperty({
-    description: 'Popularity: likes on public markers here + place likes',
+    description:
+      "How many people marked the place hot (a stop's flame marks its place); a custom spot counts only while a public trip has it",
   })
-  likeCount: number;
+  hotCount: number;
 
   @ApiProperty({
     minimum: 0,
@@ -275,8 +275,8 @@ export class PlaceItemDto {
   })
   coverThumbUrl: string | null;
 
-  @ApiProperty()
-  likedByMe: boolean;
+  @ApiProperty({ description: 'I marked the place hot' })
+  hotByMe: boolean;
 }
 
 export class PlaceClusterDto {
@@ -394,7 +394,7 @@ export class SearchResultDto {
   isTripinly: boolean;
 
   @ApiProperty()
-  likeCount: number;
+  hotCount: number;
 
   @ApiProperty({
     type: String,
@@ -531,13 +531,13 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   'category',
   'location',
   'isTripinly',
-  'likeCount',
+  'hotCount',
   'prominence',
   'coverPhotoId',
   'coverImageId',
   'coverSource',
   'coverThumbUrl',
-  'likedByMe',
+  'hotByMe',
 ] as const) {
   @ApiProperty({ enum: ['osm', 'user'] })
   source: 'osm' | 'user';

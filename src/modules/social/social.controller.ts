@@ -29,6 +29,7 @@ import {
   CommentDto,
   CommentPageDto,
   CreateCommentDto,
+  HotStateDto,
   LikeParamsDto,
   LikeStateDto,
 } from './social.dto';
@@ -87,7 +88,7 @@ export class SocialController {
 
   @Put('likes/:targetType/:targetId')
   @ApiOperation({
-    summary: "Like a trip, photo, comment, place or a place's Commons image",
+    summary: "Like a trip, photo, comment or a place's Commons image",
     description: 'Idempotent. Returns the new like state and count.',
   })
   @ApiOkResponse({ type: LikeStateDto })
@@ -106,5 +107,29 @@ export class SocialController {
     @Param() { targetType, targetId }: LikeParamsDto,
   ): Promise<LikeStateDto> {
     return this.likes.unlike(user.id, targetType, targetId);
+  }
+
+  @Put('places/:id/hot')
+  @ApiOperation({
+    summary: 'Mark a place hot',
+    description:
+      "Idempotent. A stop's flame marks its place. Not for a custom spot that is only in private trips (404). Returns the new state and hotCount.",
+  })
+  @ApiOkResponse({ type: HotStateDto })
+  markHot(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<HotStateDto> {
+    return this.likes.markHot(user.id, id, true);
+  }
+
+  @Delete('places/:id/hot')
+  @ApiOperation({ summary: 'Remove my hot mark', description: 'Idempotent.' })
+  @ApiOkResponse({ type: HotStateDto })
+  unmarkHot(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<HotStateDto> {
+    return this.likes.markHot(user.id, id, false);
   }
 }

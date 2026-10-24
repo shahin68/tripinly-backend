@@ -12,7 +12,7 @@
 - Every event payload: `{ "event": "...", "tripId": "...", "actorId": "...", "at": "ISO", "data": { ... } }`.
 - The actor's own socket also receives events (clients de-duplicate by entity ID).
 - Blocked users are never delivered events caused by the user they blocked (or who blocked them).
-- Payloads are the REST DTOs, made viewer-neutral: `likedByMe` is always `false` in marker, photo and comment payloads (and `canDelete` false on comments); keep the local value.
+- Payloads are the REST DTOs, made viewer-neutral: `likedByMe` (`hotByMe` on markers) is always `false` in marker, photo and comment payloads (and `canDelete` false on comments); keep the local value.
 
 ### Event catalogue (trip room)
 
@@ -29,10 +29,11 @@
 | `marker.cover_changed` | Cover chosen, or set automatically by the first ready photo | markerId, photoId |
 | `photos.reordered` | Gallery reordered | markerId, ordered photo IDs |
 | `comment.created` / `comment.deleted` | | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId |
-| `like.count_changed` | Any like on trip/photo/comment, in its trip's room; a place like goes to the room of every trip with a visible stop there (the stops show the place's count) | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
+| `place.hot_changed` | A place marked or unmarked hot, in the room of every trip with a visible stop there (the stops show the place's count) | placeId, hotCount (throttled like `like.count_changed`) |
+| `like.count_changed` | Any like on trip/photo/comment, in its trip's room | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
 | `member.added` / `member.removed` | | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }` |
 
-Domain events that don't go to a room as such: `join_request.created` (actor = the person asking; data: requestId, ownerId) for the owner's `join_requested` notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification. `like.count_changed` for places goes to the trips with stops there.
+Domain events that don't go to a room as such: `join_request.created` (actor = the person asking; data: requestId, ownerId) for the owner's `join_requested` notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification. `place.hot_changed` goes to the trips with stops at the place.
 
 ### User room
 
@@ -58,7 +59,7 @@ Triggered from domain events by the notifications module, executed as BullMQ job
 
 - The API turns domain events into `plan` jobs on the `notifications` queue; the worker picks recipients, writes rows and sends. Recipients never include the actor, anyone with a block either way with the actor, inactive accounts, or anyone who can't view the trip.
 - Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded. The summary names the latest actor ("Jonas added 3 places", "Jonas made 5 changes", "Jonas and others made 5 changes").
-- Grouped likes count people, not likes (a like, unlike and like again counts once); own likes never notify; place likes notify no one. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
+- Grouped likes count people, not likes (a like, unlike and like again counts once); own likes never notify; hot marks notify no one. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
 - Batched and grouped entries are one row per group (`groupKey`) that collects until its push is sent; the next event opens a new row. The in-app row appears (and updates) immediately; only the push waits.
 - At send time the recipient's access is checked again: someone who lost access to the trip gets no push and the entry is deleted. The in-app list also hides entries about trips the user can no longer see, and entries caused by someone they have a block with. Deleting a comment deletes its notifications.
 - Respect `notification-settings` per type; still create the in-app notification even if push is off.

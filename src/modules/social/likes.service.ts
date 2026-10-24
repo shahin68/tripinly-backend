@@ -8,7 +8,12 @@ import { BlocksService } from '../moderation/blocks.service';
 import { PlaceMatchingService } from '../places/place-matching.service';
 import { recomputePopularity } from '../places/popularity';
 import { TripAccessService } from '../trips/trip-access.service';
-import type { LikeStateDto, LikeTargetTypeValue } from './social.dto';
+import type {
+  HotStateDto,
+  LikeStateDto,
+  LikeTargetTypeValue,
+  StoredLikeType,
+} from './social.dto';
 
 type Tx = Prisma.TransactionClient;
 
@@ -28,8 +33,9 @@ interface ResolvedTarget {
 }
 
 /**
- * Likes on trips, photos, comments, places and places' Commons images; a stop's like button likes its
- * place (E1). One like per user and target; liking twice or unliking twice
+ * Likes on trips, photos, comments and places' Commons images, and hot marks on
+ * places, stored as likes of type `place`; a stop's flame marks its place (E1).
+ * One like per user and target; liking twice or unliking twice
  * changes nothing. Counters move in the same transaction, with the target row
  * locked so a like can't land on a target that is being deleted (its likes are
  * removed by a trigger).
@@ -49,7 +55,7 @@ export class LikesService {
     targetType: LikeTargetTypeValue,
     targetId: string,
   ): Promise<LikeStateDto> {
-    return this.change(userId, targetType, targetId, true);
+    return this.likeState(userId, targetType, targetId, true);
   }
 
   unlike(
@@ -57,15 +63,36 @@ export class LikesService {
     targetType: LikeTargetTypeValue,
     targetId: string,
   ): Promise<LikeStateDto> {
-    return this.change(userId, targetType, targetId, false);
+    return this.likeState(userId, targetType, targetId, false);
   }
 
-  private async change(
+  /** Marks (or, with `hot` false, unmarks) a place hot. */
+  async markHot(
+    userId: string,
+    placeId: string,
+    hot: boolean,
+  ): Promise<HotStateDto> {
+    const count = await this.change(userId, 'place', placeId, hot);
+    return { placeId, hot, hotCount: count };
+  }
+
+  private async likeState(
     userId: string,
     targetType: LikeTargetTypeValue,
     targetId: string,
     liked: boolean,
   ): Promise<LikeStateDto> {
+    const likeCount = await this.change(userId, targetType, targetId, liked);
+    return { targetType, targetId, liked, likeCount };
+  }
+
+  /** Stores or removes the like and returns the target's new count. */
+  private async change(
+    userId: string,
+    targetType: StoredLikeType,
+    targetId: string,
+    liked: boolean,
+  ): Promise<number> {
     const target = await this.resolve(userId, targetType, targetId);
 
     const { changed, likeCount } = await this.prisma.$transaction(
@@ -97,7 +124,15 @@ export class LikesService {
       },
     );
 
-    if (changed) {
+    if (changed && targetType === 'place') {
+      this.events.emit(
+        DomainEvents.PLACE_HOT_CHANGED,
+        domainEvent(DomainEvents.PLACE_HOT_CHANGED, userId, {
+          placeId: targetId,
+          hotCount: likeCount,
+        }),
+      );
+    } else if (changed) {
       this.events.emit(
         DomainEvents.LIKE_COUNT_CHANGED,
         domainEvent(
@@ -108,7 +143,7 @@ export class LikesService {
         ),
       );
     }
-    return { targetType, targetId, liked, likeCount };
+    return likeCount;
   }
 
   /**
@@ -117,7 +152,7 @@ export class LikesService {
    */
   private async resolve(
     userId: string,
-    targetType: LikeTargetTypeValue,
+    targetType: StoredLikeType,
     targetId: string,
   ): Promise<ResolvedTarget> {
     switch (targetType) {
@@ -208,7 +243,7 @@ export class LikesService {
 
 async function lockTarget(
   tx: Tx,
-  targetType: LikeTargetTypeValue,
+  targetType: StoredLikeType,
   targetId: string,
 ): Promise<void> {
   const table = targetType === 'place' ? 'places' : COUNTED_TABLES[targetType];
@@ -231,7 +266,7 @@ async function moveCount(
 
 async function readCount(
   tx: Tx,
-  targetType: LikeTargetTypeValue,
+  targetType: StoredLikeType,
   targetId: string,
 ): Promise<number> {
   const [row] =

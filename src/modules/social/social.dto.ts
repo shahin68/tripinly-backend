@@ -5,17 +5,19 @@ import type { Page } from '../../common/pagination/pagination';
 import { UserSummaryDto } from '../users/user-summary';
 
 /**
- * Stops have no likes of their own: their like button likes the stop's place
- * (E1). `place_image` is a place's Commons image in its Photos list.
+ * What `/likes/{targetType}/…` likes. `place_image` is a place's Commons image
+ * in its Photos list. Places aren't liked but marked hot (PUT /places/{id}/hot),
+ * and a stop's flame marks its place (E1).
  */
 export const LIKE_TARGET_TYPES = [
   'trip',
   'photo',
   'comment',
-  'place',
   'place_image',
 ] as const;
 export type LikeTargetTypeValue = (typeof LIKE_TARGET_TYPES)[number];
+/** Every kind of stored like: a hot mark on a place is stored as a like of type `place`. */
+export type StoredLikeType = LikeTargetTypeValue | 'place';
 
 export class LikeParamsDto {
   @ApiProperty({ enum: LIKE_TARGET_TYPES })
@@ -37,11 +39,19 @@ export class LikeStateDto {
   @ApiProperty()
   liked: boolean;
 
-  @ApiProperty({
-    description:
-      "The target's like count after the change (a place's popularity for places)",
-  })
+  @ApiProperty({ description: "The target's like count after the change" })
   likeCount: number;
+}
+
+export class HotStateDto {
+  @ApiProperty({ format: 'uuid' })
+  placeId: string;
+
+  @ApiProperty({ description: 'I marked the place hot' })
+  hot: boolean;
+
+  @ApiProperty({ description: "The place's hotCount after the change" })
+  hotCount: number;
 }
 
 export const COMMENT_MAX_LENGTH = 1000;

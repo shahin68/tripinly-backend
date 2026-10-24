@@ -130,8 +130,8 @@ export class NotificationsListener {
     }>,
   ): Promise<void> {
     const { targetType, targetId, liked } = event.data;
-    // Unlikes never notify; place likes have no owner to tell.
-    if (!liked || !event.tripId || targetType === 'place') {
+    // Unlikes never notify, nor do likes without a trip (place images).
+    if (!liked || !event.tripId) {
       return Promise.resolve();
     }
     return this.enqueue({

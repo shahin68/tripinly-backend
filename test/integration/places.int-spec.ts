@@ -24,7 +24,7 @@ interface PlaceBody {
   name: string;
   category: string;
   isTripinly: boolean;
-  likeCount: number;
+  hotCount: number;
   distanceMeters?: number;
 }
 
@@ -174,13 +174,13 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         category: 'attraction',
         location: { lat: 48.206, lng: 16.371 },
         isTripinly: true,
-        likeCount: 9,
+        hotCount: 9,
         prominence: 0,
         coverPhotoId: null,
         coverImageId: null,
         coverSource: null,
         coverThumbUrl: null,
-        likedByMe: false,
+        hotByMe: false,
       });
       expect(body.places[2].isTripinly).toBe(false);
       expect(body.clusters).toEqual([]);
@@ -296,7 +296,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(names(body.places)).toEqual(['Café Sacher', 'Corner café']);
     });
 
-    it('ranks places by likes from APP_PLACE_RANK_MIN_LIKES on, below it by prominence', async () => {
+    it('ranks places by likes from APP_PLACE_RANK_MIN_HOT_COUNT on, below it by prominence', async () => {
       const at = (
         lat: number,
         name: string,
@@ -327,7 +327,9 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       jest
         .spyOn(config, 'get')
         .mockImplementation((key: string, options?: unknown) =>
-          key === 'APP_PLACE_RANK_MIN_LIKES' ? 2 : get(key, options as never),
+          key === 'APP_PLACE_RANK_MIN_HOT_COUNT'
+            ? 2
+            : get(key, options as never),
         );
       try {
         await app.get<Redis>(REDIS).incr(IN_VIEW_CACHE_VERSION_KEY);
@@ -563,7 +565,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           category: 'museum',
           location: { lat: 48.2037, lng: 16.3618 },
           isTripinly: false,
-          likeCount: 0,
+          hotCount: 0,
           type: null,
           address: null,
           osmType: 'node',
@@ -839,9 +841,9 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       });
       await insertPlace(app, { name: 'OSM only', lat: 48.207, lng: 16.372 });
       for (const session of [alice, bob]) {
-        await as(session).put(`/v1/likes/place/${inTrip}`).expect(200);
+        await as(session).put(`/v1/places/${inTrip}/hot`).expect(200);
       }
-      await as(bob).put(`/v1/likes/place/${notInTrip}`).expect(200);
+      await as(bob).put(`/v1/places/${notInTrip}/hot`).expect(200);
       const trip = await createTrip(alice);
       await as(alice)
         .post(`/v1/places/${inTrip}/add-to-trip`)
@@ -886,13 +888,13 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         category: 'cafe',
         location: { lat: 48.2104, lng: 16.3655 },
         isTripinly: false,
-        likeCount: 0,
+        hotCount: 0,
         prominence: 0,
         coverPhotoId: null,
         coverImageId: null,
         coverSource: null,
         coverThumbUrl: null,
-        likedByMe: false,
+        hotByMe: false,
         source: 'osm',
         isActive: true,
         osmType: 'node',

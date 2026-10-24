@@ -10,7 +10,7 @@ import {
 import { RealtimePublisher } from './realtime.publisher';
 import { type RealtimeMessage, UserEvents } from './realtime.rooms';
 
-/** At most one like.count_changed per target per window, carrying the latest count. */
+/** At most one like.count_changed per target, or place.hot_changed per place, per window, carrying the latest count. */
 export const LIKE_EVENT_THROTTLE_MS = 2000;
 
 /** Trip-room events that go out with the service's data as is. */
@@ -26,25 +26,23 @@ const PASS_THROUGH = [
   DomainEvents.COMMENT_DELETED,
 ];
 
-/** Events whose DTO was built for the actor; likedByMe is reset so the payload is viewer-neutral. */
+/** Events whose DTO was built for the actor; likedByMe and hotByMe are reset so the payload is viewer-neutral. */
 const VIEWER_NEUTRAL = {
-  [DomainEvents.MARKER_CREATED]: 'marker',
-  [DomainEvents.MARKER_UPDATED]: 'marker',
-  [DomainEvents.PHOTO_PROCESSING]: 'photo',
-  [DomainEvents.PHOTO_READY]: 'photo',
+  [DomainEvents.MARKER_CREATED]: ['marker', 'hotByMe'],
+  [DomainEvents.MARKER_UPDATED]: ['marker', 'hotByMe'],
+  [DomainEvents.PHOTO_PROCESSING]: ['photo', 'likedByMe'],
+  [DomainEvents.PHOTO_READY]: ['photo', 'likedByMe'],
 } as const;
 
-interface LikeSlot {
+interface CountSlot {
   timer: NodeJS.Timeout;
-  pending?: DomainEvent<LikeData>;
+  pending?: DomainEvent<CountData>;
 }
 
-interface LikeData {
-  targetType: string;
-  targetId: string;
-  count: number;
-  liked: boolean;
-}
+/** A like.count_changed (`targetType`, `targetId`, `count`) or a place.hot_changed (`placeId`, `hotCount`). */
+type CountData =
+  | { targetType: string; targetId: string; count: number }
+  | { placeId: string; hotCount: number };
 
 /**
  * Maps domain events to Socket.IO rooms (the realtime-event skill). Runs in the
@@ -53,7 +51,7 @@ interface LikeData {
 @Injectable()
 export class RealtimeListener implements OnModuleDestroy {
   private readonly logger = new Logger(RealtimeListener.name);
-  private readonly likeSlots = new Map<string, LikeSlot>();
+  private readonly countSlots = new Map<string, CountSlot>();
 
   constructor(
     private readonly publisher: RealtimePublisher,
@@ -61,8 +59,8 @@ export class RealtimeListener implements OnModuleDestroy {
   ) {}
 
   onModuleDestroy(): void {
-    for (const slot of this.likeSlots.values()) clearTimeout(slot.timer);
-    this.likeSlots.clear();
+    for (const slot of this.countSlots.values()) clearTimeout(slot.timer);
+    this.countSlots.clear();
   }
 
   @OnDomainEvents(...PASS_THROUGH)
@@ -73,10 +71,11 @@ export class RealtimeListener implements OnModuleDestroy {
   @OnDomainEvents(...(Object.keys(VIEWER_NEUTRAL) as DomainEventName[]))
   onEntityEvent(event: DomainEvent): Promise<void> {
     return this.safely(event, () => {
-      const key = VIEWER_NEUTRAL[event.event as keyof typeof VIEWER_NEUTRAL];
+      const [key, mine] =
+        VIEWER_NEUTRAL[event.event as keyof typeof VIEWER_NEUTRAL];
       const entity = event.data[key] as Record<string, unknown>;
       return this.toTripOrUploader(event, {
-        [key]: { ...entity, likedByMe: false },
+        [key]: { ...entity, [mine]: false },
       });
     });
   }
@@ -114,10 +113,14 @@ export class RealtimeListener implements OnModuleDestroy {
   }
 
   @OnEvent(DomainEvents.LIKE_COUNT_CHANGED)
-  onLikeCountChanged(event: DomainEvent<LikeData>): void {
-    // A place's likes show on its stops, so they go to every trip with a stop there.
-    if (!event.tripId && event.data.targetType !== 'place') return;
-    this.throttleLike(event);
+  onLikeCountChanged(event: DomainEvent<CountData>): void {
+    if (event.tripId) this.throttleCount(event);
+  }
+
+  /** A place's hot count shows on its stops, so it goes to every trip with a stop there. */
+  @OnEvent(DomainEvents.PLACE_HOT_CHANGED)
+  onPlaceHotChanged(event: DomainEvent<CountData>): void {
+    this.throttleCount(event);
   }
 
   @OnEvent(DomainEvents.TRIP_CREATED)
@@ -275,26 +278,31 @@ export class RealtimeListener implements OnModuleDestroy {
   }
 
   /** Leading edge goes out at once; later changes in the window collapse into one trailing event. */
-  private throttleLike(event: DomainEvent<LikeData>): void {
-    const key = `${event.data.targetType}:${event.data.targetId}`;
-    const slot = this.likeSlots.get(key);
+  private throttleCount(event: DomainEvent<CountData>): void {
+    const { data } = event;
+    const key =
+      'placeId' in data
+        ? `place:${data.placeId}`
+        : `${data.targetType}:${data.targetId}`;
+    const slot = this.countSlots.get(key);
     if (slot) {
       slot.pending = event;
       return;
     }
     const timer = setTimeout(() => {
-      const pending = this.likeSlots.get(key)?.pending;
-      this.likeSlots.delete(key);
-      if (pending) this.throttleLike(pending);
+      const pending = this.countSlots.get(key)?.pending;
+      this.countSlots.delete(key);
+      if (pending) this.throttleCount(pending);
     }, LIKE_EVENT_THROTTLE_MS);
     timer.unref();
-    this.likeSlots.set(key, { timer });
-    const { targetType, targetId, count } = event.data;
+    this.countSlots.set(key, { timer });
     void this.safely(event, async () => {
-      const data = { targetType, targetId, count };
-      if (event.tripId) return this.toTrip(event, data);
+      if (!('placeId' in data)) {
+        const { targetType, targetId, count } = data;
+        return this.toTrip(event, { targetType, targetId, count });
+      }
       const stops = await this.prisma.marker.findMany({
-        where: { placeId: targetId, hiddenAt: null },
+        where: { placeId: data.placeId, hiddenAt: null },
         select: { tripId: true },
         distinct: ['tripId'],
       });

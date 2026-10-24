@@ -364,7 +364,7 @@ describe('Place photos and stop deletion (integration)', () => {
       const photoId = await readyPhoto(app, owner, stop.id);
       await as(stranger).put(`/v1/likes/photo/${photoId}`).expect(200);
       // A like on the stop's place isn't on the stop: it stays.
-      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(stranger).put(`/v1/places/${placeId}/hot`).expect(200);
 
       const warned = await as(owner)
         .delete(`/v1/markers/${stop.id}`)
@@ -419,7 +419,7 @@ describe('Place photos and stop deletion (integration)', () => {
         .expect(201);
       await as(editor).put(`/v1/likes/photo/${ownersPhoto}`).expect(200);
       await as(editor).put(`/v1/likes/comment/${ownersComment}`).expect(200);
-      await as(editor).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(editor).put(`/v1/places/${placeId}/hot`).expect(200);
 
       await as(editor).delete(`/v1/markers/${stop.id}/mine`).expect(204);
 
