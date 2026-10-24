@@ -178,6 +178,7 @@ export function toTripSummaryDto(
     visibility: trip.visibility,
     owner: toUserSummary(trip.owner),
     role: role ?? 'viewer',
+    coverPhotoId,
     coverThumbUrl: thumbUrl(signer, coverPhotoId),
     dayCount: trip._count.days,
     markerCount: trip._count.markers,

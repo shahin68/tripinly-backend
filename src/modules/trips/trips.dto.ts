@@ -267,6 +267,15 @@ export class TripSummaryDto {
   @ApiProperty({
     type: String,
     nullable: true,
+    description:
+      'The cover photo shown as coverThumbUrl: cache the image by this id, since the URL is re-signed',
+    format: 'uuid',
+  })
+  coverPhotoId: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
     description: 'First cover photo in the trip (from stage 5)',
   })
   coverThumbUrl: string | null;

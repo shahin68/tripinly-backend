@@ -729,6 +729,7 @@ describe('Trips, days and members (integration)', () => {
         dayCount: 1,
         markerCount: 0,
         editorCount: 0,
+        coverPhotoId: null,
         coverThumbUrl: null,
       });
       // The owner of "Shared" added this user; the owner isn't counted.
