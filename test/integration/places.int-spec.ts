@@ -905,8 +905,49 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         },
         photoThumbUrls: [],
         images: [],
+        addedBy: null,
         attribution: '© OpenStreetMap contributors',
       });
+    });
+
+    it("credits a custom spot's creator only while one of their public trips has it", async () => {
+      const aliceTrip = await createTrip(alice, 'public');
+      const marker = await as(alice)
+        .post(`/v1/days/${aliceTrip.days[0].id}/markers`)
+        .send({ name: 'Secret garden', location: { lat: 48.19, lng: 16.35 } })
+        .expect(201);
+      const placeId = marker.body.placeId as string;
+      const addedBy = async () =>
+        (await as(bob).get(`/v1/places/${placeId}`).expect(200)).body.addedBy;
+
+      expect(await addedBy()).toEqual({
+        id: alice.userId,
+        username: 'alice',
+        displayName: expect.any(String),
+      });
+
+      // Bob's public trip keeps the spot visible; Alice's private one doesn't name her.
+      const bobTrip = await createTrip(bob, 'public');
+      await as(bob)
+        .post(`/v1/days/${bobTrip.days[0].id}/markers`)
+        .send({ placeId })
+        .expect(201);
+      await as(alice)
+        .patch(`/v1/trips/${aliceTrip.id}`)
+        .send({ visibility: 'private' })
+        .expect(200);
+      expect(await addedBy()).toBeNull();
+
+      // Public again, but a block hides her name.
+      await as(alice)
+        .patch(`/v1/trips/${aliceTrip.id}`)
+        .send({ visibility: 'public' })
+        .expect(200);
+      expect(await addedBy()).toEqual(
+        expect.objectContaining({ username: 'alice' }),
+      );
+      await as(bob).post(`/v1/users/${alice.userId}/block`).expect(204);
+      expect(await addedBy()).toBeNull();
     });
 
     it("keeps a custom pin from a private trip to that trip's members", async () => {

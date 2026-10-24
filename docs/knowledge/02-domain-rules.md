@@ -56,6 +56,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 - Anyone who can see a place (any active OSM place; a user place in a trip they can see) can add a photo **to the place**, without a trip. It belongs to the place, not to a trip or stop, and stays until its uploader deletes it (nobody else can, apart from moderation), the uploader's account goes, or the user place goes (below).
 - Limit: `APP_PLACE_PHOTO_DAILY_LIMIT` place photos per person in 24 hours (default 20, Railway) → `DAILY_PHOTO_LIMIT_REACHED`. Failed uploads don't count.
+- **Credits:** every photo shows who uploaded it (`uploader`), and a user-made place shows who made it (`addedBy`: whoever added its first stop), the latter only while that person has it on a stop in one of their own public trips, so a private trip never shows. Neither name shows across a block, and a deleted account's credit goes.
 - The place's gallery lists them most liked first, then newest. People with a block either way **still see each other's place photos**, without the uploader's name; they still can't like them (or anything else of each other's).
 - Same pipeline as trip photos (metadata stripped, thumb and display), same likes, reports, moderation, export and account deletion.
 

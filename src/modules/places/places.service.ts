@@ -8,8 +8,14 @@ import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
 import { photoKeys, thumbUrl } from '../photos/photo-keys';
+import { BlocksService } from '../moderation/blocks.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
+import {
+  USER_SUMMARY_SELECT,
+  toUserSummary,
+  type UserSummaryDto,
+} from '../users/user-summary';
 import {
   assertBboxSpan,
   type Bbox,
@@ -23,6 +29,7 @@ import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
 import { placeImageCredit } from './commons-metadata';
 import { PhotonClient } from './photon.client';
+import { PUBLIC_STOP_WHERE } from './popularity';
 import { placeImageKeys, placeImageThumbUrl } from './place-image-keys';
 import {
   PlaceMatchingService,
@@ -382,6 +389,7 @@ export class PlacesService {
         osmType: true,
         osmId: true,
         tags: true,
+        createdById: true,
       },
     });
     if (
@@ -391,10 +399,11 @@ export class PlacesService {
       throw AppException.notFound();
     }
     const tags = asStringRecord(place.tags);
-    const [[item], tripPhotos, commons] = await Promise.all([
+    const [[item], tripPhotos, commons, addedBy] = await Promise.all([
       this.personalize(userId, [toPlaceItem(place, lang)]),
       this.placeTripPhotos(userId, place.id),
       this.placeCommonsImages(place.id),
+      this.addedBy(userId, place.id, place.createdById),
     ]);
     return {
       ...item,
@@ -410,9 +419,37 @@ export class PlacesService {
       },
       photoThumbUrls: tripPhotos.flatMap((photo) => photo.thumbUrl ?? []),
       images: [...tripPhotos, ...commons],
+      addedBy,
       attribution:
         place.source === 'osm' || place.osmId ? OSM_ATTRIBUTION : null,
     };
+  }
+
+  /**
+   * Who made a user place, credited only while they have it on a visible stop
+   * of their own public, visible trip, so a private trip never shows; never to
+   * someone with a block either way, and never for a suspended or deleted account.
+   */
+  private async addedBy(
+    userId: string,
+    placeId: string,
+    creatorId: string | null,
+  ): Promise<UserSummaryDto | null> {
+    if (!creatorId) return null;
+    const [stop, blocked] = await Promise.all([
+      this.prisma.marker.findFirst({
+        where: {
+          ...PUBLIC_STOP_WHERE,
+          placeId,
+          createdById: creatorId,
+          createdBy: { status: 'active' },
+        },
+        select: { createdBy: { select: USER_SUMMARY_SELECT } },
+      }),
+      BlocksService.blockedAmong(this.prisma, userId, [creatorId]),
+    ]);
+    if (!stop?.createdBy || blocked.size > 0) return null;
+    return toUserSummary(stop.createdBy);
   }
 
   /**

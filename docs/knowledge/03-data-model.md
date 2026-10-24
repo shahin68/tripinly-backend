@@ -49,6 +49,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `osmRegion` (Geofabrik region of the last import that saw it; used to deactivate what a region no longer has)
 - `tags` (json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image), `isActive`, `importedAt` (last time an import inserted or changed the row's OSM data; rank changes don't move it)
 - `prominence` (smallint 0–100, how well known the place is, from QRank and OSM tags; see `10-maps-places-routing.md`), `qrank` (int, QRank of its Wikidata item, nullable), `imageTagsHash` (hash of the wikidata, wikimedia_commons and image tags, nullable). Set by the OSM import, also on `user` places that carry OSM ids
+- `createdById` → users (`SET NULL`), set on `user` places only: who made it (whoever added its first stop); credited as `addedBy` while they have it in a public trip
 - `popularity` (int, denormalized: the place's likes; a `user` place counts them only while a visible stop of a public, visible trip is on it, else 0)
 - GiST index on `location`; index on `popularity desc`; partial GiST index on `location WHERE popularity > 0`; GIN trigram indexes on `normalizedName` and `searchText` (extension `pg_trgm`); indexes on `category` and `osmRegion`.
 - **Listing rule:** only `osm` places and places with `popularity > 0` (so a public user place with likes) appear in in-view, search, nearby and popular. Any other `user` place (a custom pin, possibly from a private trip) is visible only to people who can see a marker at it, including through `GET /places/{id}` and when picked by `placeId`.
@@ -110,6 +111,7 @@ Counters (`likeCount` on trips, photos, comments; `markers.commentCount`; `place
 | trips owned | delete (cascades days, markers, photos, comments, likes on them, invites) |
 | trip_members rows | delete |
 | markers created in others' trips | keep, `createdById = null` |
+| user places they made | keep, `createdById = null` (no more "Added by") |
 | photos uploaded anywhere | delete rows and storage objects |
 | comments written anywhere | delete |
 | likes given | delete, recompute counts |

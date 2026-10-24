@@ -25,6 +25,7 @@ import {
   PLACE_CATEGORIES,
   TIME_PATTERN,
 } from '../markers/markers.dto';
+import { UserSummaryDto } from '../users/user-summary';
 
 export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
@@ -569,6 +570,14 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
       'Images for the card: up to 10 photos that may represent the place (place photos and public trip photos, most likes first), then its Wikimedia Commons images. The first one is the cover',
   })
   images: PlaceImageDto[];
+
+  @ApiProperty({
+    type: UserSummaryDto,
+    nullable: true,
+    description:
+      "Who made this user place, credited as 'Added by': set only while they have it in one of their public trips, and never for someone with a block either way. Null for OSM places",
+  })
+  addedBy: UserSummaryDto | null;
 
   @ApiProperty({
     type: String,

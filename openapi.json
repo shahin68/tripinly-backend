@@ -6168,6 +6168,16 @@
               "$ref": "#/components/schemas/PlaceImageDto"
             }
           },
+          "addedBy": {
+            "nullable": true,
+            "description": "Who made this user place, credited as 'Added by': set only while they have it in one of their public trips, and never for someone with a block either way. Null for OSM places",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
+          },
           "attribution": {
             "type": "string",
             "nullable": true,
@@ -6195,6 +6205,7 @@
           "tags",
           "photoThumbUrls",
           "images",
+          "addedBy",
           "attribution"
         ]
       },
