@@ -76,6 +76,7 @@ model User {
   membersAdded         TripMember[]          @relation("TripMemberAddedBy")
   invitesCreated       TripInvite[]
   markersCreated       Marker[]
+  placesCreated        Place[]
   photosUploaded       Photo[]
   comments             Comment[]
   likes                Like[]
@@ -386,12 +387,15 @@ model Place {
   imageTagsHash  String?
   /// The imageTagsHash the place-images sync last applied; differs when its images need a sync.
   imagesSyncedHash String?
+  /// Who made a user place (its first stop); credited as "added by" while they have it in a public trip. Null for OSM places.
+  createdById    String?                               @db.Uuid
   createdAt      DateTime                              @default(now())
   updatedAt      DateTime                              @updatedAt
 
-  markers Marker[]
-  images  PlaceImage[]
-  photos  Photo[]
+  createdBy User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  markers   Marker[]
+  images    PlaceImage[]
+  photos    Photo[]
 
   @@unique([osmType, osmId])
   @@index([location], type: Gist)

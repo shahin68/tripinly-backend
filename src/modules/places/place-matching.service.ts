@@ -93,6 +93,7 @@ export class PlaceMatchingService {
       source: 'user',
       osmType: input.osm?.type,
       osmId: input.osm?.id,
+      createdBy: { connect: { id: userId } },
     };
     if (!input.osm) {
       return tx.place.create({
@@ -102,9 +103,9 @@ export class PlaceMatchingService {
     }
     // Two markers for the same OSM feature may race; the unique (osmType, osmId) decides.
     const [created] = await tx.$queryRaw<MatchedPlace[]>`
-      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "updatedAt")
+      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "updatedAt")
       VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${normalizedName}, ${data.category}::"PlaceCategory",
-              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, now())
+              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid, now())
       ON CONFLICT ("osmType", "osmId") DO UPDATE SET "updatedAt" = places."updatedAt"
       RETURNING id, name, lat, lng`;
     return created;
