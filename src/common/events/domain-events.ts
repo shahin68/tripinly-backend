@@ -28,6 +28,8 @@ export const DomainEvents = {
   COMMENT_DELETED: 'comment.deleted',
   /** Any like or unlike; realtime throttles it per target (see 05-realtime). */
   LIKE_COUNT_CHANGED: 'like.count_changed',
+  /** A place marked or unmarked hot; realtime throttles it per place (see 05-realtime). */
+  PLACE_HOT_CHANGED: 'place.hot_changed',
   MEMBER_ADDED: 'member.added',
   MEMBER_REMOVED: 'member.removed',
   USER_BLOCKED: 'user.blocked',

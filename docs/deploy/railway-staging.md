@@ -152,12 +152,12 @@ Each one is optional and has a default. A value outside its range stops the api 
 | `APP_PIN_MEDIUM_MIN_PROMINENCE` | 60 | 0–100 | Prominence from which a place pin is middle-sized |
 | `APP_MAP_MAX_PINS` | 150 | 20–1000 | Most place pins on the map at once |
 | `APP_PHOTO_PIN_MIN_PROMINENCE` | 90 | 0–100 | Prominence from which a pin shows its place's photo… |
-| `APP_PHOTO_PIN_MIN_LIKES` | 3 | ≥ 1 | …or the likes from which it does |
+| `APP_PHOTO_PIN_MIN_HOT_COUNT` | 3 | ≥ 1 | …or the hot count from which it does |
 | `APP_MAP_MAX_PHOTO_PINS` | 100 | 0–500 | Most photo pins at once |
 | `APP_PIN_DOT_BELOW_ZOOM` | 14 | 0–22 | Below this camera zoom, place pins are small dots |
 | `APP_TRIP_MAX_MEMBERS` | 50 | ≥ 2 | Most people in one trip, owner included |
 | `APP_PLACE_PHOTO_PIN_MIN_LIKES` | 3 | ≥ 1 | Likes from people other than the uploader before a stop photo can represent its place |
-| `APP_PLACE_RANK_MIN_LIKES` | 1 | ≥ 1 | Likes from which a place ranks by likes instead of prominence |
+| `APP_PLACE_RANK_MIN_HOT_COUNT` | 1 | ≥ 1 | Hot count from which a place is a hot spot and ranks by it instead of prominence |
 | `APP_PLACE_PHOTO_DAILY_LIMIT` | 20 | ≥ 1 | Place photos one person may add a day |
 | `APP_EXPLORE_NEARBY_RADIUS_KM` | 50 | 1–500 | Radius of Explore's nearby trips |
 

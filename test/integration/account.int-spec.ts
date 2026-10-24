@@ -194,8 +194,8 @@ describe('Account deletion and export (integration)', () => {
         .send({ body: 'Lovely' })
         .expect(201);
       await as(alice).put(`/v1/likes/trip/${carols.id}`).expect(200);
-      await as(alice).put(`/v1/likes/place/${placeId}`).expect(200);
-      await as(carol).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(alice).put(`/v1/places/${placeId}/hot`).expect(200);
+      await as(carol).put(`/v1/places/${placeId}/hot`).expect(200);
       expect(
         (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
           .popularity,

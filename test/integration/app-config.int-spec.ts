@@ -23,7 +23,7 @@ describe('App config (integration)', () => {
       pinMediumMinProminence: 60,
       mapMaxPins: 150,
       photoPinMinProminence: 90,
-      photoPinMinLikes: 3,
+      photoPinMinHotCount: 3,
       mapMaxPhotoPins: 100,
       pinDotBelowZoom: 14,
     });

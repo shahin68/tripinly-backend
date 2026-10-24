@@ -182,7 +182,7 @@ export function toResult(feature: PhotonFeature): SearchResultDto | null {
     category: null,
     location: { lat, lng },
     isTripinly: false,
-    likeCount: 0,
+    hotCount: 0,
     type: text(props.type) ?? null,
     address: address.length ? address.join(', ') : null,
     osmType: osmType && osmId ? osmType : null,

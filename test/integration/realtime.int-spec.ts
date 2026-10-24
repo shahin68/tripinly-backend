@@ -158,28 +158,28 @@ describe('Realtime (integration)', () => {
       const markerId = await addMarker(owner, privateTrip);
 
       const event = await editorSocket.waitFor<{
-        marker: { id: string; likedByMe: boolean };
+        marker: { id: string; hotByMe: boolean };
       }>('marker.created');
       expect(event).toMatchObject({
         event: 'marker.created',
         tripId: privateTrip.id,
         actorId: owner.userId,
-        data: { marker: { id: markerId, likedByMe: false } },
+        data: { marker: { id: markerId, hotByMe: false } },
       });
       expect(typeof event.at).toBe('string');
       await ownerSocket.waitFor('marker.created');
 
-      await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(owner).put(`/v1/places/${placeId}/hot`).expect(200);
       await as(owner)
         .patch(`/v1/markers/${markerId}`)
         .send({ time: '09:30' })
         .expect(200);
       const updated = await editorSocket.waitFor<{
-        marker: { likedByMe: boolean; likeCount: number };
+        marker: { hotByMe: boolean; hotCount: number };
       }>('marker.updated');
       expect(updated.data.marker).toMatchObject({
-        likedByMe: false,
-        likeCount: 1,
+        hotByMe: false,
+        hotCount: 1,
       });
     });
 
@@ -200,34 +200,34 @@ describe('Realtime (integration)', () => {
       expect(socket.events('photo.processing')).toHaveLength(1);
     });
 
-    it('sends place like counts to every trip with a stop there, throttled to one per 2 s', async () => {
+    it('sends place hot counts to every trip with a stop there, throttled to one per 2 s', async () => {
       await addMarker(owner, publicTrip);
       await addMarker(owner, privateTrip);
       const socket = await subscribed(owner, publicTrip.id);
       const memberSocket = await subscribed(editor, privateTrip.id);
-      await as(stranger).put(`/v1/likes/place/${placeId}`).expect(200);
-      await as(editor).put(`/v1/likes/place/${placeId}`).expect(200);
-      await as(owner).put(`/v1/likes/place/${placeId}`).expect(200);
+      await as(stranger).put(`/v1/places/${placeId}/hot`).expect(200);
+      await as(editor).put(`/v1/places/${placeId}/hot`).expect(200);
+      await as(owner).put(`/v1/places/${placeId}/hot`).expect(200);
 
-      const first = await socket.waitFor<{ count: number }>(
-        'like.count_changed',
+      const first = await socket.waitFor<{ hotCount: number }>(
+        'place.hot_changed',
       );
       expect(first).toMatchObject({
         tripId: publicTrip.id,
-        data: { targetType: 'place', targetId: placeId, count: 1 },
+        data: { placeId, hotCount: 1 },
       });
       expect(
-        await memberSocket.waitFor<{ count: number }>('like.count_changed'),
-      ).toMatchObject({ tripId: privateTrip.id, data: { count: 1 } });
+        await memberSocket.waitFor<{ hotCount: number }>('place.hot_changed'),
+      ).toMatchObject({ tripId: privateTrip.id, data: { hotCount: 1 } });
       await sleep(1000);
-      expect(socket.events('like.count_changed')).toHaveLength(1);
-      const last = await socket.waitFor<{ count: number }>(
-        'like.count_changed',
-        (event) => event.data.count === 3,
+      expect(socket.events('place.hot_changed')).toHaveLength(1);
+      const last = await socket.waitFor<{ hotCount: number }>(
+        'place.hot_changed',
+        (event) => event.data.hotCount === 3,
         3000,
       );
-      expect(last.data.count).toBe(3);
-      expect(socket.events('like.count_changed')).toHaveLength(2);
+      expect(last.data.hotCount).toBe(3);
+      expect(socket.events('place.hot_changed')).toHaveLength(2);
     });
 
     it('deletes: sends trip.deleted, empties the room and updates trip lists', async () => {

@@ -56,16 +56,16 @@ export class AppConfigDto {
   @ApiProperty({
     example: 90,
     description:
-      "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or it has `photoPinMinLikes` likes.",
+      "A place's pin shows its photo (`coverThumbUrl`) when its `prominence` is at least this, or its `hotCount` reaches `photoPinMinHotCount`.",
   })
   photoPinMinProminence!: number;
 
   @ApiProperty({
     example: 3,
     description:
-      "A place's pin shows its photo when it has at least this many likes, or `photoPinMinProminence`.",
+      "A place's pin shows its photo when its `hotCount` is at least this, or `photoPinMinProminence`.",
   })
-  photoPinMinLikes!: number;
+  photoPinMinHotCount!: number;
 
   @ApiProperty({
     example: 100,

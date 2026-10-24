@@ -22,7 +22,7 @@ describe('Photon result mapping', () => {
       category: null,
       location: { lat: 48.2083, lng: 16.3725 },
       isTripinly: false,
-      likeCount: 0,
+      hotCount: 0,
       type: 'city',
       address: 'Österreich',
       osmType: 'relation',

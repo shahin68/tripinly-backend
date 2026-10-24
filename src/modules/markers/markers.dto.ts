@@ -262,18 +262,18 @@ export class MarkerDto {
 
   @ApiProperty({
     description:
-      "The place's likes: a stop's like button likes its place, so every stop at a place shows the same count",
+      "How many people marked the place hot: a stop's flame marks its place, so every stop at a place shows the same count",
   })
-  likeCount: number;
+  hotCount: number;
 
-  @ApiProperty({ description: 'I liked the place' })
-  likedByMe: boolean;
+  @ApiProperty({ description: 'I marked the place hot' })
+  hotByMe: boolean;
 
   @ApiProperty({
     description:
-      'False for a custom spot that is only in private trips: it has no like button',
+      'False for a custom spot that is only in private trips: it has no flame button',
   })
-  canLike: boolean;
+  canMarkHot: boolean;
 
   @ApiProperty()
   commentCount: number;
@@ -295,7 +295,7 @@ export class MarkerDto {
 export const MARKER_INCLUDE = {
   createdBy: { select: { id: true, username: true, displayName: true } },
   coverPhoto: { select: { uploaderId: true } },
-  // Whether the place is public, for canLike (see PlaceMatchingService.isLikeable).
+  // Whether the place is public, for canMarkHot (see PlaceMatchingService.isLikeable).
   place: {
     select: {
       source: true,
@@ -341,9 +341,9 @@ export function toMarkerDto(
     coverPhotoId,
     coverThumbUrl: thumbUrl(signer, coverPhotoId),
     photoCount: marker._count.photos,
-    likeCount: marker.place.popularity,
-    likedByMe: likedIds.has(marker.placeId),
-    canLike:
+    hotCount: marker.place.popularity,
+    hotByMe: likedIds.has(marker.placeId),
+    canMarkHot:
       marker.place.source === 'osm' ||
       marker.place.popularity > 0 ||
       marker.place.markers.length > 0,

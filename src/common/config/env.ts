@@ -84,8 +84,8 @@ export const envSchema = z
       .min(0)
       .max(100)
       .default(90),
-    /** ...or the place has at least this many likes. */
-    APP_PHOTO_PIN_MIN_LIKES: z.coerce.number().int().min(1).default(3),
+    /** ...or the place's hot count is at least this. */
+    APP_PHOTO_PIN_MIN_HOT_COUNT: z.coerce.number().int().min(1).default(3),
     /** Most pins drawn with a photo at once, the best ranked first. */
     APP_MAP_MAX_PHOTO_PINS: z.coerce
       .number()
@@ -151,10 +151,10 @@ export const envSchema = z
      */
     APP_PLACE_PHOTO_PIN_MIN_LIKES: z.coerce.number().int().min(1).default(3),
     /**
-     * Likes (popularity) a place needs before it ranks on the map by its likes,
-     * ahead of every unliked place; below it, prominence (QRank) ranks it.
+     * Hot count (popularity) a place needs before it ranks on the map by it,
+     * ahead of every other place; below it, prominence (QRank) ranks it.
      */
-    APP_PLACE_RANK_MIN_LIKES: z.coerce.number().int().min(1).default(1),
+    APP_PLACE_RANK_MIN_HOT_COUNT: z.coerce.number().int().min(1).default(1),
     /** Place photos one person may add in 24 hours, across all places. */
     APP_PLACE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(1).default(20),
     /** Explore's Nearby filter: trips with a stop within this many km of the user. */

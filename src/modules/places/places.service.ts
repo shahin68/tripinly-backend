@@ -205,7 +205,7 @@ export class PlacesService {
       : undefined;
 
     const key = await this.inViewCacheKey(bbox, zoom, categories, limit, lang);
-    // The cache is shared by everyone; covers and likedByMe are per viewer.
+    // The cache is shared by everyone; covers and hotByMe are per viewer.
     const cached = key ? await this.cacheGet<InViewResponseDto>(key) : null;
     const result =
       cached ??
@@ -453,7 +453,7 @@ export class PlacesService {
   }
 
   /**
-   * Fills each place's cover and likedByMe for this viewer. The cover is its
+   * Fills each place's cover and hotByMe for this viewer. The cover is its
    * photo with the most likes that may represent it (see
    * `representativePhotos`), else its most liked ready Commons image (the
    * first in Commons order on a tie).
@@ -489,7 +489,7 @@ export class PlacesService {
         coverThumbUrl: photoId
           ? thumbUrl(this.storage, photoId)
           : placeImageThumbUrl(this.storage, imageId),
-        likedByMe: liked.has(item.id),
+        hotByMe: liked.has(item.id),
       };
     });
   }
@@ -728,9 +728,9 @@ export class PlacesService {
       LIMIT ${limit}`;
   }
 
-  /** Likes a place needs to rank above prominence on the map (APP_PLACE_RANK_MIN_LIKES). */
+  /** Hot count a place needs to rank above prominence on the map (APP_PLACE_RANK_MIN_HOT_COUNT). */
   private rankMinLikes(): number {
-    return this.config.get('APP_PLACE_RANK_MIN_LIKES', { infer: true });
+    return this.config.get('APP_PLACE_RANK_MIN_HOT_COUNT', { infer: true });
   }
 
   private async searchOurs(
@@ -764,7 +764,7 @@ export class PlacesService {
         category: item.category,
         location: item.location,
         isTripinly: item.isTripinly,
-        likeCount: item.likeCount,
+        hotCount: item.hotCount,
         type: null,
         address: null,
         osmType: row.osmType,
@@ -878,13 +878,13 @@ export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
     category: row.category,
     location: { lat: row.lat, lng: row.lng },
     isTripinly: row.popularity > 0,
-    likeCount: row.popularity,
+    hotCount: row.popularity,
     prominence: row.prominence,
     coverPhotoId: null,
     coverImageId: null,
     coverSource: null,
     coverThumbUrl: null,
-    likedByMe: false,
+    hotByMe: false,
   };
 }
 
