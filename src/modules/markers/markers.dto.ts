@@ -20,6 +20,8 @@ import {
 } from 'class-validator';
 import type { Prisma } from '../../generated/prisma/client';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
+import { placeImageThumbUrl } from '../places/place-image-keys';
+import type { PlaceCover } from '../places/place-covers.service';
 import { PUBLIC_STOP_WHERE } from '../places/popularity';
 import { toUserSummary, UserSummaryDto } from '../users/user-summary';
 
@@ -247,13 +249,19 @@ export class MarkerDto {
   @ApiProperty()
   position: number;
 
-  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      "The image the stop's pin shows, cached by this id: the cover picked from the stop's photo grid (a photo or a Commons image), else the place's image. Null when there is neither",
+  })
   coverPhotoId: string | null;
 
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'Signed URL, expires after ~1 h',
+    description: 'Its thumbnail; signed URL, expires after ~1 h',
   })
   coverThumbUrl: string | null;
 
@@ -294,7 +302,22 @@ export class MarkerDto {
 
 export const MARKER_INCLUDE = {
   createdBy: { select: { id: true, username: true, displayName: true } },
-  coverPhoto: { select: { uploaderId: true } },
+  coverPhoto: {
+    select: {
+      uploaderId: true,
+      markerId: true,
+      placeId: true,
+      hiddenAt: true,
+      uploader: { select: { status: true } },
+      marker: {
+        select: {
+          hiddenAt: true,
+          trip: { select: { ownerId: true, visibility: true, hiddenAt: true } },
+        },
+      },
+    },
+  },
+  coverImage: { select: { status: true } },
   // Whether the place is public, for canMarkHot (see PlaceMatchingService.isLikeable).
   place: {
     select: {
@@ -312,23 +335,83 @@ export type MarkerWithCreator = Prisma.MarkerGetPayload<{
   include: typeof MARKER_INCLUDE;
 }>;
 
+/** What a stop's picked cover needs, also for the trip's card. */
+type CoverFields = Pick<
+  MarkerWithCreator,
+  'id' | 'coverPhotoId' | 'coverImageId' | 'coverPhoto' | 'coverImage'
+>;
+
+/** The people whose block with the viewer hides the stop's picked cover: its uploader and, from another trip, that trip's owner. */
+export function coverPeople(marker: Pick<CoverFields, 'coverPhoto'>): string[] {
+  const photo = marker.coverPhoto;
+  if (!photo) return [];
+  const owner = photo.marker?.trip.ownerId;
+  return owner ? [photo.uploaderId, owner] : [photo.uploaderId];
+}
+
+/**
+ * The cover the trip picked, while it may still show: a picked photo of
+ * another trip only while that trip and stop are public and unhidden (a
+ * private trip's photos never leave it), never a hidden photo, one by an
+ * inactive account or across a block (`hiddenUserIds`, see `coverPeople`).
+ */
+export function pickedCover(
+  marker: CoverFields,
+  signer: UrlSigner,
+  hiddenUserIds: ReadonlySet<string>,
+): { id: string; thumbUrl: string | null } | null {
+  const photo = marker.coverPhoto;
+  if (marker.coverPhotoId && photo) {
+    const other = photo.marker;
+    const shown =
+      photo.markerId === marker.id ||
+      photo.placeId !== null ||
+      (other !== null &&
+        other.hiddenAt === null &&
+        other.trip.visibility === 'public' &&
+        other.trip.hiddenAt === null);
+    const visible =
+      shown &&
+      photo.hiddenAt === null &&
+      photo.uploader.status === 'active' &&
+      !coverPeople(marker).some((id) => hiddenUserIds.has(id));
+    return visible
+      ? {
+          id: marker.coverPhotoId,
+          thumbUrl: thumbUrl(signer, marker.coverPhotoId),
+        }
+      : null;
+  }
+  if (marker.coverImageId && marker.coverImage?.status === 'ready') {
+    return {
+      id: marker.coverImageId,
+      thumbUrl: placeImageThumbUrl(signer, marker.coverImageId),
+    };
+  }
+  return null;
+}
+
 /**
  * `hiddenUserIds`: people with a block with the viewer. They show as no
- * creator, and a cover photo they uploaded isn't shown. `likedIds`: targets
- * the viewer liked (see `likedAmong`), here places.
+ * creator, and their cover isn't shown (see `pickedCover`). `likedIds`:
+ * targets the viewer liked (see `likedAmong`), here places. `placeCovers`:
+ * the places' images for this viewer (`PlacesService.coversOf`), shown by a
+ * stop without a picked cover; left out in live events, which reach many
+ * viewers.
  */
 export function toMarkerDto(
   marker: MarkerWithCreator,
   signer: UrlSigner,
   hiddenUserIds: ReadonlySet<string> = new Set(),
   likedIds: ReadonlySet<string> = new Set(),
+  placeCovers: ReadonlyMap<string, PlaceCover> = new Map(),
 ): MarkerDto {
   const creatorHidden =
     marker.createdById !== null && hiddenUserIds.has(marker.createdById);
-  const coverHidden =
-    marker.coverPhoto !== null &&
-    hiddenUserIds.has(marker.coverPhoto.uploaderId);
-  const coverPhotoId = coverHidden ? null : marker.coverPhotoId;
+  const cover =
+    pickedCover(marker, signer, hiddenUserIds) ??
+    placeCovers.get(marker.placeId) ??
+    null;
   return {
     id: marker.id,
     tripId: marker.tripId,
@@ -338,8 +421,8 @@ export function toMarkerDto(
     location: { lat: marker.lat, lng: marker.lng },
     time: marker.time,
     position: marker.position,
-    coverPhotoId,
-    coverThumbUrl: thumbUrl(signer, coverPhotoId),
+    coverPhotoId: cover?.id ?? null,
+    coverThumbUrl: cover?.thumbUrl ?? null,
     photoCount: marker._count.photos,
     hotCount: marker.place.popularity,
     hotByMe: likedIds.has(marker.placeId),

@@ -6,7 +6,13 @@ import type {
   TripRole,
   User,
 } from '../../generated/prisma/client';
-import { MARKER_INCLUDE, toMarkerDto } from '../markers/markers.dto';
+import {
+  coverPeople,
+  MARKER_INCLUDE,
+  pickedCover,
+  toMarkerDto,
+} from '../markers/markers.dto';
+import type { PlaceCover } from '../places/place-covers.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { likedAmong } from '../social/liked';
@@ -14,6 +20,14 @@ import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
 import type { DestinationDto, TripDto, TripSummaryDto } from './trips.dto';
 
 type Summary = Pick<User, 'id' | 'username' | 'displayName'>;
+
+/** Without a picked cover, the card shows the trip's first photo. */
+export const TRIP_FIRST_PHOTO = {
+  where: { status: 'ready', hiddenAt: null, marker: { hiddenAt: null } },
+  orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  take: 1,
+  select: { id: true, uploaderId: true },
+} satisfies Prisma.Trip$photosArgs;
 
 export const TRIP_DETAIL_INCLUDE = {
   owner: { select: USER_SUMMARY_SELECT },
@@ -32,6 +46,7 @@ export const TRIP_DETAIL_INCLUDE = {
       },
     },
   },
+  photos: TRIP_FIRST_PHOTO,
   _count: {
     select: {
       saves: true,
@@ -96,7 +111,8 @@ const NO_VIEWER_STATE: TripViewerState = {
  * `hiddenUserIds`: users with a block in either direction with the viewer.
  * They are left out of the member list and shown as no creator on markers,
  * and their cover photos aren't shown. `likedIds`: the trip and markers the
- * viewer liked.
+ * viewer liked. `placeCovers`: the stops' places' images, for stops without a
+ * picked cover.
  */
 export function toTripDto(
   trip: TripWithDetails,
@@ -105,6 +121,7 @@ export function toTripDto(
   hiddenUserIds: ReadonlySet<string> = new Set(),
   likedIds: ReadonlySet<string> = new Set(),
   viewer: TripViewerState = NO_VIEWER_STATE,
+  placeCovers: ReadonlyMap<string, PlaceCover> = new Map(),
 ): TripDto {
   return {
     id: trip.id,
@@ -127,12 +144,18 @@ export function toTripDto(
     savedByMe: viewer.savedByMe,
     myJoinRequest: viewer.joinRequest,
     pendingJoinRequestCount: myRole === 'owner' ? trip._count.joinRequests : 0,
+    ...tripCover(
+      trip.days.flatMap((day) => day.markers),
+      trip.photos[0],
+      signer,
+      hiddenUserIds,
+    ),
     days: trip.days.map((day) => ({
       id: day.id,
       position: day.position,
       date: dayDate(trip, day.position),
       markers: day.markers.map((marker) =>
-        toMarkerDto(marker, signer, hiddenUserIds, likedIds),
+        toMarkerDto(marker, signer, hiddenUserIds, likedIds, placeCovers),
       ),
     })),
     createdAt: trip.createdAt.toISOString(),
@@ -140,22 +163,54 @@ export function toTripDto(
   };
 }
 
-/** The first marker (by day, then position) that has a cover: the trip's card image. */
+/** The first stop (by day, then position) with a picked cover: the trip's card image. */
 export const TRIP_COVER_MARKER = {
-  where: { hiddenAt: null, coverPhotoId: { not: null } },
+  where: {
+    hiddenAt: null,
+    OR: [{ coverPhotoId: { not: null } }, { coverImageId: { not: null } }],
+  },
   orderBy: [{ day: { position: 'asc' } }, { position: 'asc' }],
   take: 1,
-  select: { coverPhotoId: true, coverPhoto: { select: { uploaderId: true } } },
+  select: {
+    id: true,
+    coverPhotoId: true,
+    coverImageId: true,
+    coverPhoto: MARKER_INCLUDE.coverPhoto,
+    coverImage: MARKER_INCLUDE.coverImage,
+  },
 } satisfies Prisma.Trip$markersArgs;
+
+/**
+ * The trip card's image: the first of [stops] (in trip order) with a picked
+ * cover that may show, else [firstPhoto] (`TRIP_FIRST_PHOTO`).
+ */
+function tripCover(
+  stops: Parameters<typeof pickedCover>[0][],
+  firstPhoto: { id: string; uploaderId: string } | undefined,
+  signer: UrlSigner,
+  hiddenUserIds: ReadonlySet<string>,
+): { coverPhotoId: string | null; coverThumbUrl: string | null } {
+  for (const stop of stops) {
+    const cover = pickedCover(stop, signer, hiddenUserIds);
+    if (cover) return { coverPhotoId: cover.id, coverThumbUrl: cover.thumbUrl };
+  }
+  if (firstPhoto && !hiddenUserIds.has(firstPhoto.uploaderId)) {
+    return {
+      coverPhotoId: firstPhoto.id,
+      coverThumbUrl: thumbUrl(signer, firstPhoto.id),
+    };
+  }
+  return { coverPhotoId: null, coverThumbUrl: null };
+}
 
 export type TripWithCounts = Trip & {
   owner: Summary;
   _count: { days: number; markers: number; members: number; saves: number };
   saves: { userId: string }[];
-  markers: {
-    coverPhotoId: string | null;
-    coverPhoto: { uploaderId: string } | null;
-  }[];
+  markers: Prisma.MarkerGetPayload<{
+    select: typeof TRIP_COVER_MARKER.select;
+  }>[];
+  photos: { id: string; uploaderId: string }[];
 };
 
 export function toTripSummaryDto(
@@ -165,11 +220,6 @@ export function toTripSummaryDto(
   hiddenUserIds: ReadonlySet<string> = new Set(),
   likedIds: ReadonlySet<string> = new Set(),
 ): TripSummaryDto {
-  const cover = trip.markers[0];
-  const coverPhotoId =
-    cover?.coverPhoto && !hiddenUserIds.has(cover.coverPhoto.uploaderId)
-      ? cover.coverPhotoId
-      : null;
   return {
     id: trip.id,
     title: trip.title,
@@ -178,8 +228,7 @@ export function toTripSummaryDto(
     visibility: trip.visibility,
     owner: toUserSummary(trip.owner),
     role: role ?? 'viewer',
-    coverPhotoId,
-    coverThumbUrl: thumbUrl(signer, coverPhotoId),
+    ...tripCover(trip.markers, trip.photos[0], signer, hiddenUserIds),
     dayCount: trip._count.days,
     markerCount: trip._count.markers,
     editorCount: trip._count.members,
@@ -207,6 +256,7 @@ export function tripSummaryInclude(userId: string) {
       },
     },
     markers: TRIP_COVER_MARKER,
+    photos: TRIP_FIRST_PHOTO,
   } satisfies Prisma.TripInclude;
 }
 
@@ -223,11 +273,10 @@ export async function toTripSummaries(
     BlocksService.blockedAmong(
       db,
       userId,
-      rows.flatMap((row) =>
-        row.markers.flatMap((m) =>
-          m.coverPhoto ? [m.coverPhoto.uploaderId] : [],
-        ),
-      ),
+      rows.flatMap((row) => [
+        ...row.markers.flatMap(coverPeople),
+        ...row.photos.map((photo) => photo.uploaderId),
+      ]),
     ),
     likedAmong(db, userId, { type: 'trip', ids: rows.map((row) => row.id) }),
   ]);

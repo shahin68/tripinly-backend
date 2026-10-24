@@ -19,8 +19,8 @@ export type ProcessOutcome = 'ready' | 'skipped' | 'deleted';
 /**
  * Turns an upload into safe images (photo-pipeline skill): checks the real
  * type, applies the EXIF rotation, drops all metadata (GPS included), writes
- * thumb and display WebPs and a clean original, then marks the photo ready
- * and makes it the cover if the marker has none. Safe to run twice.
+ * thumb and display WebPs and a clean original, then marks the photo ready.
+ * It never becomes the cover by itself: the trip picks one. Safe to run twice.
  */
 @Injectable()
 export class PhotoProcessingService {
@@ -87,22 +87,12 @@ export class PhotoProcessingService {
     await this.storage.put(keys.display, display, 'image/webp');
     await this.storage.put(keys.original, clean, type);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.photo.updateMany({
-        where: { id: photoId, status: 'processing' },
-        data: { status: 'ready', width, height },
-      });
-      if (count === 0) return null;
-      // Place photos have no marker, so no cover.
-      if (!photo.markerId) return { coverSet: false };
-      const cover = await tx.marker.updateMany({
-        where: { id: photo.markerId, coverPhotoId: null },
-        data: { coverPhotoId: photoId },
-      });
-      return { coverSet: cover.count === 1 };
+    const { count } = await this.prisma.photo.updateMany({
+      where: { id: photoId, status: 'processing' },
+      data: { status: 'ready', width, height },
     });
 
-    if (!result) {
+    if (count === 0) {
       // Processed twice at once (a retried or stalled job): the other run won.
       if (await this.prisma.photo.count({ where: { id: photoId } })) {
         return 'skipped';
@@ -125,17 +115,6 @@ export class PhotoProcessingService {
         photo.tripId ?? undefined,
       ),
     );
-    if (result.coverSet) {
-      this.events.emit(
-        DomainEvents.MARKER_COVER_CHANGED,
-        domainEvent(
-          DomainEvents.MARKER_COVER_CHANGED,
-          photo.uploaderId,
-          { markerId: photo.markerId, photoId },
-          photo.tripId ?? undefined,
-        ),
-      );
-    }
     return 'ready';
   }
 

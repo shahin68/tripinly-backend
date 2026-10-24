@@ -21,13 +21,12 @@
 | `trip.updated` | Title, dates, destination, visibility changed | changed fields |
 | `trip.deleted` | Trip deleted | — (clients leave the room) |
 | `day.created` / `day.deleted` | | day |
-| `marker.created` / `marker.updated` / `marker.deleted` | | marker (with cover thumbnail URL) |
+| `marker.created` / `marker.updated` / `marker.deleted` | | marker (its cover only when picked: the place's image depends on the viewer, so apps keep the one they have, or load the stop) |
 | `markers.reordered` | Order change or best route applied | dayId, ordered IDs |
 | `photo.processing` | Upload confirmed | photo stub |
 | `photo.ready` / `photo.failed` | Thumbnail job finished | photo with URLs |
-| `photo.deleted` | | photoId, markerId, new cover ID |
-| `marker.cover_changed` | Cover chosen, or set automatically by the first ready photo | markerId, photoId |
-| `photos.reordered` | Gallery reordered | markerId, ordered photo IDs |
+| `photo.deleted` | | photoId, markerId, the stop's picked cover photo after it (null when the deleted photo was the cover) |
+| `marker.cover_changed` | Cover picked (a photo or Commons image id) | markerId, photoId |
 | `comment.created` / `comment.deleted` | | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId |
 | `place.hot_changed` | A place marked or unmarked hot, in the room of every trip with a visible stop there (the stops show the place's count) | placeId, hotCount (throttled like `like.count_changed`) |
 | `like.count_changed` | Any like on trip/photo/comment, in its trip's room | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |

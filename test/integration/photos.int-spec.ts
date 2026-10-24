@@ -98,7 +98,7 @@ describe('Photos (integration)', () => {
       .expect(200);
 
   describe('upload and processing', () => {
-    it('uploads, strips metadata, makes thumb and display, and sets the cover', async () => {
+    it('uploads, strips metadata, and makes thumb and display', async () => {
       const file = await jpegWithGps();
       const start = await upload(app, editor, markerId, file);
       expect(start.photo).toEqual(
@@ -149,16 +149,12 @@ describe('Photos (integration)', () => {
       expect(meta.orientation).toBeUndefined();
       expect([meta.width, meta.height]).toEqual([200, 400]);
 
-      // First ready photo becomes the cover, visible on the marker, trip and trip list.
+      // It doesn't become the stop's cover by itself (the place has no image
+      // either), but it is the trip card's image while no stop has a cover.
       const marker = await as(owner).get(`/v1/markers/${markerId}`).expect(200);
       expect(marker.body).toEqual(
-        expect.objectContaining({ coverPhotoId: photo.id, photoCount: 1 }),
+        expect.objectContaining({ coverPhotoId: null, photoCount: 1 }),
       );
-      expect(marker.body.coverThumbUrl).toEqual(
-        expect.stringContaining(`photos/${photo.id}/thumb.webp`),
-      );
-      const detail = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
-      expect(detail.body.days[0].markers[0].coverPhotoId).toBe(photo.id);
       const list = await as(owner).get('/v1/me/trips').expect(200);
       expect(list.body.items[0].coverPhotoId).toBe(photo.id);
       expect(list.body.items[0].coverThumbUrl).toEqual(
@@ -309,31 +305,52 @@ describe('Photos (integration)', () => {
   });
 
   describe('gallery order, cover and deletion', () => {
-    it('reorders and moves the cover', async () => {
+    it("ranks the grid by likes, the stop's own first on a tie, uploads in progress on top", async () => {
       const first = await readyPhoto(app, owner, markerId);
       const second = await readyPhoto(app, editor, markerId);
+      const pending = await upload(app, owner, markerId, await jpegWithGps());
+      await as(owner)
+        .post(`/v1/photos/${pending.photo.id}/complete`)
+        .expect(202);
 
-      const bad = await as(owner)
-        .put(`/v1/markers/${markerId}/photo-order`)
-        .send({ photoIds: [second] })
-        .expect(400);
-      expect(bad.body.error.details.fields).toEqual({
-        photoIds: ['mustMatchMarkerPhotos'],
-      });
-      const reordered = await as(editor)
-        .put(`/v1/markers/${markerId}/photo-order`)
-        .send({ photoIds: [second, first] })
-        .expect(200);
-      expect(reordered.body.map((p: PhotoBody) => p.id)).toEqual([
+      // Newest first while nobody liked them.
+      expect((await gallery(owner)).map((p) => p.id)).toEqual([
+        pending.photo.id,
         second,
         first,
       ]);
+      await as(editor).put(`/v1/likes/photo/${first}`).expect(200);
+      const ranked = await gallery(owner);
+      expect(ranked.map((p) => p.id)).toEqual([
+        pending.photo.id,
+        first,
+        second,
+      ]);
+      expect(ranked[1]).toMatchObject({ likeCount: 1, likedByMe: false });
+      // The manual order is gone.
+      await as(owner)
+        .put(`/v1/markers/${markerId}/photo-order`)
+        .send({ photoIds: [second, first] })
+        .expect(404);
+    });
+
+    it('picks any ready photo of the grid as the cover, and nothing else', async () => {
+      await readyPhoto(app, owner, markerId);
+      const second = await readyPhoto(app, editor, markerId);
 
       const cover = await as(editor)
         .put(`/v1/markers/${markerId}/cover`)
         .send({ photoId: second })
         .expect(200);
       expect(cover.body.coverPhotoId).toBe(second);
+      expect(cover.body.coverThumbUrl).toEqual(
+        expect.stringContaining(`photos/${second}/thumb.webp`),
+      );
+      const detail = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
+      expect(detail.body.days[0].markers[0].coverPhotoId).toBe(second);
+      expect(detail.body.coverPhotoId).toBe(second);
+      const list = await as(owner).get('/v1/me/trips').expect(200);
+      expect(list.body.items[0].coverPhotoId).toBe(second);
 
       const pending = await upload(app, owner, markerId, await jpegWithGps());
       const notReady = await as(owner)
@@ -341,22 +358,49 @@ describe('Photos (integration)', () => {
         .send({ photoId: pending.photo.id })
         .expect(400);
       expect(notReady.body.error.details.fields).toEqual({
+        photoId: ['notFound'],
+      });
+      await as(owner)
+        .post(`/v1/photos/${pending.photo.id}/complete`)
+        .expect(202);
+      const processing = await as(owner)
+        .put(`/v1/markers/${markerId}/cover`)
+        .send({ photoId: pending.photo.id })
+        .expect(400);
+      expect(processing.body.error.details.fields).toEqual({
         photoId: ['notReady'],
       });
+      const elsewhere = await as(owner)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ name: 'Prater', location: { lat: 48.2166, lng: 16.3958 } })
+        .expect(201);
+      const notInGrid = await readyPhoto(app, owner, elsewhere.body.id);
+      await as(owner)
+        .put(`/v1/markers/${markerId}/cover`)
+        .send({ photoId: notInGrid })
+        .expect(400);
       await as(stranger)
         .put(`/v1/markers/${markerId}/cover`)
         .send({ photoId: second })
         .expect(404);
     });
 
-    it('passes the cover on when it is deleted and deletes the files', async () => {
+    it("goes back to the place's image when the cover is deleted, and deletes the files", async () => {
       const first = await readyPhoto(app, owner, markerId);
       const second = await readyPhoto(app, owner, markerId);
+      await as(owner)
+        .put(`/v1/markers/${markerId}/cover`)
+        .send({ photoId: first })
+        .expect(200);
 
       await as(editor).delete(`/v1/photos/${first}`).expect(204);
-      let marker = await as(owner).get(`/v1/markers/${markerId}`).expect(200);
+      const marker = await as(owner).get(`/v1/markers/${markerId}`).expect(200);
       expect(marker.body).toEqual(
-        expect.objectContaining({ coverPhotoId: second, photoCount: 1 }),
+        expect.objectContaining({
+          coverPhotoId: null,
+          coverThumbUrl: null,
+          photoCount: 1,
+        }),
       );
       const [job] = await queuedJobs(PhotoJobs.DELETE_FILES);
       expect(job.data).toEqual({ photoIds: [first] });
@@ -365,12 +409,6 @@ describe('Photos (integration)', () => {
       expect(await storage.head(photoKeys(first).thumb)).toBeNull();
       expect(await storage.head(photoKeys(first).original)).toBeNull();
       expect(await storage.head(photoKeys(second).thumb)).not.toBeNull();
-
-      await as(owner).delete(`/v1/photos/${second}`).expect(204);
-      marker = await as(owner).get(`/v1/markers/${markerId}`).expect(200);
-      expect(marker.body).toEqual(
-        expect.objectContaining({ coverPhotoId: null, coverThumbUrl: null }),
-      );
     });
 
     it('lets the uploader delete after leaving; others need edit rights', async () => {
@@ -438,7 +476,11 @@ describe('Photos (integration)', () => {
 
   describe('blocking', () => {
     it("hides a blocked uploader's photos and cover", async () => {
-      await readyPhoto(app, editor, markerId);
+      const photo = await readyPhoto(app, editor, markerId);
+      await as(owner)
+        .put(`/v1/markers/${markerId}/cover`)
+        .send({ photoId: photo })
+        .expect(200);
       await makePublic();
       await as(stranger).post(`/v1/users/${editor.userId}/block`).expect(204);
 

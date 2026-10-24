@@ -196,8 +196,17 @@ describe('Realtime (integration)', () => {
         'photo.ready',
       );
       expect(ready.data.photo.id).toBe(photoId);
-      await socket.waitFor('marker.cover_changed');
       expect(socket.events('photo.processing')).toHaveLength(1);
+      // A photo never becomes the cover by itself; picking one says so live.
+      expect(socket.events('marker.cover_changed')).toHaveLength(0);
+      await as(owner)
+        .put(`/v1/markers/${markerId}/cover`)
+        .send({ photoId })
+        .expect(200);
+      const cover = await socket.waitFor<{ markerId: string; photoId: string }>(
+        'marker.cover_changed',
+      );
+      expect(cover.data).toEqual({ markerId, photoId });
     });
 
     it('sends place hot counts to every trip with a stop there, throttled to one per 2 s', async () => {

@@ -23,7 +23,6 @@ export const DomainEvents = {
   PHOTO_READY: 'photo.ready',
   PHOTO_FAILED: 'photo.failed',
   PHOTO_DELETED: 'photo.deleted',
-  PHOTOS_REORDERED: 'photos.reordered',
   COMMENT_CREATED: 'comment.created',
   COMMENT_DELETED: 'comment.deleted',
   /** Any like or unlike; realtime throttles it per target (see 05-realtime). */

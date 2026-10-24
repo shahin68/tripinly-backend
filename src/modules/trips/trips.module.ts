@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ModerationModule } from '../moderation/moderation.module';
 import { PhotoJobsModule } from '../photos/photo-jobs.module';
+import { PlaceCoversModule } from '../places/place-covers.module';
 import { MembersService } from './members.service';
 import { TripAccessService } from './trip-access.service';
 import { TripSharingService } from './trip-sharing.service';
@@ -8,7 +9,7 @@ import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 
 @Module({
-  imports: [ModerationModule, PhotoJobsModule],
+  imports: [ModerationModule, PhotoJobsModule, PlaceCoversModule],
   controllers: [TripsController],
   providers: [
     TripsService,

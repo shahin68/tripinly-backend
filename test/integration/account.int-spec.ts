@@ -189,6 +189,10 @@ describe('Account deletion and export (integration)', () => {
       const aliceMarker = await addMarker(alice, carols);
       const alicePhoto = await readyPhoto(app, alice, carolMarker);
       const carolPhoto = await readyPhoto(app, carol, carolMarker);
+      await as(carol)
+        .put(`/v1/markers/${carolMarker}/cover`)
+        .send({ photoId: alicePhoto })
+        .expect(200);
       await as(alice)
         .post(`/v1/markers/${carolMarker}/comments`)
         .send({ body: 'Lovely' })
@@ -268,14 +272,14 @@ describe('Account deletion and export (integration)', () => {
       expect(await prisma.tripJoinRequest.count()).toBe(0);
 
       // Carol's trip keeps Alice's place without an author, loses her
-      // comment and photo, and the cover passes to Carol's photo.
+      // comment and photo, and the stop's pin goes back to the place's image.
       expect(
         await prisma.marker.findUniqueOrThrow({ where: { id: aliceMarker } }),
       ).toMatchObject({ createdById: null });
       expect(
         await prisma.marker.findUniqueOrThrow({ where: { id: carolMarker } }),
       ).toMatchObject({
-        coverPhotoId: carolPhoto,
+        coverPhotoId: null,
         commentCount: 0,
       });
       expect(await prisma.photo.count({ where: { id: alicePhoto } })).toBe(0);

@@ -42,7 +42,7 @@ Response item:
 ```
 or `{ "cluster": true, "count": 37, "location": {…} }`. Include `"attribution": "© OpenStreetMap contributors"` at the top level.
 
-Place covers (and so pin photos) and detail photos come only from place photos and public trip photos with at least `APP_PLACE_PHOTO_PIN_MIN_LIKES` likes from people other than the uploader (`PlacesService.representativePhotos`, rule in `02-domain-rules.md`); never pick a place image by marker likes or `popularity`. Without such a photo the cover is the place's first `ready` Commons image (`place_images`, rank order; `coverSource: commons`). Commons images come only from the worker's sync (`PlaceImagesService`, rules in `10-maps-places-routing.md` "Place images"); never hotlink Commons or show a file whose licence the filter in `commons-metadata.ts` refused.
+Place covers (and so pin photos) and detail photos come only from place photos and public trip photos with at least `APP_PLACE_PHOTO_PIN_MIN_LIKES` likes from people other than the uploader (`PlaceCoversService.representativePhotos`, rule in `02-domain-rules.md`); never pick a place image by marker likes or `popularity`. Without such a photo the cover is the place's first `ready` Commons image (`place_images`, rank order; `coverSource: commons`). Commons images come only from the worker's sync (`PlaceImagesService`, rules in `10-maps-places-routing.md` "Place images"); never hotlink Commons or show a file whose licence the filter in `commons-metadata.ts` refused.
 
 ## Map squares — `GET /places/tiles`
 

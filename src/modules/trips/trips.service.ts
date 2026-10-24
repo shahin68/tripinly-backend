@@ -26,6 +26,8 @@ import {
   mayDeleteStop,
 } from '../markers/stop-deletion';
 import { PhotoJobsService } from '../photos/photos.queue';
+import { coverPeople } from '../markers/markers.dto';
+import { PlaceCoversService } from '../places/place-covers.service';
 import { releaseUserPlaces } from '../places/user-places';
 import { recomputePopularity } from '../places/popularity';
 import { likedAmong } from '../social/liked';
@@ -82,6 +84,7 @@ export class TripsService {
     private readonly storage: StorageService,
     private readonly photoJobs: PhotoJobsService,
     private readonly config: ConfigService<Env, true>,
+    private readonly covers: PlaceCoversService,
   ) {}
 
   /** Most people in one trip, owner included (APP_TRIP_MAX_MEMBERS). */
@@ -162,31 +165,38 @@ export class TripsService {
       ...trip.days.flatMap((day) =>
         day.markers.flatMap((marker) => [
           marker.createdById ?? '',
-          marker.coverPhoto?.uploaderId ?? '',
+          ...coverPeople(marker),
         ]),
       ),
+      ...trip.photos.map((photo) => photo.uploaderId),
     ].filter(Boolean);
-    const [hidden, liked, saved, joinRequest] = await Promise.all([
+    const placeIds = trip.days.flatMap((day) =>
+      day.markers.map((m) => m.placeId),
+    );
+    const [hidden, liked, saved, joinRequest, covers] = await Promise.all([
       this.blocks.blockedAmong(userId, people),
       likedAmong(
         this.prisma,
         userId,
         { type: 'trip', ids: [trip.id] },
-        {
-          type: 'place',
-          ids: trip.days.flatMap((day) => day.markers.map((m) => m.placeId)),
-        },
+        { type: 'place', ids: placeIds },
       ),
       this.prisma.tripSave.count({ where: { tripId, userId } }),
       this.prisma.tripJoinRequest.findUnique({
         where: { tripId_userId: { tripId, userId } },
         select: { status: true },
       }),
+      this.covers.coversOf(userId, placeIds),
     ]);
-    return toTripDto(trip, role, this.storage, hidden, liked, {
-      savedByMe: saved > 0,
-      joinRequest: joinRequest?.status ?? null,
-    });
+    return toTripDto(
+      trip,
+      role,
+      this.storage,
+      hidden,
+      liked,
+      { savedByMe: saved > 0, joinRequest: joinRequest?.status ?? null },
+      covers,
+    );
   }
 
   async update(

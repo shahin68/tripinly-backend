@@ -22,7 +22,6 @@ const PASS_THROUGH = [
   DomainEvents.MARKER_COVER_CHANGED,
   DomainEvents.PHOTO_FAILED,
   DomainEvents.PHOTO_DELETED,
-  DomainEvents.PHOTOS_REORDERED,
   DomainEvents.COMMENT_DELETED,
 ];
 

@@ -2918,57 +2918,7 @@
             "bearer": []
           }
         ],
-        "summary": "A marker's photos in gallery order",
-        "tags": [
-          "photos"
-        ]
-      }
-    },
-    "/v1/markers/{id}/photo-order": {
-      "put": {
-        "operationId": "Photos_reorder",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PhotoOrderDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PhotoDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Reorder the gallery",
+        "summary": "A stop's photo grid: members' uploads still processing or failed first, then its photos, the place's popular photos and its Commons images ranked by likes (on a tie the stop's own first, then newest)",
         "tags": [
           "photos"
         ]
@@ -3015,7 +2965,7 @@
             "bearer": []
           }
         ],
-        "summary": "Choose the marker's cover photo (its map pin thumbnail)",
+        "summary": "Pick the stop's cover (its map pin thumbnail): any ready photo or Commons image in its photo grid",
         "tags": [
           "photos"
         ]
@@ -4891,7 +4841,7 @@
           "coverPhotoId": {
             "type": "string",
             "nullable": true,
-            "description": "The cover photo shown as coverThumbUrl: cache the image by this id, since the URL is re-signed",
+            "description": "The image shown as coverThumbUrl, cached by this id since the URL is re-signed: the first stop's picked cover (a photo or Commons image), else the trip's first photo",
             "format": "uuid"
           },
           "coverThumbUrl": {
@@ -5187,12 +5137,13 @@
           "coverPhotoId": {
             "type": "string",
             "format": "uuid",
-            "nullable": true
+            "nullable": true,
+            "description": "The image the stop's pin shows, cached by this id: the cover picked from the stop's photo grid (a photo or a Commons image), else the place's image. Null when there is neither"
           },
           "coverThumbUrl": {
             "type": "string",
             "nullable": true,
-            "description": "Signed URL, expires after ~1 h"
+            "description": "Its thumbnail; signed URL, expires after ~1 h"
           },
           "photoCount": {
             "type": "number"
@@ -5334,6 +5285,16 @@
               "$ref": "#/components/schemas/TripMemberDto"
             }
           },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The trip card's image, as on trip summaries: the first stop's picked cover, else the trip's first photo"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "likeCount": {
             "type": "number"
           },
@@ -5384,6 +5345,8 @@
           "owner",
           "myRole",
           "members",
+          "coverPhotoId",
+          "coverThumbUrl",
           "likeCount",
           "likedByMe",
           "saveCount",
@@ -6718,29 +6681,13 @@
           "expiresAt"
         ]
       },
-      "PhotoOrderDto": {
-        "type": "object",
-        "properties": {
-          "photoIds": {
-            "description": "Exactly the marker's processing and ready photos, in the new order",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        },
-        "required": [
-          "photoIds"
-        ]
-      },
       "CoverDto": {
         "type": "object",
         "properties": {
           "photoId": {
             "type": "string",
             "format": "uuid",
-            "description": "A ready photo of this marker"
+            "description": "A ready photo or Commons image in the stop's photo grid (GET /markers/{id}/photos)"
           }
         },
         "required": [

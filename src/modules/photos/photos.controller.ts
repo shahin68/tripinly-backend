@@ -26,7 +26,6 @@ import { MarkerDto } from '../markers/markers.dto';
 import {
   CoverDto,
   PhotoDto,
-  PhotoOrderDto,
   UploadUrlRequestDto,
   UploadUrlResponseDto,
 } from './photos.dto';
@@ -100,7 +99,10 @@ export class PhotosController {
   }
 
   @Get('markers/:id/photos')
-  @ApiOperation({ summary: "A marker's photos in gallery order" })
+  @ApiOperation({
+    summary:
+      "A stop's photo grid: members' uploads still processing or failed first, then its photos, the place's popular photos and its Commons images ranked by likes (on a tie the stop's own first, then newest)",
+  })
   @ApiOkResponse({ type: [PhotoDto] })
   gallery(
     @CurrentUser() user: AuthUser,
@@ -109,20 +111,10 @@ export class PhotosController {
     return this.photos.gallery(user.id, id);
   }
 
-  @Put('markers/:id/photo-order')
-  @ApiOperation({ summary: 'Reorder the gallery' })
-  @ApiOkResponse({ type: [PhotoDto] })
-  reorder(
-    @CurrentUser() user: AuthUser,
-    @Param() { id }: IdParamDto,
-    @Body() body: PhotoOrderDto,
-  ): Promise<PhotoDto[]> {
-    return this.photos.reorder(user.id, id, body.photoIds);
-  }
-
   @Put('markers/:id/cover')
   @ApiOperation({
-    summary: "Choose the marker's cover photo (its map pin thumbnail)",
+    summary:
+      "Pick the stop's cover (its map pin thumbnail): any ready photo or Commons image in its photo grid",
   })
   @ApiOkResponse({ type: MarkerDto })
   cover(
