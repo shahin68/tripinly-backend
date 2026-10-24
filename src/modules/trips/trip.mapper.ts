@@ -21,6 +21,14 @@ import type { DestinationDto, TripDto, TripSummaryDto } from './trips.dto';
 
 type Summary = Pick<User, 'id' | 'username' | 'displayName'>;
 
+/** Without a picked cover, the card shows the trip's first photo. */
+export const TRIP_FIRST_PHOTO = {
+  where: { status: 'ready', hiddenAt: null, marker: { hiddenAt: null } },
+  orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  take: 1,
+  select: { id: true, uploaderId: true },
+} satisfies Prisma.Trip$photosArgs;
+
 export const TRIP_DETAIL_INCLUDE = {
   owner: { select: USER_SUMMARY_SELECT },
   members: {
@@ -38,6 +46,7 @@ export const TRIP_DETAIL_INCLUDE = {
       },
     },
   },
+  photos: TRIP_FIRST_PHOTO,
   _count: {
     select: {
       saves: true,
@@ -135,6 +144,12 @@ export function toTripDto(
     savedByMe: viewer.savedByMe,
     myJoinRequest: viewer.joinRequest,
     pendingJoinRequestCount: myRole === 'owner' ? trip._count.joinRequests : 0,
+    ...tripCover(
+      trip.days.flatMap((day) => day.markers),
+      trip.photos[0],
+      signer,
+      hiddenUserIds,
+    ),
     days: trip.days.map((day) => ({
       id: day.id,
       position: day.position,
@@ -165,13 +180,28 @@ export const TRIP_COVER_MARKER = {
   },
 } satisfies Prisma.Trip$markersArgs;
 
-/** Without a picked cover, the card shows the trip's first photo. */
-export const TRIP_FIRST_PHOTO = {
-  where: { status: 'ready', hiddenAt: null, marker: { hiddenAt: null } },
-  orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  take: 1,
-  select: { id: true, uploaderId: true },
-} satisfies Prisma.Trip$photosArgs;
+/**
+ * The trip card's image: the first of [stops] (in trip order) with a picked
+ * cover that may show, else [firstPhoto] (`TRIP_FIRST_PHOTO`).
+ */
+function tripCover(
+  stops: Parameters<typeof pickedCover>[0][],
+  firstPhoto: { id: string; uploaderId: string } | undefined,
+  signer: UrlSigner,
+  hiddenUserIds: ReadonlySet<string>,
+): { coverPhotoId: string | null; coverThumbUrl: string | null } {
+  for (const stop of stops) {
+    const cover = pickedCover(stop, signer, hiddenUserIds);
+    if (cover) return { coverPhotoId: cover.id, coverThumbUrl: cover.thumbUrl };
+  }
+  if (firstPhoto && !hiddenUserIds.has(firstPhoto.uploaderId)) {
+    return {
+      coverPhotoId: firstPhoto.id,
+      coverThumbUrl: thumbUrl(signer, firstPhoto.id),
+    };
+  }
+  return { coverPhotoId: null, coverThumbUrl: null };
+}
 
 export type TripWithCounts = Trip & {
   owner: Summary;
@@ -190,13 +220,6 @@ export function toTripSummaryDto(
   hiddenUserIds: ReadonlySet<string> = new Set(),
   likedIds: ReadonlySet<string> = new Set(),
 ): TripSummaryDto {
-  const picked = trip.markers[0];
-  const first = trip.photos[0];
-  const cover =
-    (picked && pickedCover(picked, signer, hiddenUserIds)) ??
-    (first && !hiddenUserIds.has(first.uploaderId)
-      ? { id: first.id, thumbUrl: thumbUrl(signer, first.id) }
-      : null);
   return {
     id: trip.id,
     title: trip.title,
@@ -205,8 +228,7 @@ export function toTripSummaryDto(
     visibility: trip.visibility,
     owner: toUserSummary(trip.owner),
     role: role ?? 'viewer',
-    coverPhotoId: cover?.id ?? null,
-    coverThumbUrl: cover?.thumbUrl ?? null,
+    ...tripCover(trip.markers, trip.photos[0], signer, hiddenUserIds),
     dayCount: trip._count.days,
     markerCount: trip._count.markers,
     editorCount: trip._count.members,

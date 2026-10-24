@@ -168,6 +168,7 @@ export class TripsService {
           ...coverPeople(marker),
         ]),
       ),
+      ...trip.photos.map((photo) => photo.uploaderId),
     ].filter(Boolean);
     const placeIds = trip.days.flatMap((day) =>
       day.markers.map((m) => m.placeId),

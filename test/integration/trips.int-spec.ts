@@ -66,6 +66,8 @@ describe('Trips, days and members (integration)', () => {
         savedByMe: false,
         myJoinRequest: null,
         pendingJoinRequestCount: 0,
+        coverPhotoId: null,
+        coverThumbUrl: null,
       });
       expect(trip.days.map((day) => [day.position, day.date])).toEqual([
         [0, '2026-10-09'],

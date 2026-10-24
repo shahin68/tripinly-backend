@@ -348,6 +348,7 @@ describe('Photos (integration)', () => {
       );
       const detail = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
       expect(detail.body.days[0].markers[0].coverPhotoId).toBe(second);
+      expect(detail.body.coverPhotoId).toBe(second);
       const list = await as(owner).get('/v1/me/trips').expect(200);
       expect(list.body.items[0].coverPhotoId).toBe(second);
 

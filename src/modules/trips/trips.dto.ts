@@ -207,6 +207,18 @@ export class TripDto {
   @ApiProperty({ type: [TripMemberDto] })
   members: TripMemberDto[];
 
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      "The trip card's image, as on trip summaries: the first stop's picked cover, else the trip's first photo",
+  })
+  coverPhotoId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  coverThumbUrl: string | null;
+
   @ApiProperty()
   likeCount: number;
 

@@ -5285,6 +5285,16 @@
               "$ref": "#/components/schemas/TripMemberDto"
             }
           },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The trip card's image, as on trip summaries: the first stop's picked cover, else the trip's first photo"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "likeCount": {
             "type": "number"
           },
@@ -5335,6 +5345,8 @@
           "owner",
           "myRole",
           "members",
+          "coverPhotoId",
+          "coverThumbUrl",
           "likeCount",
           "likedByMe",
           "saveCount",
