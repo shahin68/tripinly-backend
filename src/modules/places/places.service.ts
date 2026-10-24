@@ -7,7 +7,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
-import { photoKeys, thumbUrl } from '../photos/photo-keys';
+import { photoKeys } from '../photos/photo-keys';
 import { BlocksService } from '../moderation/blocks.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
@@ -28,9 +28,10 @@ import {
 import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
 import { placeImageCredit } from './commons-metadata';
+import { BEST_PHOTO_FIRST, PlaceCoversService } from './place-covers.service';
 import { PhotonClient } from './photon.client';
 import { PUBLIC_STOP_WHERE } from './popularity';
-import { placeImageKeys, placeImageThumbUrl } from './place-image-keys';
+import { placeImageKeys } from './place-image-keys';
 import {
   PlaceMatchingService,
   type PlaceInput,
@@ -61,8 +62,6 @@ import {
 
 const DEFAULT_IN_VIEW_LIMIT = 100;
 /** OSM fill is spread over a GRID × GRID split of the bbox. */
-/** The best photo first: the most likes, then the newest. */
-const BEST_PHOTO_FIRST = Prisma.sql`q.likes DESC, q."createdAt" DESC, q.id`;
 /** A place's Commons images: most liked first, then in Commons order. */
 export const COMMONS_ORDER = [
   { likeCount: 'desc' },
@@ -136,6 +135,7 @@ export class PlacesService {
     private readonly storage: StorageService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly config: ConfigService<Env, true>,
+    private readonly covers: PlaceCoversService,
   ) {}
 
   async inView(
@@ -453,10 +453,7 @@ export class PlacesService {
   }
 
   /**
-   * Fills each place's cover and hotByMe for this viewer. The cover is its
-   * photo with the most likes that may represent it (see
-   * `representativePhotos`), else its most liked ready Commons image (the
-   * first in Commons order on a tie).
+   * Fills each place's cover (see `coversOf`) and hotByMe for this viewer.
    */
   async personalize<T extends PlaceItem>(
     userId: string,
@@ -464,47 +461,21 @@ export class PlacesService {
   ): Promise<T[]> {
     const ids = items.map((item) => item.id);
     if (ids.length === 0) return items;
-    const [covers, commons, liked] = await Promise.all([
-      this.prisma.$queryRaw<{ placeId: string; photoId: string }[]>`
-        SELECT DISTINCT ON (q."placeId") q."placeId" AS "placeId", q.id AS "photoId"
-        FROM (${this.representativePhotos(userId, ids)}) q
-        ORDER BY q."placeId", ${BEST_PHOTO_FIRST}`,
-      this.prisma.$queryRaw<{ placeId: string; imageId: string }[]>`
-        SELECT DISTINCT ON ("placeId") "placeId", id AS "imageId"
-        FROM place_images
-        WHERE "placeId" = ANY(${ids}::uuid[]) AND status = 'ready'
-        ORDER BY "placeId", "likeCount" DESC, rank, id`,
+    const [covers, liked] = await Promise.all([
+      this.covers.coversOf(userId, ids),
       likedAmong(this.prisma, userId, { type: 'place', ids }),
     ]);
-    const coverOf = new Map(covers.map((row) => [row.placeId, row.photoId]));
-    const commonsOf = new Map(commons.map((row) => [row.placeId, row.imageId]));
     return items.map((item) => {
-      const photoId = coverOf.get(item.id) ?? null;
-      const imageId = photoId ? null : (commonsOf.get(item.id) ?? null);
+      const cover = covers.get(item.id);
       return {
         ...item,
-        coverPhotoId: photoId,
-        coverImageId: photoId ?? imageId,
-        coverSource: photoId ? 'trip' : imageId ? 'commons' : null,
-        coverThumbUrl: photoId
-          ? thumbUrl(this.storage, photoId)
-          : placeImageThumbUrl(this.storage, imageId),
+        coverPhotoId: cover?.source === 'trip' ? cover.id : null,
+        coverImageId: cover?.id ?? null,
+        coverSource: cover?.source ?? null,
+        coverThumbUrl: cover?.thumbUrl ?? null,
         hotByMe: liked.has(item.id),
       };
     });
-  }
-
-  /**
-   * Ids of the photos that may represent the place (see `representativePhotos`),
-   * so its gallery can show the liked public trip photos taken there too.
-   */
-  async representativePhotoIds(
-    userId: string,
-    placeId: string,
-  ): Promise<string[]> {
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT q.id FROM (${this.representativePhotos(userId, [placeId])}) q`;
-    return rows.map((row) => row.id);
   }
 
   /** Up to 10 photos that may represent the place, most likes first. */
@@ -515,7 +486,7 @@ export class PlacesService {
     const rows = await this.prisma.$queryRaw<
       { id: string; width: number | null; height: number | null }[]
     >`
-      SELECT q.id, p.width, p.height FROM (${this.representativePhotos(userId, [placeId])}) q
+      SELECT q.id, p.width, p.height FROM (${this.covers.representativePhotos(userId, [placeId])}) q
       JOIN photos p ON p.id = q.id
       ORDER BY ${BEST_PHOTO_FIRST}
       LIMIT ${PLACE_PHOTO_LIMIT}`;
@@ -548,43 +519,6 @@ export class PlacesService {
         credit: placeImageCredit(row),
       };
     });
-  }
-
-  /**
-   * Ready photos that may represent one of [placeIds] (its cover, so its map
-   * pin, and the detail photos): the place's own photos and photos on stops
-   * there in public trips, liked by at least APP_PLACE_PHOTO_PIN_MIN_LIKES
-   * people other than the uploader (the trip's owner and members count). Hidden
-   * content and suspended uploaders or trip owners are left out. A block with
-   * the viewer leaves out trip photos, never place photos (the pin names no
-   * one). Columns: id, placeId, likes, createdAt.
-   */
-  private representativePhotos(userId: string, placeIds: string[]): Prisma.Sql {
-    const minLikes = this.config.get('APP_PLACE_PHOTO_PIN_MIN_LIKES', {
-      infer: true,
-    });
-    const likes = Prisma.sql`(
-      SELECT count(*)::int FROM likes l
-      WHERE l."targetType" = 'photo' AND l."targetId" = ph.id AND l."userId" <> ph."uploaderId")`;
-    const ready = Prisma.sql`ph.status = 'ready' AND ph."hiddenAt" IS NULL
-      AND ph."likeCount" >= ${minLikes} AND ${ownerActive(Prisma.sql`ph."uploaderId"`)}`;
-    return Prisma.sql`
-      SELECT id, "placeId", likes, "createdAt" FROM (
-        SELECT ph.id, ph."placeId", ${likes} AS likes, ph."createdAt"
-        FROM photos ph
-        WHERE ph."placeId" = ANY(${placeIds}::uuid[]) AND ${ready}
-        UNION ALL
-        SELECT ph.id, m."placeId", ${likes} AS likes, ph."createdAt"
-        FROM photos ph
-        JOIN markers m ON m.id = ph."markerId"
-        JOIN trips t ON t.id = m."tripId"
-        WHERE m."placeId" = ANY(${placeIds}::uuid[]) AND ${ready}
-          AND m."hiddenAt" IS NULL AND t.visibility = 'public' AND t."hiddenAt" IS NULL
-          AND ${ownerActive(Prisma.sql`t."ownerId"`)}
-          AND ${notBlockedWith(userId, Prisma.sql`ph."uploaderId"`)}
-          AND ${notBlockedWith(userId, Prisma.sql`t."ownerId"`)}
-      ) photo
-      WHERE likes >= ${minLikes}`;
   }
 
   /**
@@ -814,14 +748,6 @@ export class PlacesService {
   }
 }
 
-/** No block between `userId` and the user in `column`, in either direction. */
-function notBlockedWith(userId: string, column: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`NOT EXISTS (
-    SELECT 1 FROM blocks b
-    WHERE (b."blockerId" = ${userId}::uuid AND b."blockedId" = ${column})
-       OR (b."blockedId" = ${userId}::uuid AND b."blockerId" = ${column}))`;
-}
-
 function inBbox(bbox: Bbox): Prisma.Sql {
   return Prisma.sql`p.location && ST_MakeEnvelope(${bbox.minLng}, ${bbox.minLat}, ${bbox.maxLng}, ${bbox.maxLat}, 4326)::geography`;
 }
@@ -909,11 +835,6 @@ function decodeScoreCursor(cursor: string): { score: number; id: string } {
     // fall through
   }
   throw AppException.validation({ cursor: ['invalidCursor'] });
-}
-
-/** Suspended (or deleting) users' public content leaves discovery. */
-function ownerActive(ownerId: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`EXISTS (SELECT 1 FROM users u WHERE u.id = ${ownerId} AND u.status = 'active')`;
 }
 
 /**

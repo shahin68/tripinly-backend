@@ -268,7 +268,7 @@ export class TripSummaryDto {
     type: String,
     nullable: true,
     description:
-      'The cover photo shown as coverThumbUrl: cache the image by this id, since the URL is re-signed',
+      "The image shown as coverThumbUrl, cached by this id since the URL is re-signed: the first stop's picked cover (a photo or Commons image), else the trip's first photo",
     format: 'uuid',
   })
   coverPhotoId: string | null;

@@ -14,6 +14,7 @@ import {
   PlaceMatchingService,
   type PlaceInput,
 } from '../places/place-matching.service';
+import { PlaceCoversService } from '../places/place-covers.service';
 import { PlacesService } from '../places/places.service';
 import { releaseUserPlaces } from '../places/user-places';
 import { recountLikes } from '../social/counters.service';
@@ -21,6 +22,7 @@ import { TripAccessService } from '../trips/trip-access.service';
 import { TripLimits } from '../trips/trip-limits';
 import { limitReached, lockTrip } from '../trips/trips.service';
 import {
+  coverPeople,
   type CopyMarkerDto,
   type CreateMarkerDto,
   MARKER_INCLUDE,
@@ -48,6 +50,7 @@ export class MarkersService {
     private readonly events: EventEmitter2,
     private readonly storage: StorageService,
     private readonly photoJobs: PhotoJobsService,
+    private readonly covers: PlaceCoversService,
   ) {}
 
   async create(
@@ -107,17 +110,16 @@ export class MarkersService {
       }),
     );
 
-    const dto = toMarkerDto(marker, this.storage);
     this.events.emit(
       DomainEvents.MARKER_CREATED,
       domainEvent(
         DomainEvents.MARKER_CREATED,
         userId,
-        { marker: dto },
+        { marker: toMarkerDto(marker, this.storage) },
         trip.id,
       ),
     );
-    return dto;
+    return this.toVisibleDto(userId, marker);
   }
 
   async get(userId: string, markerId: string): Promise<MarkerDto> {
@@ -222,17 +224,16 @@ export class MarkersService {
         result.leftPlaceId,
       ]);
 
-    const dto = await this.toVisibleDto(userId, marker);
     this.events.emit(
       DomainEvents.MARKER_UPDATED,
       domainEvent(
         DomainEvents.MARKER_UPDATED,
         userId,
-        { marker: dto },
+        { marker: toMarkerDto(marker, this.storage) },
         trip.id,
       ),
     );
-    return dto;
+    return this.toVisibleDto(userId, marker);
   }
 
   /**
@@ -328,19 +329,11 @@ export class MarkersService {
         data: { commentCount: otherComments.length },
       });
 
-      let coverPhotoId = marker.coverPhotoId;
-      if (coverPhotoId && photoIds.includes(coverPhotoId)) {
-        const next = await tx.photo.findFirst({
-          where: { markerId, status: 'ready', hiddenAt: null },
-          orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { id: true },
-        });
-        coverPhotoId = next?.id ?? null;
-        await tx.marker.update({
-          where: { id: markerId },
-          data: { coverPhotoId },
-        });
-      }
+      // Their photo as the cover goes with it: the pin goes back to the place's image.
+      const coverPhotoId =
+        marker.coverPhotoId && photoIds.includes(marker.coverPhotoId)
+          ? null
+          : marker.coverPhotoId;
       return { photoIds, commentIds, coverPhotoId };
     });
 
@@ -542,17 +535,16 @@ export class MarkersService {
       return created;
     });
 
-    const dto = toMarkerDto(marker, this.storage);
     this.events.emit(
       DomainEvents.MARKER_CREATED,
       domainEvent(
         DomainEvents.MARKER_CREATED,
         userId,
-        { marker: dto },
+        { marker: toMarkerDto(marker, this.storage) },
         trip.id,
       ),
     );
-    return dto;
+    return this.toVisibleDto(userId, marker);
   }
 
   /** Sets the order of a day's markers; the IDs must be exactly the day's (visible) markers. */
@@ -606,18 +598,20 @@ export class MarkersService {
     return ordered;
   }
 
+  /** The marker as [userId] sees it; live events get the neutral `toMarkerDto(marker, storage)`. */
   private async toVisibleDto(
     userId: string,
     marker: MarkerWithCreator,
   ): Promise<MarkerDto> {
-    const people = [marker.createdById, marker.coverPhoto?.uploaderId].filter(
+    const people = [marker.createdById, ...coverPeople(marker)].filter(
       (id): id is string => !!id,
     );
-    const [hidden, liked] = await Promise.all([
+    const [hidden, liked, covers] = await Promise.all([
       this.blocks.blockedAmong(userId, people),
       likedAmong(this.prisma, userId, { type: 'place', ids: [marker.placeId] }),
+      this.covers.coversOf(userId, [marker.placeId]),
     ]);
-    return toMarkerDto(marker, this.storage, hidden, liked);
+    return toMarkerDto(marker, this.storage, hidden, liked, covers);
   }
 }
 

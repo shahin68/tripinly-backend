@@ -1,14 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayMaxSize,
-  ArrayUnique,
-  IsArray,
-  IsInt,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsInt, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import type { Photo, PhotoStatus } from '../../generated/prisma/client';
 import { ImageCreditDto } from '../places/places.dto';
 import { toUserSummary, UserSummaryDto } from '../users/user-summary';
@@ -151,22 +142,12 @@ export class UploadUrlResponseDto {
   expiresAt: string;
 }
 
-export class PhotoOrderDto {
+export class CoverDto {
   @ApiProperty({
-    type: [String],
     format: 'uuid',
     description:
-      "Exactly the marker's processing and ready photos, in the new order",
+      "A ready photo or Commons image in the stop's photo grid (GET /markers/{id}/photos)",
   })
-  @IsArray()
-  @ArrayMaxSize(MAX_PHOTOS_PER_MARKER)
-  @ArrayUnique()
-  @IsUUID('all', { each: true })
-  photoIds: string[];
-}
-
-export class CoverDto {
-  @ApiProperty({ format: 'uuid', description: 'A ready photo of this marker' })
   @IsUUID()
   photoId: string;
 }

@@ -62,7 +62,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 **markers**
 - day → trip_days, `tripId` (denormalized for access checks), place → places (`RESTRICT`: places with markers are never deleted)
 - `name`, `lat`, `lng`, `location geography(Point)` (generated), `time` (nullable `HH:mm`), `position` (0-based, contiguous per day)
-- `coverPhotoId` → photos (nullable, unique, `SET NULL`): always a ready photo of this marker
+- `coverPhotoId` → photos (nullable, `SET NULL`): the picked cover, a photo in the stop's grid (this marker's, or a popular photo of the place, which several markers may pick); or `coverImageId` → place_images (nullable, `SET NULL`) for a picked Commons image. Neither set: the pin shows the place's image
 - `createdById` → users (nullable, `ON DELETE SET NULL`)
 - `copiedFromMarkerId` → markers (nullable, `SET NULL`)
 - `commentCount`, `hiddenAt` (no `likeCount`: a stop's likes are its place's, dropped 2026-10-17)

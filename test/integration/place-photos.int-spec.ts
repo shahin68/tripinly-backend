@@ -248,6 +248,85 @@ describe('Place photos and stop deletion (integration)', () => {
       ).toBe(0);
     });
 
+    it("puts the place's popular photos and Commons images in a stop's ranked grid, and its pin shows the place's image until a cover is picked", async () => {
+      const fan = await onboardedUser(app, 'fan');
+      const commons = await prisma.placeImage.create({
+        data: {
+          placeId,
+          origin: 'wikidata_p18',
+          commonsTitle: 'File:Stephansdom.jpg',
+          status: 'ready',
+          licenseShortName: 'CC BY-SA 4.0',
+        },
+      });
+      const theirs = (
+        await as(stranger)
+          .post('/v1/trips')
+          .send({ title: 'Theirs', visibility: 'public' })
+          .expect(201)
+      ).body as TripBody;
+      const theirStop = await addStop(stranger, { placeId }, theirs.days[0].id);
+      const popular = await readyPhoto(app, stranger, theirStop.id);
+      for (const session of [owner, editor, fan]) {
+        await as(session).put(`/v1/likes/photo/${popular}`).expect(200);
+      }
+
+      const stop = await addStop(owner, { placeId });
+      const mine = await readyPhoto(app, owner, stop.id);
+      const markerCover = async () =>
+        (await as(owner).get(`/v1/markers/${stop.id}`).expect(200)).body as {
+          coverPhotoId: string | null;
+          coverThumbUrl: string | null;
+        };
+      // No cover picked: the pin shows the place's image, its popular photo.
+      expect(await markerCover()).toMatchObject({ coverPhotoId: popular });
+      const trip_ = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
+      expect(trip_.body.days[0].markers[0].coverPhotoId).toBe(popular);
+
+      const grid = (
+        await as(owner).get(`/v1/markers/${stop.id}/photos`).expect(200)
+      ).body as PhotoBody[];
+      // Most liked first; on a tie the stop's own photo goes before Commons.
+      expect(grid.map((p) => p.id)).toEqual([popular, mine, commons.id]);
+      expect(grid[0]).toMatchObject({
+        markerId: theirStop.id,
+        likeCount: 3,
+        likedByMe: true,
+      });
+      expect(grid[2]).toMatchObject({ source: 'commons', markerId: null });
+
+      await as(editor)
+        .put(`/v1/markers/${stop.id}/cover`)
+        .send({ photoId: commons.id })
+        .expect(200);
+      expect((await markerCover()).coverThumbUrl).toEqual(
+        expect.stringContaining(`place-images/${commons.id}/thumb.webp`),
+      );
+      // Another trip may pick the same popular photo.
+      await as(owner)
+        .put(`/v1/markers/${stop.id}/cover`)
+        .send({ photoId: popular })
+        .expect(200);
+      expect(await markerCover()).toMatchObject({ coverPhotoId: popular });
+      await as(stranger)
+        .put(`/v1/markers/${theirStop.id}/cover`)
+        .send({ photoId: popular })
+        .expect(200);
+
+      // Their trip turns private: its photo leaves my grid and my pin.
+      await as(stranger)
+        .patch(`/v1/trips/${theirs.id}`)
+        .send({ visibility: 'private' })
+        .expect(200);
+      expect(await markerCover()).toMatchObject({ coverPhotoId: commons.id });
+      expect(
+        (
+          (await as(owner).get(`/v1/markers/${stop.id}/photos`).expect(200))
+            .body as PhotoBody[]
+        ).map((p) => p.id),
+      ).toEqual([mine, commons.id]);
+    });
+
     it('enforces the daily limit per person', async () => {
       const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000);
       const today = new Date();
@@ -426,10 +505,8 @@ describe('Place photos and stop deletion (integration)', () => {
       const marker = await prisma.marker.findUniqueOrThrow({
         where: { id: stop.id },
       });
-      expect(marker).toMatchObject({
-        commentCount: 1,
-        coverPhotoId: ownersPhoto,
-      });
+      // The editor's photo was the cover; the pin goes back to the place's image.
+      expect(marker).toMatchObject({ commentCount: 1, coverPhotoId: null });
       expect(
         (await prisma.photo.findMany({ where: { markerId: stop.id } })).map(
           (p) => [p.id, p.likeCount],

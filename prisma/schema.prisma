@@ -467,7 +467,8 @@ model PlaceImage {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  place   Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  coverOf Marker[]
 
   @@unique([placeId, commonsTitle])
   @@index([placeId, status, rank])
@@ -492,8 +493,10 @@ model Marker {
   position           Int
   createdById        String?                               @db.Uuid
   copiedFromMarkerId String?                               @db.Uuid
-  /// A ready photo of this marker; the map pin's thumbnail.
-  coverPhotoId       String?                               @unique @db.Uuid
+  /// The cover the trip picked from the stop's photo grid: one of its photos or a popular photo of the place, which other trips may pick too. With no cover, the pin shows the place's image.
+  coverPhotoId       String?                               @db.Uuid
+  /// Or the place's Commons image the trip picked as the cover.
+  coverImageId       String?                               @db.Uuid
   commentCount       Int                                   @default(0)
   hiddenAt           DateTime?
   createdAt          DateTime                              @default(now())
@@ -507,6 +510,7 @@ model Marker {
   copies        Marker[]       @relation("MarkerCopies")
   photos        Photo[]        @relation("MarkerPhotos")
   coverPhoto    Photo?         @relation("MarkerCover", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+  coverImage    PlaceImage?    @relation(fields: [coverImageId], references: [id], onDelete: SetNull)
   comments      Comment[]
   notifications Notification[]
 
@@ -514,6 +518,8 @@ model Marker {
   @@index([tripId])
   @@index([placeId])
   @@index([createdById])
+  @@index([coverPhotoId])
+  @@index([coverImageId])
   @@index([location], type: Gist)
   @@map("markers")
 }
@@ -614,7 +620,7 @@ model Photo {
   trip     Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
   place    Place?  @relation(fields: [placeId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
-  coverOf  Marker? @relation("MarkerCover")
+  coverOf  Marker[] @relation("MarkerCover")
 
   @@index([markerId, position])
   @@index([tripId])

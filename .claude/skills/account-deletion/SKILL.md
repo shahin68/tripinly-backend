@@ -19,7 +19,7 @@ The rules are product decisions in `docs/knowledge/02-domain-rules.md` → "Acco
 |---|---|---|
 | 1 | Collect storage keys | All photos uploaded by the user anywhere + all photos in trips they own (uploaded by anyone). Save the list to the job state. |
 | 2 | Owned trips | Delete every trip owned by the user, **even with other editors**. Cascade days, markers, photos, comments, likes on them, invites, members. Emit `trip.deleted` for each. Set `copiedFromTripId = null` on others' copies (FK does it). |
-| 3 | Content in others' trips | Delete the user's photos (fix covers: next photo or null) and comments. Markers they created stay with `createdById = null`. Remove their `trip_members` rows. Emit realtime events so open trips update. |
+| 3 | Content in others' trips | Delete the user's photos (stops that picked one as their cover go back to their place's image) and comments. Markers they created stay with `createdById = null`. Remove their `trip_members` rows. Emit realtime events so open trips update. |
 | 4 | Likes | Delete all likes by the user; collect affected targets and places. |
 | 5 | Recompute | Counters on affected trips/markers/photos/comments and `places.popularity` for affected places. |
 | 6 | Account rows | Blocks (both directions), follows (both directions, by cascade with the user row), notifications (to and from; grouped ones shared with others drop the user instead), entitlements, invites created, devices, refresh tokens, auth identities, data exports. Reports filed keep `reporterId = null`; reports **about** the user or their deleted content are closed (`target_deleted`). |

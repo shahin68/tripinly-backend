@@ -11,6 +11,7 @@ import {
   UPLOAD_URL_TTL_SECONDS,
 } from '../../common/storage/storage.service';
 import {
+  coverPeople,
   MARKER_INCLUDE,
   type MarkerDto,
   toMarkerDto,
@@ -19,10 +20,12 @@ import { BlocksService } from '../moderation/blocks.service';
 import { PlaceMatchingService } from '../places/place-matching.service';
 import { placeImageCredit } from '../places/commons-metadata';
 import { placeImageKeys } from '../places/place-image-keys';
-import { COMMONS_ORDER, PlacesService } from '../places/places.service';
+import { PlaceCoversService } from '../places/place-covers.service';
+import { COMMONS_ORDER } from '../places/places.service';
 import { likedAmong } from '../social/liked';
 import { TripAccessService } from '../trips/trip-access.service';
 import { lockTrip } from '../trips/trips.service';
+import type { PhotoStatus } from '../../generated/prisma/client';
 import { photoKeys } from './photo-keys';
 import {
   MAX_PHOTO_BYTES,
@@ -63,7 +66,7 @@ export class PhotosService {
     private readonly storage: StorageService,
     private readonly jobs: PhotoJobsService,
     private readonly places: PlaceMatchingService,
-    private readonly placesService: PlacesService,
+    private readonly covers: PlaceCoversService,
     private readonly config: ConfigService<Env, true>,
     private readonly events: EventEmitter2,
   ) {}
@@ -229,92 +232,168 @@ export class PhotosService {
     return toPhotoDto(current, this.storage);
   }
 
-  /** Ready photos in order; members also see photos still processing or failed. */
+  /**
+   * A stop's photo grid. First the members' uploads still processing or
+   * failed, newest first. Then one ranking by likes of the stop's photos, the
+   * place's popular photos (see `placeItems`) and its Commons images; on a
+   * tie the stop's own photos go first, then the newest. A private trip's
+   * photos stay in it: other trips only get public trips' photos.
+   */
   async gallery(userId: string, markerId: string): Promise<PhotoDto[]> {
     const { role } = await this.access.assertForMarker(
       userId,
       markerId,
       'view',
     );
-    const photos = await this.prisma.photo.findMany({
-      where: {
-        markerId,
-        status: role ? { in: ['processing', 'ready', 'failed'] } : 'ready',
-        OR: [{ hiddenAt: null }, { uploaderId: userId }],
-      },
-      orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      include: PHOTO_INCLUDE,
+    const { placeId } = await this.prisma.marker.findUniqueOrThrow({
+      where: { id: markerId },
+      select: { placeId: true },
     });
-    const [hidden, liked] = await Promise.all([
-      this.blocks.blockedAmong(
-        userId,
-        photos.map((photo) => photo.uploaderId),
-      ),
-      likedAmong(this.prisma, userId, {
-        type: 'photo',
-        ids: photos.map((photo) => photo.id),
+    const [own, place] = await Promise.all([
+      this.prisma.photo.findMany({
+        where: {
+          markerId,
+          status: role ? { in: ['processing', 'ready', 'failed'] } : 'ready',
+          OR: [{ hiddenAt: null }, { uploaderId: userId }],
+        },
+        include: PHOTO_INCLUDE,
       }),
+      this.placeItems(userId, placeId, { ownUploads: false }),
     ]);
-    return photos
-      .filter((photo) => !hidden.has(photo.uploaderId))
-      .map((photo) => toPhotoDto(photo, this.storage, hidden, liked));
+    const hidden = await this.blocks.blockedAmong(
+      userId,
+      own.map((photo) => photo.uploaderId),
+    );
+    const visible = own.filter((photo) => !hidden.has(photo.uploaderId));
+    const ownIds = new Set(visible.map((photo) => photo.id));
+    const pending = visible
+      .filter((photo) => photo.status !== 'ready')
+      .sort(newestFirst)
+      .map((photo) => toPhotoDto(photo, this.storage, hidden));
+    const stop = visible
+      .filter((photo) => photo.status === 'ready')
+      .map((photo) => ({
+        dto: toPhotoDto(photo, this.storage, hidden),
+        ofStop: true,
+      }));
+    const others = place.photos
+      .filter((dto) => !ownIds.has(dto.id))
+      .map((dto) => ({ dto, ofStop: false }));
+    const commons = place.commons.map((dto) => ({ dto, ofStop: false }));
+    const ranked = [...stop, ...others, ...commons]
+      .sort(
+        (a, b) =>
+          b.dto.likeCount - a.dto.likeCount ||
+          Number(b.ofStop) - Number(a.ofStop) ||
+          b.dto.createdAt.localeCompare(a.dto.createdAt) ||
+          a.dto.id.localeCompare(b.dto.id),
+      )
+      .map((item) => item.dto);
+    const grid = [...pending, ...ranked];
+    const liked = await likedAmong(
+      this.prisma,
+      userId,
+      {
+        type: 'photo',
+        ids: grid.filter((dto) => dto.source === 'user').map((dto) => dto.id),
+      },
+      {
+        type: 'place_image',
+        ids: grid
+          .filter((dto) => dto.source === 'commons')
+          .map((dto) => dto.id),
+      },
+    );
+    return grid.map((dto) => withLiked(dto, liked));
   }
 
   /**
    * A place's photos (at most MAX_PLACE_GALLERY). First people's photos, most
-   * liked first, then newest: the photos added to the place, and the public
-   * trip photos taken there that may represent it (enough likes, see
-   * PlacesService.representativePhotos). Then the place's Commons images, most
-   * liked first. Trip photos and Commons images are their own rows, never
-   * copies. The uploader also sees their own place photos still processing or
-   * failed. Blocks don't hide place photos (C7), only who uploaded them.
+   * liked first, then newest (see `placeItems`), then the place's Commons
+   * images, most liked first. The uploader also sees their own place photos
+   * still processing or failed.
    */
   async placeGallery(userId: string, placeId: string): Promise<PhotoDto[]> {
     await this.places.assertVisible(this.prisma, userId, placeId);
-    const representative = await this.placesService.representativePhotoIds(
+    const { photos, commons } = await this.placeItems(userId, placeId, {
+      ownUploads: true,
+    });
+    const gallery = [
+      ...photos,
+      ...commons.slice(0, MAX_PLACE_GALLERY - photos.length),
+    ];
+    const liked = await likedAmong(
+      this.prisma,
+      userId,
+      { type: 'photo', ids: photos.map((dto) => dto.id) },
+      { type: 'place_image', ids: commons.map((dto) => dto.id) },
+    );
+    return gallery.map((dto) => withLiked(dto, liked));
+  }
+
+  /**
+   * A place's people's photos (at most MAX_PLACE_GALLERY, most liked first,
+   * then newest): the photos added to the place, and the public trip photos
+   * taken there that may represent it (enough likes, see
+   * PlaceCoversService.representativePhotos); with `ownUploads`, the viewer's
+   * own place photos still processing or failed too. And its ready Commons
+   * images, most liked first. Trip photos and Commons images are their own
+   * rows, never copies. Blocks don't hide place photos (C7), only who
+   * uploaded them. likedByMe is left false.
+   */
+  private async placeItems(
+    userId: string,
+    placeId: string,
+    { ownUploads }: { ownUploads: boolean },
+  ): Promise<{ photos: PhotoDto[]; commons: PhotoDto[] }> {
+    const representative = await this.covers.representativePhotoIds(
       userId,
       placeId,
     );
-    const photos = await this.prisma.photo.findMany({
-      where: {
-        OR: [
-          {
-            placeId,
-            OR: [
-              { status: 'ready', hiddenAt: null },
-              {
-                uploaderId: userId,
-                status: { in: ['processing', 'ready', 'failed'] },
-              },
-            ],
-          },
-          { id: { in: representative } },
-        ],
-      },
-      orderBy: [{ likeCount: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
-      take: MAX_PLACE_GALLERY,
-      include: PHOTO_INCLUDE,
-    });
-    const commons = await this.prisma.placeImage.findMany({
-      where: { placeId, status: 'ready' },
-      orderBy: COMMONS_ORDER,
-      take: MAX_PLACE_GALLERY - photos.length,
-    });
-    const [hidden, liked] = await Promise.all([
-      this.blocks.blockedAmong(
-        userId,
-        photos.map((photo) => photo.uploaderId),
-      ),
-      likedAmong(
-        this.prisma,
-        userId,
-        { type: 'photo', ids: photos.map((photo) => photo.id) },
-        { type: 'place_image', ids: commons.map((image) => image.id) },
-      ),
+    const [photos, images] = await Promise.all([
+      this.prisma.photo.findMany({
+        where: {
+          OR: [
+            {
+              placeId,
+              OR: [
+                { status: 'ready', hiddenAt: null },
+                ...(ownUploads
+                  ? [
+                      {
+                        uploaderId: userId,
+                        status: {
+                          in: [
+                            'processing',
+                            'ready',
+                            'failed',
+                          ] as PhotoStatus[],
+                        },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+            { id: { in: representative } },
+          ],
+        },
+        orderBy: [{ likeCount: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
+        take: MAX_PLACE_GALLERY,
+        include: PHOTO_INCLUDE,
+      }),
+      this.prisma.placeImage.findMany({
+        where: { placeId, status: 'ready' },
+        orderBy: COMMONS_ORDER,
+        take: MAX_PLACE_GALLERY,
+      }),
     ]);
-    return [
-      ...photos.map((photo) => toPhotoDto(photo, this.storage, hidden, liked)),
-      ...commons.map((image): PhotoDto => {
+    const hidden = await this.blocks.blockedAmong(
+      userId,
+      photos.map((photo) => photo.uploaderId),
+    );
+    return {
+      photos: photos.map((photo) => toPhotoDto(photo, this.storage, hidden)),
+      commons: images.map((image): PhotoDto => {
         const keys = placeImageKeys(image.id);
         return {
           id: image.id,
@@ -327,66 +406,20 @@ export class PhotosService {
           height: image.height,
           position: 0,
           likeCount: image.likeCount,
-          likedByMe: liked.has(image.id),
+          likedByMe: false,
           uploader: null,
           createdAt: image.createdAt.toISOString(),
           source: 'commons',
           credit: placeImageCredit(image),
         };
       }),
-    ];
+    };
   }
 
-  /** `photoIds` must be exactly the marker's processing and ready photos. */
-  async reorder(
-    userId: string,
-    markerId: string,
-    photoIds: string[],
-  ): Promise<PhotoDto[]> {
-    const { trip } = await this.access.assertForMarker(
-      userId,
-      markerId,
-      'edit_content',
-    );
-    await this.prisma.$transaction(async (tx) => {
-      await lockTrip(tx, trip.id);
-      const photos = await tx.photo.findMany({
-        where: { markerId },
-        orderBy: [{ position: 'asc' }, { id: 'asc' }],
-        select: { id: true, status: true, hiddenAt: true },
-      });
-      const listed = photos.filter(
-        (p) =>
-          (p.status === 'processing' || p.status === 'ready') && !p.hiddenAt,
-      );
-      const requested = new Set(photoIds);
-      if (
-        requested.size !== listed.length ||
-        listed.some((p) => !requested.has(p.id))
-      ) {
-        throw AppException.validation({ photoIds: ['mustMatchMarkerPhotos'] });
-      }
-      // Uploads in progress, failed and moderated photos keep their order after the rest.
-      const final = [
-        ...photoIds,
-        ...photos.filter((p) => !requested.has(p.id)).map((p) => p.id),
-      ];
-      for (const [position, id] of final.entries()) {
-        await tx.photo.update({ where: { id }, data: { position } });
-      }
-    });
-    this.events.emit(
-      DomainEvents.PHOTOS_REORDERED,
-      domainEvent(
-        DomainEvents.PHOTOS_REORDERED,
-        userId,
-        { markerId, photoIds },
-        trip.id,
-      ),
-    );
-    return this.gallery(userId, markerId);
-  }
-
+  /**
+   * Picks the stop's cover, shown on its pin: any ready photo or Commons
+   * image in its photo grid (see `gallery`).
+   */
   async setCover(
     userId: string,
     markerId: string,
@@ -397,17 +430,20 @@ export class PhotosService {
       markerId,
       'edit_content',
     );
-    const photo = await this.prisma.photo.findFirst({
-      where: { id: photoId, markerId, hiddenAt: null },
-      select: { status: true },
-    });
-    if (!photo) throw AppException.validation({ photoId: ['notFound'] });
-    if (photo.status !== 'ready')
+    const picked = (await this.gallery(userId, markerId)).find(
+      (dto) => dto.id === photoId,
+    );
+    if (!picked) throw AppException.validation({ photoId: ['notFound'] });
+    if (picked.status !== 'ready')
       throw AppException.validation({ photoId: ['notReady'] });
 
+    const commons = picked.source === 'commons';
     const marker = await this.prisma.marker.update({
       where: { id: markerId },
-      data: { coverPhotoId: photoId },
+      data: {
+        coverPhotoId: commons ? null : photoId,
+        coverImageId: commons ? photoId : null,
+      },
       include: MARKER_INCLUDE,
     });
     this.events.emit(
@@ -422,7 +458,7 @@ export class PhotosService {
     const [hidden, liked] = await Promise.all([
       this.blocks.blockedAmong(
         userId,
-        [marker.createdById, marker.coverPhoto?.uploaderId].filter(
+        [marker.createdById, ...coverPeople(marker)].filter(
           (id): id is string => !!id,
         ),
       ),
@@ -435,8 +471,7 @@ export class PhotosService {
   }
 
   /**
-   * Trip photos: the uploader, the trip owner or an editor; a deleted cover
-   * passes to the next ready photo. Place photos: only the uploader (B2).
+   * Trip photos: the uploader, the trip owner or an editor. Place photos: only the uploader (B2).
    * Files are deleted by the worker after the commit.
    */
   async delete(userId: string, photoId: string): Promise<void> {
@@ -450,8 +485,9 @@ export class PhotosService {
 
   /**
    * Deletes a photo without an access check (moderation, account deletion,
-   * and delete above). The cover passes to the next ready, visible photo.
-   * Returns false when it was already gone.
+   * and delete above). Stops that had it as their cover (this one, and other
+   * trips that picked it) go back to their place's image. Returns false when
+   * it was already gone.
    */
   async remove(actorId: string, target: string | PhotoRef): Promise<boolean> {
     const photo =
@@ -480,17 +516,8 @@ export class PhotosService {
       });
       const { count } = await tx.photo.deleteMany({ where: { id: photo.id } });
       if (count === 0) return undefined;
-      if (marker.coverPhotoId !== photo.id) return marker.coverPhotoId;
-      const next = await tx.photo.findFirst({
-        where: { markerId, status: 'ready', hiddenAt: null },
-        orderBy: [{ position: 'asc' }, { id: 'asc' }],
-        select: { id: true },
-      });
-      await tx.marker.update({
-        where: { id: markerId },
-        data: { coverPhotoId: next?.id ?? null },
-      });
-      return next?.id ?? null;
+      // A deleted cover isn't replaced: the pin goes back to the place's image.
+      return marker.coverPhotoId === photo.id ? null : marker.coverPhotoId;
     });
 
     if (coverPhotoId === undefined) return false;
@@ -518,6 +545,21 @@ export class PhotosService {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Sets likedByMe on a DTO built for this request. */
+function withLiked(dto: PhotoDto, liked: ReadonlySet<string>): PhotoDto {
+  dto.likedByMe = liked.has(dto.id);
+  return dto;
+}
+
+function newestFirst(
+  a: { createdAt: Date; id: string },
+  b: { createdAt: Date; id: string },
+): number {
+  return (
+    b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id)
+  );
+}
 
 function assertUploadable(input: UploadUrlRequestDto): void {
   if (!PHOTO_MIME_TYPES.includes(input.mimeType as PhotoMimeType)) {

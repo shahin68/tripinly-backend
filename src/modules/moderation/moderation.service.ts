@@ -207,30 +207,10 @@ export class ModerationService {
           });
           // Trip first, like every other photo write, so locks never cross.
           if (tripId) await lockTrip(tx, tripId);
-          const photo = await tx.photo.update({
+          // A hidden cover stops showing; the pin goes back to the place's image.
+          await tx.photo.update({
             where: { id: ref.targetId },
             data: { hiddenAt: now },
-            select: { id: true, markerId: true },
-          });
-          // A place photo has no marker, so no cover to pass on.
-          if (!photo.markerId) return;
-          const marker = await tx.marker.findUnique({
-            where: { id: photo.markerId },
-            select: { coverPhotoId: true },
-          });
-          if (marker?.coverPhotoId !== photo.id) return;
-          const next = await tx.photo.findFirst({
-            where: {
-              markerId: photo.markerId,
-              status: 'ready',
-              hiddenAt: null,
-            },
-            orderBy: [{ position: 'asc' }, { id: 'asc' }],
-            select: { id: true },
-          });
-          await tx.marker.update({
-            where: { id: photo.markerId },
-            data: { coverPhotoId: next?.id ?? null },
           });
         });
         return;
