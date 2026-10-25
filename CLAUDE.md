@@ -72,7 +72,7 @@ If the code and the docs disagree, the docs win unless the user says otherwise. 
 2. **Plan non-trivial changes** in a few lines (what changes, which modules, migrations, new endpoints) before editing.
 3. **Use the matching skill** from `.claude/skills/` when one applies.
 4. **Test what you build**: unit tests for rules, integration tests for endpoints including the unhappy paths (unauthorized, private trip, blocked user, validation errors).
-5. **Before saying you're done**: typecheck, lint, run the tests, regenerate the OpenAPI spec, and update knowledge files if behaviour changed.
+5. **Before saying you're done**: typecheck, lint, run the tests, regenerate the OpenAPI spec, and update knowledge files if behaviour changed. **Every decision made or built goes into all three decision logs in the same change**: this repo's `08-decision-log.md`, the client's `docs/knowledge/08-decision-log.md` when the app is affected, and the project story log (`/mnt/project-files/docs/decision-log.md`) (Shahin, 2026-10-24; missed again, repeated 2026-10-25).
 6. **Report briefly**: what changed, anything the client team must know (new endpoints, changed fields, new events), and any follow-ups. **Every new, renamed or removed environment variable goes in the reply to the user itself, not only in the PR body**: its name, service (api or worker), default, accepted range and whether to add it now. Check `git diff src/common/config/env.ts` before every report (Shahin, 2026-10-18; missed twice).
 
 ## Build order (first build)
@@ -89,6 +89,12 @@ Build in these stages. Finish each with tests, a working `docker-compose` setup 
 8. **Real time and notifications:** Socket.IO rooms/events, push, batching and grouping, email.
 9. **Account:** deletion, export, moderation and admin.
 10. **Deploy:** Railway staging setup instructions and smoke test.
+11. **Documentation, legal pages and decision audit (before production, never skipped; Shahin, 2026-10-25).** Production waits for it:
+    - **Decision audit and report:** go through every decision since the start (code, knowledge files, the three decision logs, memory), add what's missing to all three logs, and report to the user what was missing or contradicts the code.
+    - **Product handbook** (`docs/handbook/`, static HTML plus a PDF/Docs copy): every feature and rule as users meet it (visibility, copying, hot spots, likes and ranking, Explore, photos and covers, blocking, reports and moderation, notifications and push limits, what is live), every Railway variable with service, default and range, providers, runbook commands, endpoints.
+    - **Legal drafts**, written from the handbook so users have a reference when they complain: Terms of Service (accounts, age 16+, user content and its licence, how hot spots, likes and ranking work, moderation and bans, Pro subscription, liability), Privacy Policy (GDPR: data, purposes, legal bases, retention, processors such as Railway, Cloudflare, Firebase, RevenueCat, openrouteservice, Resend, rights and contact), Community Guidelines, Imprint, subscription and refund terms, attributions and open-source licences (OSM, openrouteservice, Wikimedia Commons), and any other notice the stores or EU law require.
+    - **Set them up:** hosted at stable URLs on our domain, published as versioned `legal_documents` rows (with `requiresReconsent` where users must accept again), linked in onboarding, Settings and the paywall.
+    - **Lawyer review:** Shahin has a lawyer review every legal text before anything is published. Drafts are marked as drafts until then.
 
 The KMP client already exists (Google Maps, Home with My Trips, Social, trip creation) and is being developed by another agent against `04-api-spec.md`. The API spec is the contract: don't change field names or shapes casually, and list every contract change in your report so the user can pass it on. The client agent may send **contract requests** (`CR-xxx`) through the user: implement them if they fit the rules, or explain what you'd do instead, and update `04-api-spec.md` either way.
 
