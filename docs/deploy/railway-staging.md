@@ -162,3 +162,23 @@ Each one is optional and has a default. A value outside its range stops the api 
 | `APP_EXPLORE_NEARBY_RADIUS_KM` | 50 | 1–500 | Radius of Explore's nearby trips |
 
 A PR that adds, renames or removes a variable adds its row here in the same change.
+
+### Showing more Commons photos on map pins
+
+A place pin shows a photo only when all of these hold:
+
+1. **The place has an image.** Either a photo of ours that may represent it, or a Wikimedia Commons image copied by the worker. Commons images exist only for places whose OSM data links one (Wikidata main image, `wikimedia_commons` or `image` tag) with a free licence. `PLACE_IMAGES_SYNC_ENABLED=true` must be set on the worker; the first sync takes hours, later ones run daily. Places without such a link never get a Commons image, whatever the settings.
+2. **The place is well known or hot enough:** prominence at least `APP_PHOTO_PIN_MIN_PROMINENCE`, or hot count at least `APP_PHOTO_PIN_MIN_HOT_COUNT`.
+3. **It's among the best ranked pins in view:** at most `APP_MAP_MAX_PHOTO_PINS` photo pins at once, out of at most `APP_MAP_MAX_PINS` pins.
+4. **The map is zoomed in** to at least `APP_PIN_DOT_BELOW_ZOOM`; below it every pin is a dot.
+
+So, on the api, from biggest effect to smallest:
+
+| To show more photos | Change | Example |
+|---|---|---|
+| Less famous places too | Lower `APP_PHOTO_PIN_MIN_PROMINENCE` | 90 → 60 (the medium pin size); 0 shows every place's image |
+| Places marked hot by fewer people | Lower `APP_PHOTO_PIN_MIN_HOT_COUNT` | 3 → 1 |
+| More photo pins in a busy view | Raise `APP_MAP_MAX_PHOTO_PINS` (and `APP_MAP_MAX_PINS` if it's the lower one) | 100 → 200 |
+| Photos when zoomed further out | Lower `APP_PIN_DOT_BELOW_ZOOM` | 14 → 13 |
+
+More photo pins mean more image downloads and more markers drawn: raise them a step at a time and check the map stays smooth on an older phone. Changes apply after the api restarts (Railway restarts it when a variable is saved) and the app relaunches.
