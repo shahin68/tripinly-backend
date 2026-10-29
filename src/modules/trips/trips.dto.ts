@@ -91,7 +91,7 @@ export class CreateTripDto {
     type: [String],
     maxItems: MAX_USERNAMES_PER_REQUEST,
     description:
-      'Added as editors. The trip holds at most APP_TRIP_MAX_MEMBERS people (default 50), owner included',
+      'The owner\'s friends (people who follow each other), added as editors; anyone else gives fields["memberUsernames.<i>"] = ["notFriend"]. The trip holds at most APP_TRIP_MAX_MEMBERS people (default 50), owner included',
   })
   @IsOptional()
   @IsArray()
@@ -345,13 +345,6 @@ export class MeStatsDto {
 
   @ApiProperty({ description: 'Photos I uploaded (from stage 5)' })
   photoCount: number;
-}
-
-export class AddMemberDto {
-  @ApiProperty({ example: 'anna.n' })
-  @IsString()
-  @MaxLength(60)
-  username: string;
 }
 
 export class AddMembersDto {

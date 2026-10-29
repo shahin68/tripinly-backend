@@ -100,3 +100,19 @@ export async function onboardedUser(
   await acceptRequiredConsents(app, session);
   return session;
 }
+
+/** Makes everyone in `sessions` follow each other, so they're friends and can add each other to trips. */
+export async function befriend(
+  app: INestApplication,
+  ...sessions: Session[]
+): Promise<void> {
+  for (const a of sessions) {
+    for (const b of sessions) {
+      if (a === b) continue;
+      await request(app.getHttpServer())
+        .put(`/v1/users/${b.userId}/follow`)
+        .auth(a.accessToken, { type: 'bearer' })
+        .expect(204);
+    }
+  }
+}

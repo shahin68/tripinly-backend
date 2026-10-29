@@ -5,6 +5,7 @@ import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { PhotoProcessingModule } from '../../src/modules/photos/photo-processing.module';
 import { PhotoJobs, PHOTOS_QUEUE } from '../../src/modules/photos/photos.queue';
 import {
+  befriend,
   onboardedUser,
   publishLegalDocuments,
   resetState,
@@ -57,6 +58,8 @@ describe('Place photos and stop deletion (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
+    // Owners add only friends to their trips.
+    await befriend(app, owner, editor);
     placeId = await insertPlace(app, { name: 'Stephansdom', ...SPOT });
     trip = (
       await as(owner)

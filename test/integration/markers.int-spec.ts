@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import {
+  befriend,
   onboardedUser,
   publishLegalDocuments,
   resetState,
@@ -50,6 +51,8 @@ describe('Markers and place matching (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
+    // Owners add only friends to their trips.
+    await befriend(app, owner, editor);
     const created = await as(owner)
       .post('/v1/trips')
       .send({

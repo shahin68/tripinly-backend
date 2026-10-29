@@ -10,6 +10,7 @@ import { PhotoProcessingModule } from '../../src/modules/photos/photo-processing
 import { PhotoProcessingService } from '../../src/modules/photos/photo-processing.service';
 import { PhotoJobs, PHOTOS_QUEUE } from '../../src/modules/photos/photos.queue';
 import {
+  befriend,
   onboardedUser,
   publishLegalDocuments,
   resetState,
@@ -62,6 +63,8 @@ describe('Photos (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
+    // Owners add only friends to their trips.
+    await befriend(app, owner, editor);
     trip = (
       await as(owner)
         .post('/v1/trips')

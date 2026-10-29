@@ -26,7 +26,6 @@ import { IdParamDto } from '../../common/dto/id-param.dto';
 import { PageQueryDto } from '../../common/pagination/pagination';
 import { MembersService } from './members.service';
 import {
-  AddMemberDto,
   AddMembersDto,
   CreateTripDto,
   JoinRequestDto,
@@ -131,24 +130,12 @@ export class TripsController {
     return this.trips.deleteDay(user.id, id, confirm ?? false);
   }
 
-  @Post('trips/:id/members')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Owner adds an editor by username. Idempotent.' })
-  @ApiOkResponse({ type: TripMemberDto })
-  addMember(
-    @CurrentUser() user: AuthUser,
-    @Param() { id }: IdParamDto,
-    @Body() body: AddMemberDto,
-  ): Promise<TripMemberDto> {
-    return this.members.addByUsername(user.id, id, body.username);
-  }
-
   @Post('trips/:id/members/batch')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Owner adds several editors at once, e.g. friends picked in a row',
+    summary: 'Owner adds friends as editors, e.g. friends picked in a row',
     description:
-      'All or nothing: unknown usernames give 400 VALIDATION_FAILED with fields["usernames.<i>"] = ["notFound"], people the owner blocked ["blocked"]. People already in the trip stay as they are. More than APP_TRIP_MAX_MEMBERS people in the trip (default 50, owner included) gives 422 LIMIT_REACHED. Returns the requested people as members, in request order.',
+      'Only the owner\'s friends (people who follow each other) can be added. All or nothing: unknown usernames give 400 VALIDATION_FAILED with fields["usernames.<i>"] = ["notFound"], people the owner blocked ["blocked"], people who aren\'t friends ["notFriend"]. People already in the trip stay as they are. More than APP_TRIP_MAX_MEMBERS people in the trip (default 50, owner included) gives 422 LIMIT_REACHED. Returns the requested people as members, in request order.',
   })
   @ApiOkResponse({ type: TripMembersDto })
   async addMembers(

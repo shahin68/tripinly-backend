@@ -564,8 +564,10 @@ export class TripsService {
   }
 
   /**
-   * Users the owner may add, from usernames: all-or-nothing, with per-entry
-   * validation errors under `<field>.<index>`. The owner is skipped.
+   * Users the owner may add, from usernames: only the owner's friends (people
+   * who follow each other). All-or-nothing, with per-entry validation errors
+   * under `<field>.<index>`: `notFound`, `blocked` (to the blocker only) or
+   * `notFriend`. The owner is skipped.
    */
   async resolveUsernames(
     ownerId: string,
@@ -599,6 +601,11 @@ export class TripsService {
       ).map((row) => row.blockedId),
     );
 
+    const friends = await this.friendsAmong(
+      ownerId,
+      users.map((user) => user.id),
+    );
+
     const fields: Record<string, string[]> = {};
     const ids = new Set<string>();
     normalized.forEach((name, index) => {
@@ -608,12 +615,38 @@ export class TripsService {
         fields[`${field}.${index}`] = ['notFound'];
       } else if (iBlocked.has(id)) {
         fields[`${field}.${index}`] = ['blocked'];
+      } else if (!friends.has(id)) {
+        fields[`${field}.${index}`] = ['notFriend'];
       } else {
         ids.add(id);
       }
     });
     if (Object.keys(fields).length > 0) throw AppException.validation(fields);
     return [...ids];
+  }
+
+  /** Which of `userIds` follow `ownerId` and are followed back. */
+  private async friendsAmong(
+    ownerId: string,
+    userIds: string[],
+  ): Promise<Set<string>> {
+    const rows = await this.prisma.follow.findMany({
+      where: {
+        OR: [
+          { followerId: ownerId, followeeId: { in: userIds } },
+          { followeeId: ownerId, followerId: { in: userIds } },
+        ],
+      },
+      select: { followerId: true, followeeId: true },
+    });
+    const followed = new Set(
+      rows.filter((r) => r.followerId === ownerId).map((r) => r.followeeId),
+    );
+    return new Set(
+      rows
+        .filter((r) => r.followeeId === ownerId && followed.has(r.followerId))
+        .map((r) => r.followerId),
+    );
   }
 }
 

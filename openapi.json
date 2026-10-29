@@ -1231,56 +1231,9 @@
         ]
       }
     },
-    "/v1/trips/{id}/members": {
-      "post": {
-        "operationId": "Trips_addMember",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddMemberDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TripMemberDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Owner adds an editor by username. Idempotent.",
-        "tags": [
-          "trips"
-        ]
-      }
-    },
     "/v1/trips/{id}/members/batch": {
       "post": {
-        "description": "All or nothing: unknown usernames give 400 VALIDATION_FAILED with fields[\"usernames.<i>\"] = [\"notFound\"], people the owner blocked [\"blocked\"]. People already in the trip stay as they are. More than APP_TRIP_MAX_MEMBERS people in the trip (default 50, owner included) gives 422 LIMIT_REACHED. Returns the requested people as members, in request order.",
+        "description": "Only the owner's friends (people who follow each other) can be added. All or nothing: unknown usernames give 400 VALIDATION_FAILED with fields[\"usernames.<i>\"] = [\"notFound\"], people the owner blocked [\"blocked\"], people who aren't friends [\"notFriend\"]. People already in the trip stay as they are. More than APP_TRIP_MAX_MEMBERS people in the trip (default 50, owner included) gives 422 LIMIT_REACHED. Returns the requested people as members, in request order.",
         "operationId": "Trips_addMembers",
         "parameters": [
           {
@@ -1320,7 +1273,7 @@
             "bearer": []
           }
         ],
-        "summary": "Owner adds several editors at once, e.g. friends picked in a row",
+        "summary": "Owner adds friends as editors, e.g. friends picked in a row",
         "tags": [
           "trips"
         ]
@@ -5071,7 +5024,7 @@
           },
           "memberUsernames": {
             "maxItems": 200,
-            "description": "Added as editors. The trip holds at most APP_TRIP_MAX_MEMBERS people (default 50), owner included",
+            "description": "The owner's friends (people who follow each other), added as editors; anyone else gives fields[\"memberUsernames.<i>\"] = [\"notFriend\"]. The trip holds at most APP_TRIP_MAX_MEMBERS people (default 50), owner included",
             "type": "array",
             "items": {
               "type": "string"
@@ -5395,18 +5348,6 @@
             ]
           }
         }
-      },
-      "AddMemberDto": {
-        "type": "object",
-        "properties": {
-          "username": {
-            "type": "string",
-            "example": "anna.n"
-          }
-        },
-        "required": [
-          "username"
-        ]
       },
       "AddMembersDto": {
         "type": "object",

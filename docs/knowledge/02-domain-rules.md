@@ -38,7 +38,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 
 ## Collaboration and invites
 
-- Owners add editors by **username** or by an **invite link**. Only the owner can invite.
+- Owners add their **friends** (mutual follows) as editors directly, or share an **invite link**; anyone else can ask to join (join request). Owners can't add strangers by username. Only the owner can invite.
 - Invite links: random token, tied to one trip, expire after 7 days, revocable by the owner, can be used multiple times until expiry. Accepting requires being signed in and onboarded.
 - Blocked users cannot be added and cannot accept invites to the blocker's trips.
 - An editor can leave a trip. Removing an editor keeps the markers and photos they added (they belong to the trip), but see account deletion below.
@@ -111,7 +111,7 @@ A trip has **one owner forever** and is **never duplicated**. "Add to my trips" 
 ## Follows and friends
 
 - Anyone can follow anyone, without approval (one-way). Following yourself is not allowed. Unknown, suspended or deleting users and users with a block either way can't be followed (404, the block is not revealed).
-- Two users who follow each other are **friends**. The trip member picker lists friends (`GET /me/friends`); adding a member still works by username for anyone.
+- Two users who follow each other are **friends**. The trip member picker lists friends (`GET /me/friends`), and owners can add only friends directly (`notFriend` otherwise); strangers join by invite link or join request.
 - **Following never grants access.** Private trips stay members-only; a follower sees exactly what any other signed-in user sees.
 - Blocking removes follows in both directions; unblocking doesn't restore them.
 - Lists of friends, following and followers leave out suspended users and anyone with a block with me.

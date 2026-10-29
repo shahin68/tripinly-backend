@@ -18,6 +18,7 @@ import { photoKeys } from '../../src/modules/photos/photo-keys';
 import { PhotoProcessingModule } from '../../src/modules/photos/photo-processing.module';
 import { PhotosWorkerModule } from '../../src/modules/photos/photos-worker.module';
 import {
+  befriend,
   devSignIn,
   onboardedUser,
   publishLegalDocuments,
@@ -162,6 +163,8 @@ describe('Account deletion and export (integration)', () => {
       const alice = await onboardedUser(app, 'alice');
       const bob = await onboardedUser(app, 'bob');
       const carol = await onboardedUser(app, 'carol');
+      await befriend(app, alice, bob);
+      await befriend(app, alice, carol);
       await withEmail(alice, 'alice@example.com');
 
       // Alice owns a trip shared with Bob, and a public trip Bob saved and

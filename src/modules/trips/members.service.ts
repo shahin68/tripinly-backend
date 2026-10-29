@@ -3,9 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { BlocksService, userBlockedError } from '../moderation/blocks.service';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
-import { normalizeUsername } from '../users/username';
 import { TripAccessService } from './trip-access.service';
 import { limitReached, lockTrip, TripsService } from './trips.service';
 import type { TripMemberDto } from './trips.dto';
@@ -15,42 +13,12 @@ export class MembersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: TripAccessService,
-    private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
     private readonly trips: TripsService,
   ) {}
 
-  /** Owner adds an editor by username. Idempotent for existing members. */
-  async addByUsername(
-    userId: string,
-    tripId: string,
-    username: string,
-  ): Promise<TripMemberDto> {
-    await this.access.assert(userId, tripId, 'manage');
-    const target = await this.prisma.user.findFirst({
-      where: {
-        username: normalizeUsername(username),
-        onboardedAt: { not: null },
-        status: 'active',
-      },
-      select: USER_SUMMARY_SELECT,
-    });
-    if (!target) throw AppException.notFound();
-    if (
-      target.id !== userId &&
-      (await this.blocks.isBlockedEither(userId, target.id))
-    ) {
-      // Say "blocked" only to the person who blocked; otherwise the user just isn't found.
-      const iBlocked = await this.prisma.block.count({
-        where: { blockerId: userId, blockedId: target.id },
-      });
-      throw iBlocked ? userBlockedError() : AppException.notFound();
-    }
-    return this.add(userId, tripId, target.id);
-  }
-
   /**
-   * Adds `memberId` as an editor (invite acceptance and add-by-username).
+   * Adds `memberId` as an editor (invite acceptance).
    * Access checks are the caller's job.
    */
   async add(

@@ -3,6 +3,7 @@ import { SignJWT } from 'jose';
 import { randomUUID } from 'node:crypto';
 import { PhotoProcessingModule } from '../../src/modules/photos/photo-processing.module';
 import {
+  befriend,
   devSignIn,
   onboardedUser,
   publishLegalDocuments,
@@ -49,6 +50,8 @@ describe('Realtime (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
+    // Owners add only friends to their trips.
+    await befriend(app, owner, editor);
     placeId = await insertPlace(app, {
       name: 'Albertina',
       lat: 48.2046,
@@ -302,9 +305,10 @@ describe('Realtime (integration)', () => {
       const editorSocket = await subscribed(editor, privateTrip.id);
       const strangerSocket = await open(stranger);
 
+      await befriend(app, owner, stranger);
       await as(owner)
-        .post(`/v1/trips/${privateTrip.id}/members`)
-        .send({ username: 'stranger' })
+        .post(`/v1/trips/${privateTrip.id}/members/batch`)
+        .send({ usernames: ['stranger'] })
         .expect(200);
       await strangerSocket.waitFor('trips.changed', (event) => {
         const data = event.data as { change: string };
