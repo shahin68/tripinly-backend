@@ -186,8 +186,9 @@ export class UsersService {
   }
 
   /**
-   * A public profile: the user and their public, visible trips. Unknown,
-   * not onboarded, suspended, or with a block either way → NOT_FOUND.
+   * A public profile: the user and their public, visible trips (my own
+   * profile: all trips I own, private ones too). Unknown, not onboarded,
+   * suspended, or with a block either way → NOT_FOUND.
    */
   async profile(
     viewerId: string,
@@ -206,14 +207,17 @@ export class UsersService {
     });
     if (!user) throw AppException.notFound();
 
-    const where: Prisma.TripWhereInput = {
+    const publicTrips: Prisma.TripWhereInput = {
       ownerId: user.id,
       visibility: 'public',
       hiddenAt: null,
     };
+    // My own profile lists my private trips too; the count stays public trips.
+    const where: Prisma.TripWhereInput =
+      user.id === viewerId ? { ownerId: user.id, hiddenAt: null } : publicTrips;
     const position = cursor ? decodeCursor(cursor) : undefined;
     const [publicTripCount, followState, rows] = await Promise.all([
-      this.prisma.trip.count({ where }),
+      this.prisma.trip.count({ where: publicTrips }),
       this.follows.stateFor(viewerId, user.id),
       this.prisma.trip.findMany({
         where: {

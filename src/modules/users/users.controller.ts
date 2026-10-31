@@ -59,7 +59,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'A public profile with public trips',
     description:
-      'Trips are paginated with cursor and limit. Unknown users and users with a block either way: 404.',
+      'Trips are paginated with cursor and limit, most recently updated first. On your own profile the trips include your private ones (publicTripCount still counts public trips only). Unknown users and users with a block either way: 404.',
   })
   @ApiOkResponse({ type: ProfileDto })
   profile(
