@@ -745,7 +745,7 @@ describe('Social (integration)', () => {
 
   describe('profiles', () => {
     it('shows public trips and hides profiles across a block', async () => {
-      await createTrip(owner, 'Secret', 'private');
+      const secret = await createTrip(owner, 'Secret', 'private');
       const profile = await as(stranger).get('/v1/users/Owner').expect(200);
       expect(profile.body).toMatchObject({
         user: { username: 'owner' },
@@ -755,6 +755,13 @@ describe('Social (integration)', () => {
       expect(profile.body.trips.map((t: { id: string }) => t.id)).toEqual([
         trip.id,
       ]);
+
+      // My own profile lists my private trips too; the count stays public.
+      const mine = await as(owner).get('/v1/users/owner').expect(200);
+      expect(mine.body.publicTripCount).toBe(1);
+      expect(
+        (mine.body.trips as { id: string }[]).map((t) => t.id).sort(),
+      ).toEqual([trip.id, secret.id].sort());
 
       // Fixed paths under /users still resolve.
       await as(stranger).get('/v1/users/search?q=ow').expect(200);
