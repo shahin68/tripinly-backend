@@ -3,7 +3,6 @@ import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { PhotoProcessingModule } from '../../src/modules/photos/photo-processing.module';
 import { CountersService } from '../../src/modules/social/counters.service';
 import {
-  befriend,
   onboardedUser,
   publishLegalDocuments,
   resetState,
@@ -52,8 +51,6 @@ describe('Social (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
-    // Owners add only friends to their trips.
-    await befriend(app, owner, editor);
     placeId = await insertPlace(app, { name: 'Albertina', ...ALBERTINA });
     trip = await createTrip(owner, 'Vienna', 'public', ['editor']);
     markerId = await addMarker(owner, trip.days[0].id, placeId);

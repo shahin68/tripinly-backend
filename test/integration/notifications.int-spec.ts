@@ -12,7 +12,6 @@ import { NotificationTimings } from '../../src/modules/notifications/notificatio
 import { NotificationsWorkerModule } from '../../src/modules/notifications/notifications-worker.module';
 import { PushProvider } from '../../src/modules/notifications/push.provider';
 import {
-  befriend,
   onboardedUser,
   publishLegalDocuments,
   resetState,
@@ -94,8 +93,6 @@ describe('Notifications (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
-    // Owners add only friends to their trips.
-    await befriend(app, owner, editor);
     await device(owner, OWNER_PHONE, 'de-AT');
     await device(owner, OWNER_TABLET, 'en-GB');
     await device(editor, EDITOR_PHONE, 'hu-HU');
@@ -151,10 +148,9 @@ describe('Notifications (integration)', () => {
   }
 
   it('tells the added member right away, in each device language', async () => {
-    await befriend(app, owner, stranger);
     await as(owner)
-      .post(`/v1/trips/${trip.id}/members/batch`)
-      .send({ usernames: ['stranger'] })
+      .post(`/v1/trips/${trip.id}/members`)
+      .send({ username: 'stranger' })
       .expect(200);
     await device(stranger, 'stranger-phone-token-0000004', 'de');
     const [row] = await eventually(
@@ -369,10 +365,9 @@ describe('Notifications (integration)', () => {
     });
 
     it('names several collaborators together', async () => {
-      await befriend(app, owner, stranger);
       await as(owner)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['stranger'] })
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'stranger' })
         .expect(200);
       await addMarker(editor);
       await addMarker(stranger);

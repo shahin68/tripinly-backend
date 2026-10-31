@@ -2,7 +2,6 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import {
-  befriend,
   devSignIn,
   onboardedUser,
   publishLegalDocuments,
@@ -36,8 +35,6 @@ describe('Trips, days and members (integration)', () => {
     owner = await onboardedUser(app, 'owner');
     editor = await onboardedUser(app, 'editor');
     stranger = await onboardedUser(app, 'stranger');
-    // Owners add only friends to their trips.
-    await befriend(app, owner, editor);
   });
 
   async function createTrip(
@@ -449,38 +446,39 @@ describe('Trips, days and members (integration)', () => {
   });
 
   describe('members', () => {
-    it('adds friends as editors, lets them leave and lets the owner remove them', async () => {
+    it('adds editors by username, lets them leave and lets the owner remove them', async () => {
       const trip = await createTrip();
       const added = await as(owner)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['Editor'] })
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'Editor' })
         .expect(200);
-      expect(added.body.items).toEqual([
-        {
-          user: expect.objectContaining({ username: 'editor' }),
-          role: 'editor',
-        },
-      ]);
+      expect(added.body).toEqual({
+        user: expect.objectContaining({ username: 'editor' }),
+        role: 'editor',
+      });
+      await as(owner)
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'editor' })
+        .expect(200);
       expect(
         await prisma.tripMember.count({ where: { tripId: trip.id } }),
       ).toBe(2);
 
       await as(editor)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['stranger'] })
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'stranger' })
         .expect(403);
-      // Adding by username without being friends is gone.
       await as(owner)
         .post(`/v1/trips/${trip.id}/members`)
-        .send({ username: 'editor' })
+        .send({ username: 'nobody' })
         .expect(404);
 
       await as(editor)
         .delete(`/v1/trips/${trip.id}/members/${editor.userId}`)
         .expect(204);
       await as(owner)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['editor'] })
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'editor' })
         .expect(200);
       await as(owner)
         .delete(`/v1/trips/${trip.id}/members/${editor.userId}`)
@@ -493,37 +491,26 @@ describe('Trips, days and members (integration)', () => {
         .expect(403);
     });
 
-    it('adds only friends: following one way is not enough', async () => {
+    it('respects blocks when adding', async () => {
       const trip = await createTrip();
-      await as(owner).put(`/v1/users/${stranger.userId}/follow`).expect(204);
-      const oneWay = await as(owner)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['stranger'] })
-        .expect(400);
-      expect(oneWay.body.error.details.fields).toEqual({
-        'usernames.0': ['notFriend'],
-      });
-      const created = await as(owner)
-        .post('/v1/trips')
-        .send({ title: 'T', memberUsernames: ['stranger'] })
-        .expect(400);
-      expect(created.body.error.details.fields).toEqual({
-        'memberUsernames.0': ['notFriend'],
-      });
+      await as(owner).post(`/v1/users/${editor.userId}/block`).expect(204);
+      const mine = await as(owner)
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'editor' })
+        .expect(403);
+      expect(mine.body.error.code).toBe('USER_BLOCKED');
 
-      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await as(stranger).post(`/v1/users/${owner.userId}/block`).expect(204);
       await as(owner)
-        .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({ usernames: ['stranger'] })
-        .expect(200);
+        .post(`/v1/trips/${trip.id}/members`)
+        .send({ username: 'stranger' })
+        .expect(404);
     });
   });
 
   describe('POST /v1/trips/{id}/members/batch', () => {
     it('adds many editors at once and keeps people already in the trip', async () => {
-      const friend2 = await onboardedUser(app, 'friend2');
-      await befriend(app, owner, stranger);
-      await befriend(app, owner, friend2);
+      await onboardedUser(app, 'friend2');
       const trip = await createTrip({ memberUsernames: ['editor'] });
       const added = await as(owner)
         .post(`/v1/trips/${trip.id}/members/batch`)
@@ -548,18 +535,14 @@ describe('Trips, days and members (integration)', () => {
 
     it('is all or nothing, owner only, and validates the list', async () => {
       const trip = await createTrip();
-      await onboardedUser(app, 'notafriend');
       await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
       const refused = await as(owner)
         .post(`/v1/trips/${trip.id}/members/batch`)
-        .send({
-          usernames: ['editor', 'nobody_here', 'stranger', 'notafriend'],
-        })
+        .send({ usernames: ['editor', 'nobody_here', 'stranger'] })
         .expect(400);
       expect(refused.body.error.details.fields).toEqual({
         'usernames.1': ['notFound'],
         'usernames.2': ['blocked'],
-        'usernames.3': ['notFriend'],
       });
       expect(
         await prisma.tripMember.count({ where: { tripId: trip.id } }),
@@ -588,7 +571,6 @@ describe('Trips, days and members (integration)', () => {
           key === 'APP_TRIP_MAX_MEMBERS' ? 2 : get(key, options as never),
         );
       try {
-        await befriend(app, owner, stranger);
         const trip = await createTrip();
         const limited = await as(owner)
           .post(`/v1/trips/${trip.id}/members/batch`)
@@ -602,6 +584,10 @@ describe('Trips, days and members (integration)', () => {
           .post(`/v1/trips/${trip.id}/members/batch`)
           .send({ usernames: ['editor'] })
           .expect(200);
+        await as(owner)
+          .post(`/v1/trips/${trip.id}/members`)
+          .send({ username: 'stranger' })
+          .expect(422);
         await as(owner)
           .post('/v1/trips')
           .send({ title: 'T', memberUsernames: ['editor', 'stranger'] })

@@ -102,12 +102,6 @@ async function createTrip(token, trip, days) {
 const tester = await signIn('tester', 'Test Owner');
 const tester2 = await signIn('tester2', 'Test Editor');
 console.log(`✓ signed in tester and tester2`);
-// Owners add only friends to trips, so the two accounts follow each other.
-const testerId = (await call(tester, 'GET', '/me')).id;
-const tester2Id = (await call(tester2, 'GET', '/me')).id;
-await call(tester, 'PUT', `/users/${tester2Id}/follow`);
-await call(tester2, 'PUT', `/users/${testerId}/follow`);
-console.log(`✓ tester and tester2 are friends`);
 console.log(
   `✓ deleted ${(await deleteOwnTrips(tester)) + (await deleteOwnTrips(tester2))} old trips`,
 );
