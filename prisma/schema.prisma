@@ -63,9 +63,12 @@ model User {
   role                  UserRole       @default(user)
   status                UserStatus     @default(active)
   onboardedAt           DateTime?
+  /// The profile photo: a ready photo with no stop and no place. Optional; null shows the letter avatar.
+  avatarPhotoId         String?        @unique @db.Uuid
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
+  avatarPhoto   Photo?         @relation("UserAvatar", fields: [avatarPhotoId], references: [id], onDelete: SetNull)
   identities    AuthIdentity[]
   refreshTokens RefreshToken[]
   consents      Consent[]
@@ -599,6 +602,7 @@ model Photo {
   /// Denormalized from the marker for access checks and cleanup; null for place photos.
   tripId     String?     @db.Uuid
   /// Place photos only: stays until its uploader deletes it, or the (user-made) place goes.
+  /// A photo with neither a marker nor a place is a profile photo (`users.avatarPhotoId` once ready).
   placeId    String?     @db.Uuid
   /// Restrict: account deletion removes a user's photos (and their files) first.
   uploaderId String      @db.Uuid
@@ -621,6 +625,7 @@ model Photo {
   place    Place?  @relation(fields: [placeId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
   coverOf  Marker[] @relation("MarkerCover")
+  avatarOf User?    @relation("UserAvatar")
 
   @@index([markerId, position])
   @@index([tripId])

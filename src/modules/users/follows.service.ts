@@ -16,6 +16,7 @@ import {
   USER_SUMMARY_SELECT,
   type UserSummaryDto,
 } from './user-summary';
+import { StorageService } from '../../common/storage/storage.service';
 
 /** What the viewer and a profile's owner are to each other, plus counts. */
 export interface FollowState {
@@ -37,6 +38,7 @@ export class FollowsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
   ) {}
 
   /** Users who appear to `viewerId` in follow lists and counts. */
@@ -111,7 +113,7 @@ export class FollowsService {
       rows,
       limit,
       (row) => ({ at: row.createdAt.toISOString(), id: row.followeeId }),
-      (row) => toUserSummary(row.followee),
+      (row) => toUserSummary(row.followee, this.storage),
     );
   }
 
@@ -144,7 +146,7 @@ export class FollowsService {
       rows,
       limit,
       (row) => ({ at: row.createdAt.toISOString(), id: row.followerId }),
-      (row) => toUserSummary(row.follower),
+      (row) => toUserSummary(row.follower, this.storage),
     );
   }
 
@@ -174,7 +176,7 @@ export class FollowsService {
     const kept = users.slice(0, limit);
     const last = kept[kept.length - 1];
     return {
-      items: kept.map(toUserSummary),
+      items: kept.map((user) => toUserSummary(user, this.storage)),
       nextCursor:
         users.length > limit
           ? encodeNameCursor(last.displayName ?? '', last.id)

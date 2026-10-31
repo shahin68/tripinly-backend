@@ -926,6 +926,8 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         id: alice.userId,
         username: 'alice',
         displayName: expect.any(String),
+        avatarPhotoId: null,
+        avatarThumbUrl: null,
       });
 
       // Bob's public trip keeps the spot visible; Alice's private one doesn't name her.

@@ -31,6 +31,7 @@ import {
 } from './user-summary';
 import type { ProfileDto } from './profile.dto';
 import type { MeDto, UpdateMeDto, UsernameAvailabilityDto } from './users.dto';
+import { thumbUrl } from '../photos/photo-keys';
 
 export const USER_SEARCH_LIMIT = 20;
 
@@ -181,7 +182,7 @@ export class UsersService {
       take: USER_SEARCH_LIMIT,
       select: USER_SUMMARY_SELECT,
     });
-    return users.map(toUserSummary);
+    return users.map((user) => toUserSummary(user, this.storage));
   }
 
   /**
@@ -243,7 +244,7 @@ export class UsersService {
       (row) => byId.get(row.id)!,
     );
     return {
-      user: toUserSummary(user),
+      user: toUserSummary(user, this.storage),
       ...followState,
       publicTripCount,
       trips: page.items,
@@ -313,6 +314,8 @@ export class UsersService {
       id: user.id,
       username: user.username,
       displayName: user.displayName,
+      avatarPhotoId: user.avatarPhotoId,
+      avatarThumbUrl: thumbUrl(this.storage, user.avatarPhotoId),
       birthDate: user.birthDate ? toCalendarDate(user.birthDate) : null,
       locale: user.locale,
       defaultTripVisibility: user.defaultTripVisibility,

@@ -11,6 +11,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `defaultTripVisibility` (`public` | `private`, default `public`)
 - `role` (`user` | `admin`), `status` (`active` | `suspended` | `deleting`)
 - `onboardedAt` (null until profile + consents complete)
+- `avatarPhotoId` → photos (nullable, unique, `SET NULL`): the profile photo, a ready photo with no stop and no place; null shows the letter avatar
 
 **auth_identities** — user → users, `provider` (`google` | `apple` | `dev`; `dev` only exists where `DEV_AUTH_ENABLED`), `providerSubject`, `email` (as given by provider), `appleRefreshToken` (encrypted, needed to revoke on deletion). Unique (`provider`, `providerSubject`).
 
@@ -68,7 +69,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - `commentCount`, `hiddenAt` (no `likeCount`: a stop's likes are its place's, dropped 2026-10-17)
 
 **photos**
-- A trip photo has `markerId` → markers (`CASCADE`) and `tripId` (denormalized, `CASCADE`); a **place photo** has only `placeId` → places (`CASCADE`) and `position` 0. A check constraint keeps exactly one of the two. `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
+- A trip photo has `markerId` → markers (`CASCADE`) and `tripId` (denormalized, `CASCADE`); a **place photo** has only `placeId` → places (`CASCADE`) and `position` 0; a **profile photo** has neither (`users.avatarPhotoId` points to it once ready). A check constraint allows exactly these three kinds. `uploaderId` → users (`RESTRICT`: account deletion removes the user's photos and their files first), `position` (gallery order; new photos go last, reorder renumbers)
 - Storage keys derive from the id: `photos/{id}/original` (re-encoded without metadata once processed), `photos/{id}/thumb.webp` (256 px square), `photos/{id}/display.webp` (≤ 1600 px). Deleting the prefix `photos/{id}/` deletes every file.
 - `width`, `height` (upright, after EXIF rotation), `mimeType`, `bytes` (declared at upload)
 - `status` (`pending_upload` | `processing` | `ready` | `failed`), `likeCount`, `hiddenAt`

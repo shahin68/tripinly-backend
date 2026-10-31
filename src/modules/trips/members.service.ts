@@ -9,6 +9,7 @@ import { normalizeUsername } from '../users/username';
 import { TripAccessService } from './trip-access.service';
 import { limitReached, lockTrip, TripsService } from './trips.service';
 import type { TripMemberDto } from './trips.dto';
+import { StorageService } from '../../common/storage/storage.service';
 
 @Injectable()
 export class MembersService {
@@ -18,6 +19,7 @@ export class MembersService {
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
     private readonly trips: TripsService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Owner adds an editor by username. Idempotent for existing members. */
@@ -77,7 +79,7 @@ export class MembersService {
       return { member, created: true };
     });
     const dto: TripMemberDto = {
-      user: toUserSummary(member.user),
+      user: toUserSummary(member.user, this.storage),
       role: member.role,
     };
     if (created) {
@@ -141,7 +143,7 @@ export class MembersService {
     const byId = new Map(
       members.map((member) => [
         member.userId,
-        { user: toUserSummary(member.user), role: member.role },
+        { user: toUserSummary(member.user, this.storage), role: member.role },
       ]),
     );
     const dtos = ids.flatMap((id) => byId.get(id) ?? []);

@@ -13,6 +13,7 @@ import type {
   LikesPayload,
   TripChangesPayload,
 } from './notification-types';
+import { StorageService } from '../../common/storage/storage.service';
 
 export interface RenderContext {
   actors: Map<string, UserSummaryDto>;
@@ -48,6 +49,7 @@ export class NotificationRenderer {
   constructor(
     private readonly i18n: I18nService,
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
   ) {}
 
   async context(rows: Notification[]): Promise<RenderContext> {
@@ -72,7 +74,9 @@ export class NotificationRenderer {
         : [],
     ]);
     return {
-      actors: new Map(actors.map((user) => [user.id, toUserSummary(user)])),
+      actors: new Map(
+        actors.map((user) => [user.id, toUserSummary(user, this.storage)]),
+      ),
       trips: new Map(trips.map((trip) => [trip.id, trip])),
     };
   }

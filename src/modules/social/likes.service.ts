@@ -171,7 +171,10 @@ export class LikesService {
             uploaderId: true,
           },
         });
-        if (!photo) throw AppException.notFound();
+        // A profile photo (no stop, no place) has no likes.
+        if (!photo || (!photo.markerId && !photo.placeId)) {
+          throw AppException.notFound();
+        }
         if (!photo.markerId) {
           // A place photo: whoever can see the place, not blocked with the uploader (C7).
           await this.places.assertVisible(this.prisma, userId, photo.placeId!);

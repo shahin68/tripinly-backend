@@ -449,7 +449,7 @@ export class PlacesService {
       BlocksService.blockedAmong(this.prisma, userId, [creatorId]),
     ]);
     if (!stop?.createdBy || blocked.size > 0) return null;
-    return toUserSummary(stop.createdBy);
+    return toUserSummary(stop.createdBy, this.storage);
   }
 
   /**

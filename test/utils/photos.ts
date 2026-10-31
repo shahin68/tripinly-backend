@@ -116,3 +116,29 @@ export async function readyPlacePhoto(
   await app.get(PhotoProcessingService).process(photo.id);
   return photo.id;
 }
+
+/** A profile photo uploaded, completed and processed. Returns the photo id. */
+export async function readyAvatar(
+  app: INestApplication,
+  session: Session,
+): Promise<string> {
+  const file = await jpegWithGps();
+  const { body } = await api(app)
+    .as(session)
+    .post('/v1/me/avatar/upload-url')
+    .send({ mimeType: 'image/jpeg', bytes: file.length })
+    .expect(201);
+  const start = body as UploadStart;
+  const response = await fetch(start.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': start.uploadHeaders['Content-Type'] },
+    body: new Uint8Array(file),
+  });
+  if (!response.ok) throw new Error(`upload failed: ${response.status}`);
+  await api(app)
+    .as(session)
+    .post(`/v1/photos/${start.photo.id}/complete`)
+    .expect(202);
+  await app.get(PhotoProcessingService).process(start.photo.id);
+  return start.photo.id;
+}

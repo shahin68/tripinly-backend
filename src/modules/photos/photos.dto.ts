@@ -2,7 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import type { Photo, PhotoStatus } from '../../generated/prisma/client';
 import { ImageCreditDto } from '../places/places.dto';
-import { toUserSummary, UserSummaryDto } from '../users/user-summary';
+import {
+  toUserSummary,
+  USER_SUMMARY_SELECT,
+  UserSummaryDto,
+  type UserSummaryRow,
+} from '../users/user-summary';
 import { photoKeys, type UrlSigner } from './photo-keys';
 
 /** HEIC isn't decodable by our image library; the app converts to JPEG before upload. */
@@ -46,7 +51,8 @@ export class PhotoDto {
     type: String,
     format: 'uuid',
     nullable: true,
-    description: 'The stop of a trip photo; null for a place photo',
+    description:
+      'The stop of a trip photo; null for a place photo or a profile photo',
   })
   markerId: string | null;
 
@@ -54,7 +60,8 @@ export class PhotoDto {
     type: String,
     format: 'uuid',
     nullable: true,
-    description: 'The place of a place photo; null for a trip photo',
+    description:
+      'The place of a place photo; null for a trip photo or a profile photo',
   })
   placeId: string | null;
 
@@ -153,11 +160,11 @@ export class CoverDto {
 }
 
 export type PhotoWithUploader = Photo & {
-  uploader: { id: string; username: string | null; displayName: string | null };
+  uploader: UserSummaryRow;
 };
 
 export const PHOTO_INCLUDE = {
-  uploader: { select: { id: true, username: true, displayName: true } },
+  uploader: { select: USER_SUMMARY_SELECT },
 } as const;
 
 export function toPhotoDto(
@@ -182,7 +189,7 @@ export function toPhotoDto(
     likedByMe: likedIds.has(photo.id),
     uploader: hiddenUserIds.has(photo.uploaderId)
       ? null
-      : toUserSummary(photo.uploader),
+      : toUserSummary(photo.uploader, signer),
     createdAt: photo.createdAt.toISOString(),
     source: 'user',
     credit: null,

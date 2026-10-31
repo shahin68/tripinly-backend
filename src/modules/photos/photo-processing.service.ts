@@ -20,7 +20,8 @@ export type ProcessOutcome = 'ready' | 'skipped' | 'deleted';
  * Turns an upload into safe images (photo-pipeline skill): checks the real
  * type, applies the EXIF rotation, drops all metadata (GPS included), writes
  * thumb and display WebPs and a clean original, then marks the photo ready.
- * It never becomes the cover by itself: the trip picks one. Safe to run twice.
+ * It never becomes the cover by itself: the trip picks one. A profile photo
+ * becomes its uploader's avatar. Safe to run twice.
  */
 @Injectable()
 export class PhotoProcessingService {
@@ -102,6 +103,11 @@ export class PhotoProcessingService {
       return 'deleted';
     }
 
+    if (!photo.markerId && !photo.placeId) {
+      const adopted = await this.adoptAvatar(photo.uploaderId, photoId);
+      if (!adopted) return 'deleted';
+    }
+
     const ready = await this.prisma.photo.findUniqueOrThrow({
       where: { id: photoId },
       include: PHOTO_INCLUDE,
@@ -116,6 +122,40 @@ export class PhotoProcessingService {
       ),
     );
     return 'ready';
+  }
+
+  /**
+   * A ready profile photo becomes its uploader's avatar and the previous one
+   * is deleted. When a newer one is already the avatar (an older upload
+   * finished later), this one is deleted instead. False when it lost.
+   */
+  private async adoptAvatar(userId: string, photoId: string): Promise<boolean> {
+    const { adopted, removed } = await this.prisma.$transaction(async (tx) => {
+      const [user] = await tx.$queryRaw<{ avatarPhotoId: string | null }[]>`
+        SELECT "avatarPhotoId" FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      const current = user?.avatarPhotoId
+        ? await tx.photo.findUnique({
+            where: { id: user.avatarPhotoId },
+            select: { id: true, createdAt: true },
+          })
+        : null;
+      const mine = await tx.photo.findUniqueOrThrow({
+        where: { id: photoId },
+        select: { createdAt: true },
+      });
+      if (!user || (current && current.createdAt > mine.createdAt)) {
+        await tx.photo.delete({ where: { id: photoId } });
+        return { adopted: false, removed: photoId };
+      }
+      await tx.user.update({
+        where: { id: userId },
+        data: { avatarPhotoId: photoId },
+      });
+      if (current) await tx.photo.delete({ where: { id: current.id } });
+      return { adopted: true, removed: current?.id ?? null };
+    });
+    if (removed) await this.storage.deletePrefix(photoPrefix(removed));
+    return adopted;
   }
 
   /** After the last attempt: the photo shows as failed to its trip's members. */

@@ -55,7 +55,8 @@ type PhotoRef = {
  * Files go straight from the app to storage with pre-signed URLs; the worker
  * processes them. Trip photos: trip access decides everything; uploads need
  * edit rights. Place photos: anyone who can see the place may add one, up to
- * APP_PLACE_PHOTO_DAILY_LIMIT a day; only the uploader deletes it.
+ * APP_PLACE_PHOTO_DAILY_LIMIT a day; only the uploader deletes it. Profile
+ * photos: only the user's own, through /me/avatar.
  */
 @Injectable()
 export class PhotosService {
@@ -162,6 +163,40 @@ export class PhotosService {
       });
     });
     return this.uploadResponse(photo, input);
+  }
+
+  /**
+   * A profile photo: no trip, no place. It becomes the avatar once processed
+   * (the previous one is deleted then). Allowed during onboarding.
+   */
+  async requestAvatarUpload(
+    userId: string,
+    input: UploadUrlRequestDto,
+  ): Promise<UploadUrlResponseDto> {
+    this.storage.assertEnabled();
+    assertUploadable(input);
+    const photo = await this.prisma.photo.create({
+      data: {
+        uploaderId: userId,
+        mimeType: input.mimeType,
+        bytes: input.bytes,
+        position: 0,
+      },
+      include: PHOTO_INCLUDE,
+    });
+    return this.uploadResponse(photo, input);
+  }
+
+  /** Back to the letter avatar. Harmless without a profile photo. */
+  async removeAvatar(userId: string): Promise<void> {
+    const photoId = await this.prisma.$transaction(async (tx) => {
+      const [user] = await tx.$queryRaw<{ avatarPhotoId: string | null }[]>`
+        SELECT "avatarPhotoId" FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      if (!user?.avatarPhotoId) return null;
+      await tx.photo.delete({ where: { id: user.avatarPhotoId } });
+      return user.avatarPhotoId;
+    });
+    if (photoId) await this.jobs.deleteFiles([photoId]);
   }
 
   private async uploadResponse(

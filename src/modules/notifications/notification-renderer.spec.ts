@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { I18nService } from 'nestjs-i18n';
 import { i18nModule } from '../../common/i18n/i18n.config';
+import { StorageService } from '../../common/storage/storage.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { Notification } from '../../generated/prisma/client';
 import {
@@ -38,7 +39,16 @@ describe('NotificationRenderer', () => {
   let renderer: NotificationRenderer;
   const context: RenderContext = {
     actors: new Map([
-      [JONAS, { id: JONAS, username: 'jonas', displayName: 'Jonas' }],
+      [
+        JONAS,
+        {
+          id: JONAS,
+          username: 'jonas',
+          displayName: 'Jonas',
+          avatarPhotoId: null,
+          avatarThumbUrl: null,
+        },
+      ],
     ]),
     trips: new Map([[TRIP, { id: TRIP, title: 'Vienna' }]]),
   };
@@ -49,12 +59,14 @@ describe('NotificationRenderer', () => {
       providers: [
         NotificationRenderer,
         { provide: PrismaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
       ],
     }).compile();
     await moduleRef.init();
     renderer = new NotificationRenderer(
       moduleRef.get(I18nService),
       moduleRef.get(PrismaService),
+      moduleRef.get(StorageService),
     );
   });
 

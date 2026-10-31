@@ -27,8 +27,15 @@ description: Use for Tripinly photo work — pre-signed uploads, upload confirma
 - `POST /places/{id}/photos/upload-url`: a photo on a place, not a trip (`placeId` set, `markerId`/`tripId` null; a check constraint enforces one or the other). The place must be visible to the caller (`PlaceMatchingService.assertVisible`). Lock the place row, then count the uploader's place photos of the last 24 h against `APP_PLACE_PHOTO_DAILY_LIMIT` → `DAILY_PHOTO_LIMIT_REACHED`.
 - `GET /places/{id}/photos`: the place's own photos plus the public trip photos taken there that pass the photo-pin likes rule (`PlaceCoversService.representativePhotoIds`). Trip photos are referenced by id, never copied into the place. Then the place's ready Commons images (`source: commons`, with `credit`), most liked first: people's photos always come first, and Commons images stay `place_images` rows (liked as `place_image`).
 - No cover, no order (`position` 0); the gallery is most liked first. Only the uploader deletes one. `photo.ready`/`photo.failed` go to the uploader's user room.
-- Every photo code path must handle both kinds: never assume `tripId` or `markerId`.
+- Every photo code path must handle all three kinds (trip, place, profile): never assume `tripId`, `markerId` or `placeId`.
 - A user place goes with its last stop (`releaseUserPlaces` after the commit): its place photos' rows cascade, their files are queued for deletion.
+
+## Profile photos
+
+- `POST /me/avatar/upload-url` (allowed during onboarding, like `POST /photos/{id}/complete`): a photo with no `markerId`, `tripId` or `placeId`, `position` 0, same file rules and throttle.
+- When processing makes it ready, `PhotoProcessingService.adoptAvatar` locks the user row and points `users.avatarPhotoId` at it, deleting the previous profile photo (row and files). If a newer profile photo is already the avatar, this one is deleted instead.
+- `DELETE /me/avatar` clears it (row deleted, files queued). Deleting the photo another way clears the pointer by FK `SET NULL`; hiding it in moderation clears it too.
+- Profile photos have no likes (404) and never show in a gallery; they can be reported while they are someone's avatar. Every `UserSummaryDto` carries `avatarPhotoId` and `avatarThumbUrl` through `toUserSummary(user, signer)` with `USER_SUMMARY_SELECT`.
 
 ## Cover rules
 
