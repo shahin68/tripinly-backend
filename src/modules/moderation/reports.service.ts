@@ -100,8 +100,14 @@ export class ReportsService {
         if (!photo || photo.status !== 'ready') throw AppException.notFound();
         if (photo.tripId) {
           await this.access.assert(userId, photo.tripId, 'view');
+        } else if (photo.placeId) {
+          await this.places.assertVisible(this.prisma, userId, photo.placeId);
         } else {
-          await this.places.assertVisible(this.prisma, userId, photo.placeId!);
+          // A profile photo: reportable while it is someone's avatar.
+          const shown = await this.prisma.user.count({
+            where: { avatarPhotoId: input.targetId, status: 'active' },
+          });
+          if (shown === 0) throw AppException.notFound();
         }
         if (photo.hiddenAt && photo.uploaderId !== userId) {
           throw AppException.notFound();

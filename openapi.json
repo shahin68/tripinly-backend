@@ -2805,6 +2805,67 @@
         ]
       }
     },
+    "/v1/me/avatar/upload-url": {
+      "post": {
+        "description": "Optional, also during onboarding. Same upload flow and file rules as marker photos: PUT the file, then POST /photos/{id}/complete. Once processed (photo.ready in your own user room, markerId and placeId null) it becomes your avatar on every UserSummary and on GET /me; the previous profile photo is deleted. A newer upload always wins over an older one finishing later.",
+        "operationId": "Photos_avatarUploadUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadUrlRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a profile photo upload",
+        "tags": [
+          "photos",
+          "me"
+        ]
+      }
+    },
+    "/v1/me/avatar": {
+      "delete": {
+        "description": "Back to the letter avatar; the photo and its files are deleted. 204 also without a profile photo.",
+        "operationId": "Photos_removeAvatar",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove the profile photo",
+        "tags": [
+          "photos",
+          "me"
+        ]
+      }
+    },
     "/v1/places/{id}/photos": {
       "get": {
         "description": "Ready place photos, plus photos on stops here in public trips that APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than the uploader liked (the same photos, not copies; markerId set), most liked first, then newest; at most 100. Your own place photos still processing or failed are included. A place photo by someone you blocked (or who blocked you) shows without its uploader; their trip photos don't show.",
@@ -2848,7 +2909,7 @@
     },
     "/v1/photos/{id}/complete": {
       "post": {
-        "description": "The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is.",
+        "description": "The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is. Allowed during onboarding (for a profile photo).",
         "operationId": "Photos_complete",
         "parameters": [
           {
@@ -4542,6 +4603,17 @@
             "nullable": true,
             "example": "Jonas"
           },
+          "avatarPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The profile photo (optional; null → letter avatar). Same fields as on every UserSummary."
+          },
+          "avatarThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed 256 px square thumbnail of the profile photo"
+          },
           "birthDate": {
             "type": "string",
             "nullable": true,
@@ -4584,6 +4656,8 @@
           "id",
           "username",
           "displayName",
+          "avatarPhotoId",
+          "avatarThumbUrl",
           "birthDate",
           "locale",
           "defaultTripVisibility",
@@ -4779,12 +4853,25 @@
           "displayName": {
             "type": "string",
             "example": "Jonas"
+          },
+          "avatarPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The profile photo, the image cache key; null when there is none (apps show the letter avatar)"
+          },
+          "avatarThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed 256 px square thumb of the profile photo, or null"
           }
         },
         "required": [
           "id",
           "username",
-          "displayName"
+          "displayName",
+          "avatarPhotoId",
+          "avatarThumbUrl"
         ]
       },
       "UserSearchResultDto": {
@@ -6548,13 +6635,13 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The stop of a trip photo; null for a place photo"
+            "description": "The stop of a trip photo; null for a place photo or a profile photo"
           },
           "placeId": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The place of a place photo; null for a trip photo"
+            "description": "The place of a place photo; null for a trip photo or a profile photo"
           },
           "status": {
             "type": "string",

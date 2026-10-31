@@ -212,6 +212,11 @@ export class ModerationService {
             where: { id: ref.targetId },
             data: { hiddenAt: now },
           });
+          // A hidden profile photo stops being the avatar (letter avatar again).
+          await tx.user.updateMany({
+            where: { avatarPhotoId: ref.targetId },
+            data: { avatarPhotoId: null },
+          });
         });
         return;
       case 'comment':

@@ -13,8 +13,10 @@ import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
+import type { UrlSigner } from '../photos/photo-keys';
 import { likedAmong } from './liked';
 import type { CommentDto } from './social.dto';
+import { StorageService } from '../../common/storage/storage.service';
 
 const COMMENT_INCLUDE = {
   author: { select: USER_SUMMARY_SELECT },
@@ -36,6 +38,7 @@ export class CommentsService {
     private readonly access: TripAccessService,
     private readonly blocks: BlocksService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
   ) {}
 
   /** Oldest first. */
@@ -77,7 +80,7 @@ export class CommentsService {
       rows,
       limit,
       (row) => ({ at: row.createdAt.toISOString(), id: row.id }),
-      (row) => toCommentDto(row, userId, role === 'owner', liked),
+      (row) => toCommentDto(row, userId, role === 'owner', liked, this.storage),
     );
   }
 
@@ -116,9 +119,15 @@ export class CommentsService {
       return created;
     });
 
-    const dto = toCommentDto(comment, userId, role === 'owner', new Set());
+    const dto = toCommentDto(
+      comment,
+      userId,
+      role === 'owner',
+      new Set(),
+      this.storage,
+    );
     // Viewer-neutral for the trip room: likedByMe and canDelete are per viewer.
-    const shared = toCommentDto(comment, '', false, new Set());
+    const shared = toCommentDto(comment, '', false, new Set(), this.storage);
     this.events.emit(
       DomainEvents.COMMENT_CREATED,
       domainEvent(
@@ -201,12 +210,13 @@ function toCommentDto(
   viewerId: string,
   viewerOwnsTrip: boolean,
   likedIds: ReadonlySet<string>,
+  signer: UrlSigner,
 ): CommentDto {
   return {
     id: comment.id,
     markerId: comment.markerId,
     body: comment.body,
-    author: toUserSummary(comment.author),
+    author: toUserSummary(comment.author, signer),
     likeCount: comment.likeCount,
     likedByMe: likedIds.has(comment.id),
     canDelete: viewerOwnsTrip || comment.authorId === viewerId,

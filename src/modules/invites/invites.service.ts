@@ -14,6 +14,7 @@ import { limitReached, TripsService } from '../trips/trips.service';
 import type { TripDto } from '../trips/trips.dto';
 import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
 import type { InviteDto, InvitePreviewDto, InvitesDto } from './invites.dto';
+import { StorageService } from '../../common/storage/storage.service';
 
 export const INVITE_TTL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -34,6 +35,7 @@ export class InvitesService {
     private readonly trips: TripsService,
     private readonly blocks: BlocksService,
     config: ConfigService<Env, true>,
+    private readonly storage: StorageService,
   ) {
     this.linkBase = config
       .get('APP_LINK_BASE_URL', { infer: true })
@@ -105,7 +107,7 @@ export class InvitesService {
     return {
       tripId: trip.id,
       title: trip.title,
-      owner: toUserSummary(trip.owner),
+      owner: toUserSummary(trip.owner, this.storage),
       startDate: trip.startDate ? toCalendarDate(trip.startDate) : null,
       endDate: trip.endDate ? toCalendarDate(trip.endDate) : null,
       expiresAt: invite.expiresAt.toISOString(),

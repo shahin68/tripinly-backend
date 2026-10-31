@@ -48,6 +48,22 @@ export class MeDto {
 
   @ApiProperty({
     type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'The profile photo (optional; null → letter avatar). Same fields as on every UserSummary.',
+  })
+  avatarPhotoId: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Signed 256 px square thumbnail of the profile photo',
+  })
+  avatarThumbUrl: string | null;
+
+  @ApiProperty({
+    type: String,
     nullable: true,
     example: '1995-04-12',
     description: 'Only ever returned to its owner',

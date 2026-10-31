@@ -16,6 +16,7 @@ import {
   USER_SUMMARY_SELECT,
   type UserSummaryDto,
 } from '../users/user-summary';
+import { StorageService } from '../../common/storage/storage.service';
 
 /**
  * Blocking is mutual in effect: every check looks at both directions. Other
@@ -27,6 +28,7 @@ export class BlocksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
   ) {}
 
   async isBlockedEither(a: string, b: string): Promise<boolean> {
@@ -181,7 +183,7 @@ export class BlocksService {
       rows,
       limit,
       (row) => ({ at: row.createdAt.toISOString(), id: row.id }),
-      (row) => toUserSummary(row.blocked),
+      (row) => toUserSummary(row.blocked, this.storage),
     );
   }
 }

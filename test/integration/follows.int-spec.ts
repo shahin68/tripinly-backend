@@ -140,6 +140,8 @@ describe('Follows (integration)', () => {
           id: bea.userId,
           username: 'bea',
           displayName: 'bea',
+          avatarPhotoId: null,
+          avatarThumbUrl: null,
         },
       ],
       nextCursor: null,

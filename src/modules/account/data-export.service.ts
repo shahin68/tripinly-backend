@@ -234,6 +234,8 @@ export class DataExportService {
       id: user.id,
       username: user.username,
       displayName: user.displayName,
+      /** The profile photo; its file is in photos/. */
+      avatarPhotoId: user.avatarPhotoId,
       birthDate: date(user.birthDate),
       locale: user.locale,
       defaultTripVisibility: user.defaultTripVisibility,

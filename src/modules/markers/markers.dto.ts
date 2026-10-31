@@ -23,7 +23,11 @@ import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { placeImageThumbUrl } from '../places/place-image-keys';
 import type { PlaceCover } from '../places/place-covers.service';
 import { PUBLIC_STOP_WHERE } from '../places/popularity';
-import { toUserSummary, UserSummaryDto } from '../users/user-summary';
+import {
+  toUserSummary,
+  USER_SUMMARY_SELECT,
+  UserSummaryDto,
+} from '../users/user-summary';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -301,7 +305,7 @@ export class MarkerDto {
 }
 
 export const MARKER_INCLUDE = {
-  createdBy: { select: { id: true, username: true, displayName: true } },
+  createdBy: { select: USER_SUMMARY_SELECT },
   coverPhoto: {
     select: {
       uploaderId: true,
@@ -433,7 +437,7 @@ export function toMarkerDto(
     commentCount: marker.commentCount,
     createdBy:
       marker.createdBy && !creatorHidden
-        ? toUserSummary(marker.createdBy)
+        ? toUserSummary(marker.createdBy, signer)
         : null,
     createdAt: marker.createdAt.toISOString(),
     updatedAt: marker.updatedAt.toISOString(),

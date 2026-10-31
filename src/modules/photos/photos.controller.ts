@@ -19,7 +19,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
+import {
+  AllowDuringOnboarding,
+  type AuthUser,
+  CurrentUser,
+} from '../../common/auth/auth.decorators';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import { UPLOAD_RATE_LIMIT } from '../../common/throttling/throttling.module';
 import { MarkerDto } from '../markers/markers.dto';
@@ -69,6 +73,37 @@ export class PhotosController {
     return this.photos.requestPlaceUpload(user.id, id, body);
   }
 
+  @Post('me/avatar/upload-url')
+  @AllowDuringOnboarding()
+  @Throttle({ default: UPLOAD_RATE_LIMIT })
+  @ApiTags('me')
+  @ApiOperation({
+    summary: 'Start a profile photo upload',
+    description:
+      'Optional, also during onboarding. Same upload flow and file rules as marker photos: PUT the file, then POST /photos/{id}/complete. Once processed (photo.ready in your own user room, markerId and placeId null) it becomes your avatar on every UserSummary and on GET /me; the previous profile photo is deleted. A newer upload always wins over an older one finishing later.',
+  })
+  @ApiCreatedResponse({ type: UploadUrlResponseDto })
+  avatarUploadUrl(
+    @CurrentUser() user: AuthUser,
+    @Body() body: UploadUrlRequestDto,
+  ): Promise<UploadUrlResponseDto> {
+    return this.photos.requestAvatarUpload(user.id, body);
+  }
+
+  @Delete('me/avatar')
+  @AllowDuringOnboarding()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiTags('me')
+  @ApiOperation({
+    summary: 'Remove the profile photo',
+    description:
+      'Back to the letter avatar; the photo and its files are deleted. 204 also without a profile photo.',
+  })
+  @ApiNoContentResponse()
+  removeAvatar(@CurrentUser() user: AuthUser): Promise<void> {
+    return this.photos.removeAvatar(user.id);
+  }
+
   @Get('places/:id/photos')
   @ApiOperation({
     summary: "A place's photos",
@@ -84,11 +119,12 @@ export class PhotosController {
   }
 
   @Post('photos/:id/complete')
+  @AllowDuringOnboarding()
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Confirm an upload',
     description:
-      'The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is.',
+      'The uploader confirms the file is uploaded; processing starts (photo.ready follows). Calling it again returns the photo as it is. Allowed during onboarding (for a profile photo).',
   })
   @ApiAcceptedResponse({ type: PhotoDto })
   complete(

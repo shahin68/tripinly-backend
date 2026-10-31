@@ -20,6 +20,7 @@ import {
 import { MembersService } from './members.service';
 import { TripAccessService } from './trip-access.service';
 import type { JoinRequestDto, TripMemberDto } from './trips.dto';
+import { StorageService } from '../../common/storage/storage.service';
 
 /**
  * Saving and joining other people's trips (decided 2026-10-16): there is one
@@ -33,6 +34,7 @@ export class TripSharingService {
     private readonly access: TripAccessService,
     private readonly members: MembersService,
     private readonly events: EventEmitter2,
+    private readonly storage: StorageService,
   ) {}
 
   /** Idempotent. Only other people's public trips. */
@@ -78,7 +80,7 @@ export class TripSharingService {
       where: { id: userId },
       select: USER_SUMMARY_SELECT,
     });
-    return toJoinRequestDto(request, toUserSummary(user));
+    return toJoinRequestDto(request, toUserSummary(user, this.storage));
   }
 
   /** Withdraws my pending request. Idempotent; a declined one stays declined. */
@@ -117,7 +119,7 @@ export class TripSharingService {
       rows,
       limit,
       (row) => ({ at: row.createdAt.toISOString(), id: row.id }),
-      (row) => toJoinRequestDto(row, toUserSummary(row.user)),
+      (row) => toJoinRequestDto(row, toUserSummary(row.user, this.storage)),
     );
   }
 

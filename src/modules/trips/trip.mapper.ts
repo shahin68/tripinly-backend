@@ -4,7 +4,6 @@ import type {
   Prisma,
   Trip,
   TripRole,
-  User,
 } from '../../generated/prisma/client';
 import {
   coverPeople,
@@ -16,10 +15,14 @@ import type { PlaceCover } from '../places/place-covers.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { likedAmong } from '../social/liked';
-import { toUserSummary, USER_SUMMARY_SELECT } from '../users/user-summary';
+import {
+  toUserSummary,
+  USER_SUMMARY_SELECT,
+  type UserSummaryRow,
+} from '../users/user-summary';
 import type { DestinationDto, TripDto, TripSummaryDto } from './trips.dto';
 
-type Summary = Pick<User, 'id' | 'username' | 'displayName'>;
+type Summary = UserSummaryRow;
 
 /** Without a picked cover, the card shows the trip's first photo. */
 export const TRIP_FIRST_PHOTO = {
@@ -130,12 +133,12 @@ export function toTripDto(
     endDate: trip.endDate ? toCalendarDate(trip.endDate) : null,
     destination: toDestination(trip),
     visibility: trip.visibility,
-    owner: toUserSummary(trip.owner),
+    owner: toUserSummary(trip.owner, signer),
     myRole: myRole ?? 'viewer',
     members: trip.members
       .filter((member) => !hiddenUserIds.has(member.userId))
       .map((member) => ({
-        user: toUserSummary(member.user),
+        user: toUserSummary(member.user, signer),
         role: member.role,
       })),
     likeCount: trip.likeCount,
@@ -226,7 +229,7 @@ export function toTripSummaryDto(
     startDate: trip.startDate ? toCalendarDate(trip.startDate) : null,
     endDate: trip.endDate ? toCalendarDate(trip.endDate) : null,
     visibility: trip.visibility,
-    owner: toUserSummary(trip.owner),
+    owner: toUserSummary(trip.owner, signer),
     role: role ?? 'viewer',
     ...tripCover(trip.markers, trip.photos[0], signer, hiddenUserIds),
     dayCount: trip._count.days,
