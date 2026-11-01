@@ -21,7 +21,7 @@ The event catalogue lives in `docs/knowledge/05-realtime-and-notifications.md`. 
    Use the same response DTOs as the REST API so clients can reuse models.
 3. **Room choice**: trip-wide changes → `trip:{tripId}`; personal things → `user:{userId}`.
 4. **Block filtering**: when the actor and a socket's user have a block relation, skip that socket. Use the gateway helper `emitToTripExcludingBlocked(tripId, actorId, payload)`.
-5. **Throttle** high-frequency events (like counts) — max one per target per 2 s, sending the latest count.
+5. **Social interactions go out at once** (likes, hot, comments; Shahin 2026-11-01): no throttle. Every count event carries the count after the change.
 6. Document the event in the catalogue table (name, when, data).
 
 ## Subscriptions and auth

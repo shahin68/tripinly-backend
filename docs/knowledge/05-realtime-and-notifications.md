@@ -28,8 +28,8 @@
 | `photo.deleted` | | photoId, markerId, the stop's picked cover photo after it (null when the deleted photo was the cover) |
 | `marker.cover_changed` | Cover picked (a photo or Commons image id) | markerId, photoId |
 | `comment.created` / `comment.deleted` | | comment (viewer-neutral: `likedByMe` false, `canDelete` false) / commentId, markerId |
-| `place.hot_changed` | A place marked or unmarked hot, in the room of every trip with a visible stop there (the stops show the place's count) | placeId, hotCount (throttled like `like.count_changed`) |
-| `like.count_changed` | Any like on trip/photo/comment, in its trip's room | targetType, targetId, count (throttled per API instance to max 1 per target per 2 s; the trailing event carries the latest count) |
+| `place.hot_changed` | A place marked or unmarked hot, in the room of every trip with a visible stop there (the stops show the place's count) | placeId, hotCount (at once, every change) |
+| `like.count_changed` | Any like on trip/photo/comment, in its trip's room | targetType, targetId, count (at once, every like and unlike; Shahin 2026-11-01, was throttled to one per 2 s) |
 | `member.added` / `member.removed` | | `{ member: { user, role } }` / `{ userId, reason: left\|removed\|blocked }` |
 
 Domain events that don't go to a room as such: `join_request.created` (actor = the person asking; data: requestId, ownerId) for the owner's `join_requested` notification, `user.followed` (actor = the follower; data: followeeId; only for a new follow, not a repeat) for a future notification. `place.hot_changed` goes to the trips with stops at the place.
