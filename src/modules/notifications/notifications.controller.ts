@@ -1,9 +1,11 @@
+import { IdParamDto } from '../../common/dto/id-param.dto';
 import {
   Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Patch,
   Post,
   Query,
@@ -19,6 +21,7 @@ import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { PageQueryDto } from '../../common/pagination/pagination';
 import {
   MarkReadDto,
+  NewActivityDto,
   NotificationPageDto,
   NotificationSettingsDto,
   UpdateNotificationSettingsDto,
@@ -58,6 +61,20 @@ export class NotificationsController {
     @Body() body: MarkReadDto,
   ): Promise<void> {
     await this.notifications.markRead(user.id, body);
+  }
+
+  @Get('trips/:id/new-activity')
+  @ApiOperation({
+    summary: 'Stops of a trip with unread notifications for me',
+    description:
+      'The pins with a "new" mark. Opening a stop sends POST /notifications/read with its markerId, which clears its mark. Trips I can\'t see: 404.',
+  })
+  @ApiOkResponse({ type: NewActivityDto })
+  newActivity(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<NewActivityDto> {
+    return this.notifications.newActivity(user.id, id);
   }
 
   @Get('me/notification-settings')

@@ -11,6 +11,7 @@ import {
 import type {
   CommentPayload,
   LikesPayload,
+  PlaceHotPayload,
   TripChangesPayload,
 } from './notification-types';
 import { StorageService } from '../../common/storage/storage.service';
@@ -110,6 +111,11 @@ export class NotificationRenderer {
           title: this.t('push.added_to_trip.title', lang, args),
           body: this.t('push.added_to_trip.body', lang, args),
         };
+      case 'join_accepted':
+        return {
+          title: this.t('push.join_accepted.title', lang, args),
+          body: this.t('push.join_accepted.body', lang, args),
+        };
       case 'trip_changed_by_collaborator': {
         const payload = row.payload as unknown as TripChangesPayload;
         const kinds = Object.keys(payload.kinds);
@@ -135,6 +141,19 @@ export class NotificationRenderer {
         };
       case 'likes_grouped': {
         const payload = row.payload as unknown as LikesPayload;
+        if (payload.targetType && row.count === 1) {
+          const item = {
+            ...args,
+            marker: payload.markerName ?? '',
+            excerpt: payload.excerpt ?? '',
+          };
+          const key = `push.liked.${payload.targetType}`;
+          return {
+            title: this.t(`${key}.title`, lang, item),
+            body: this.t(`${key}.body`, lang, item),
+          };
+        }
+        // Rows from before 2026-11-01, and old grouped summaries.
         const inTrip = payload.tripIds.length === 1 && trip !== undefined;
         return {
           title: this.t('push.likes_grouped.title', lang, args),
@@ -145,22 +164,61 @@ export class NotificationRenderer {
           ),
         };
       }
+      case 'followed':
+        return {
+          title: this.t('push.followed.title', lang, args),
+          body: this.t('push.followed.body', lang, args),
+        };
+      case 'became_friends':
+        return {
+          title: this.t('push.became_friends.title', lang, args),
+          body: this.t('push.became_friends.body', lang, args),
+        };
+      case 'trip_saved':
+        return {
+          title: this.t('push.trip_saved.title', lang, args),
+          body: this.t('push.trip_saved.body', lang, args),
+        };
+      case 'place_hot': {
+        const payload = row.payload as unknown as PlaceHotPayload;
+        const hot = {
+          ...args,
+          place: payload.placeName,
+          count: payload.milestone,
+        };
+        return {
+          title: this.t('push.place_hot.title', lang, hot),
+          body: this.t('push.place_hot.body', lang, hot),
+        };
+      }
     }
   }
 
-  deepLink(row: Notification): string {
-    if (row.type === 'comment_on_marker' && row.markerId) {
-      return `tripinly://markers/${row.markerId}`;
+  /**
+   * Where a tap opens (client 04-realtime-and-push.md, Deep links): the stop
+   * when the notification is about one (`markers/{id}`, which older apps
+   * read as its trip), a trip's Members sheet for join requests, a profile
+   * for follows, else the trip.
+   */
+  deepLink(row: Notification, context: RenderContext): string {
+    switch (row.type) {
+      case 'followed':
+      case 'became_friends': {
+        const actor = row.actorId ? context.actors.get(row.actorId) : undefined;
+        return actor
+          ? `tripinly://users/${actor.username}`
+          : 'tripinly://notifications';
+      }
+      case 'join_requested':
+        return row.tripId
+          ? `tripinly://trips/${row.tripId}/members`
+          : 'tripinly://notifications';
+      default:
+        if (row.markerId) return `tripinly://markers/${row.markerId}`;
+        return row.tripId
+          ? `tripinly://trips/${row.tripId}`
+          : 'tripinly://notifications';
     }
-    if (row.type === 'likes_grouped') {
-      const { tripIds } = row.payload as unknown as LikesPayload;
-      return tripIds.length === 1
-        ? `tripinly://trips/${tripIds[0]}`
-        : 'tripinly://notifications';
-    }
-    return row.tripId
-      ? `tripinly://trips/${row.tripId}`
-      : 'tripinly://notifications';
   }
 
   private t(

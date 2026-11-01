@@ -93,7 +93,7 @@ describe('NotificationRenderer', () => {
     );
   });
 
-  it('groups likes within one trip or across trips', () => {
+  it('keeps the old wording for likes from before 2026-11-01', () => {
     const one = row({
       type: 'likes_grouped',
       payload: { likerIds: [JONAS], tripIds: [TRIP] },
@@ -101,7 +101,7 @@ describe('NotificationRenderer', () => {
     expect(renderer.text(one, context, 'en').body).toBe(
       'Jonas liked your post in Vienna',
     );
-    expect(renderer.deepLink(one)).toBe(`tripinly://trips/${TRIP}`);
+    expect(renderer.deepLink(one, context)).toBe(`tripinly://trips/${TRIP}`);
     const many = row({
       type: 'likes_grouped',
       tripId: null,
@@ -111,7 +111,7 @@ describe('NotificationRenderer', () => {
     expect(renderer.text(many, context, 'en').body).toBe(
       '12 people liked your posts',
     );
-    expect(renderer.deepLink(many)).toBe('tripinly://notifications');
+    expect(renderer.deepLink(many, context)).toBe('tripinly://notifications');
   });
 
   it('falls back when the actor account is gone and links comments to the marker', () => {
@@ -125,7 +125,100 @@ describe('NotificationRenderer', () => {
       title: 'Jemand hat Albertina kommentiert',
       body: 'Nice',
     });
-    expect(renderer.deepLink(comment)).toBe(`tripinly://markers/${MARKER}`);
+    expect(renderer.deepLink(comment, context)).toBe(
+      `tripinly://markers/${MARKER}`,
+    );
+  });
+
+  it('says what was liked and opens its stop', () => {
+    const trip = row({
+      type: 'likes_grouped',
+      payload: { likerIds: [JONAS], tripIds: [TRIP], targetType: 'trip' },
+    });
+    expect(renderer.text(trip, context, 'en')).toEqual({
+      title: 'Jonas liked your trip',
+      body: 'Vienna',
+    });
+    expect(renderer.deepLink(trip, context)).toBe(`tripinly://trips/${TRIP}`);
+    const photo = row({
+      type: 'likes_grouped',
+      markerId: MARKER,
+      payload: {
+        likerIds: [JONAS],
+        tripIds: [TRIP],
+        targetType: 'photo',
+        markerName: 'Albertina',
+      },
+    });
+    expect(renderer.text(photo, context, 'en')).toEqual({
+      title: 'Jonas liked your photo',
+      body: 'Albertina · Vienna',
+    });
+    expect(renderer.deepLink(photo, context)).toBe(
+      `tripinly://markers/${MARKER}`,
+    );
+    const comment = row({
+      type: 'likes_grouped',
+      markerId: MARKER,
+      payload: {
+        likerIds: [JONAS],
+        tripIds: [TRIP],
+        targetType: 'comment',
+        markerName: 'Albertina',
+        excerpt: 'you coming?',
+      },
+    });
+    expect(renderer.text(comment, context, 'de')).toEqual({
+      title: 'Jonas gefällt dein Kommentar',
+      body: '„you coming?“ zu Albertina',
+    });
+  });
+
+  it('opens a profile for follows and the members sheet for join requests', () => {
+    const followed = row({ type: 'followed', tripId: null });
+    expect(renderer.text(followed, context, 'en')).toEqual({
+      title: 'Jonas followed you',
+      body: 'Follow back to become friends.',
+    });
+    expect(renderer.deepLink(followed, context)).toBe('tripinly://users/jonas');
+    const friends = row({ type: 'became_friends', tripId: null });
+    expect(renderer.text(friends, context, 'hu').title).toBe(
+      'Jonas és te mostantól barátok vagytok',
+    );
+    expect(renderer.deepLink({ ...friends, actorId: null }, context)).toBe(
+      'tripinly://notifications',
+    );
+    const request = row({ type: 'join_requested' });
+    expect(renderer.text(request, context, 'en').title).toBe(
+      'Jonas wants to join Vienna',
+    );
+    expect(renderer.deepLink(request, context)).toBe(
+      `tripinly://trips/${TRIP}/members`,
+    );
+    const accepted = row({ type: 'join_accepted' });
+    expect(renderer.text(accepted, context, 'en')).toEqual({
+      title: 'Jonas accepted your request',
+      body: "You're in Vienna now.",
+    });
+  });
+
+  it('tells a spot creator their spot is getting hot', () => {
+    const hot = row({
+      type: 'place_hot',
+      actorId: null,
+      markerId: MARKER,
+      payload: { placeId: 'p', placeName: 'DC Flats', milestone: 25 },
+    });
+    expect(renderer.text(hot, context, 'en')).toEqual({
+      title: 'DC Flats is getting hot',
+      body: '25 people marked your spot hot. Nice find!',
+    });
+    expect(renderer.deepLink(hot, context)).toBe(
+      `tripinly://markers/${MARKER}`,
+    );
+    expect(
+      renderer.deepLink({ ...hot, markerId: null, tripId: null }, context),
+    ).toBe('tripinly://notifications');
   });
 });
 

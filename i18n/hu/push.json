@@ -5,12 +5,12 @@
     "body": "{excerpt}"
   },
   "added_to_trip": {
-    "title": "Hozzáadtak: {trip}",
-    "body": "{actor} hozzáadott ehhez az úthoz."
+    "title": "{actor} hozzáadott ehhez: {trip}",
+    "body": "Nyisd meg, és tervezzetek együtt."
   },
   "join_requested": {
-    "title": "Csatlakozási kérés: {trip}",
-    "body": "{actor} csatlakozna ehhez az utazáshoz."
+    "title": "{actor} csatlakozna ehhez: {trip}",
+    "body": "Koppints az elfogadáshoz vagy az elutasításhoz."
   },
   "trip_changed_by_collaborator": {
     "title": "Változások: {trip}",
@@ -36,6 +36,43 @@
     "anywhere": {
       "one": "{actor} kedvelte a bejegyzésedet",
       "other": "{count} ember kedvelte a bejegyzéseidet"
+    }
+  },
+  "join_accepted": {
+    "title": "{actor} elfogadta a kérésedet",
+    "body": "Mostantól te is benne vagy: {trip}."
+  },
+  "liked": {
+    "trip": {
+      "title": "{actor} kedveli az utadat",
+      "body": "{trip}"
+    },
+    "photo": {
+      "title": "{actor} kedveli a fotódat",
+      "body": "{marker} · {trip}"
+    },
+    "comment": {
+      "title": "{actor} kedveli a hozzászólásodat",
+      "body": "„{excerpt}” – {marker}"
+    }
+  },
+  "followed": {
+    "title": "{actor} követ téged",
+    "body": "Kövesd vissza, és barátok lesztek."
+  },
+  "became_friends": {
+    "title": "{actor} és te mostantól barátok vagytok",
+    "body": "Mostantól hozzáadhatjátok egymást utakhoz."
+  },
+  "trip_saved": {
+    "title": "{actor} elmentette az utadat",
+    "body": "{trip}"
+  },
+  "place_hot": {
+    "title": "{place} kezd hotspottá válni",
+    "body": {
+      "one": "{count} ember jelölte hotspotként a helyedet. Szép találat!",
+      "other": "{count} ember jelölte hotspotként a helyedet. Szép találat!"
     }
   }
 }

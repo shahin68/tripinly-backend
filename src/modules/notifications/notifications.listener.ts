@@ -26,6 +26,13 @@ const TRIP_CHANGES: Partial<Record<DomainEventName, TripChangeKind>> = {
   [DomainEvents.PHOTO_PROCESSING]: 'photo_added',
 };
 
+/** Changes that leave a stop to open the push on (a deleted stop has none). */
+const STOP_CHANGES = new Set<DomainEventName>([
+  DomainEvents.MARKER_CREATED,
+  DomainEvents.MARKER_UPDATED,
+  DomainEvents.PHOTO_PROCESSING,
+]);
+
 const PLAN_JOB: JobsOptions = {
   attempts: 3,
   backoff: { type: 'exponential', delay: 1000 },
@@ -78,13 +85,48 @@ export class NotificationsListener {
 
   @OnEvent(DomainEvents.MEMBER_ADDED)
   onMemberAdded(
-    event: DomainEvent<{ member: { user: { id: string } } }>,
+    event: DomainEvent<{
+      member: { user: { id: string } };
+      viaJoinRequest?: boolean;
+    }>,
   ): Promise<void> {
     return this.enqueue({
       kind: 'added_to_trip',
       actorId: event.actorId,
       tripId: event.tripId!,
       userIds: [event.data.member.user.id],
+      viaJoinRequest: event.data.viaJoinRequest,
+    });
+  }
+
+  @OnEvent(DomainEvents.USER_FOLLOWED)
+  onUserFollowed(event: DomainEvent<{ followeeId: string }>): Promise<void> {
+    return this.enqueue({
+      kind: 'followed',
+      actorId: event.actorId,
+      followeeId: event.data.followeeId,
+    });
+  }
+
+  @OnEvent(DomainEvents.TRIP_SAVED)
+  onTripSaved(event: DomainEvent): Promise<void> {
+    return this.enqueue({
+      kind: 'trip_saved',
+      actorId: event.actorId,
+      tripId: event.tripId!,
+    });
+  }
+
+  @OnEvent(DomainEvents.PLACE_HOT_CHANGED)
+  onPlaceHotChanged(
+    event: DomainEvent<{ placeId: string; hotCount: number; hot?: boolean }>,
+  ): Promise<void> {
+    // Only a flame given can reach a milestone; the planner checks which.
+    if (event.data.hot === false) return Promise.resolve();
+    return this.enqueue({
+      kind: 'place_hot',
+      placeId: event.data.placeId,
+      hotCount: event.data.hotCount,
     });
   }
 
@@ -119,6 +161,9 @@ export class NotificationsListener {
       tripId: event.tripId,
       change,
       subjectId: changeSubject(event.data),
+      markerId: STOP_CHANGES.has(event.event)
+        ? changedStop(event.data)
+        : undefined,
     });
   }
 
@@ -165,4 +210,13 @@ function changeSubject(data: unknown): string | undefined {
     dayId?: string;
   };
   return d.marker?.id ?? d.photo?.id ?? d.day?.id ?? d.markerId ?? d.dayId;
+}
+
+/** The stop an added or edited stop, or a new photo, belongs to. */
+function changedStop(data: unknown): string | undefined {
+  const d = (data ?? {}) as {
+    marker?: { id?: string };
+    photo?: { markerId?: string | null };
+  };
+  return d.marker?.id ?? d.photo?.markerId ?? undefined;
 }

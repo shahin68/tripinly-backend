@@ -130,6 +130,7 @@ export class LikesService {
         domainEvent(DomainEvents.PLACE_HOT_CHANGED, userId, {
           placeId: targetId,
           hotCount: likeCount,
+          hot: liked,
         }),
       );
     } else if (changed) {

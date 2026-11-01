@@ -12,6 +12,8 @@ export const DomainEvents = {
   TRIP_DELETED: 'trip.deleted',
   /** Someone asked to join a trip; data `{ requestId, ownerId }`. For the owner's notification, not the trip room. */
   JOIN_REQUESTED: 'join_request.created',
+  /** Someone saved another person's public trip (the owner hears about it). */
+  TRIP_SAVED: 'trip.saved',
   DAY_CREATED: 'day.created',
   DAY_DELETED: 'day.deleted',
   MARKER_CREATED: 'marker.created',

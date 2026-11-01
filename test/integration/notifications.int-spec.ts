@@ -166,8 +166,8 @@ describe('Notifications (integration)', () => {
       type: 'added_to_trip',
       actor: { username: 'owner' },
       trip: { id: trip.id, title: 'Vienna' },
-      title: 'Zu Vienna hinzugefügt',
-      body: 'owner hat dich zu dieser Reise hinzugefügt.',
+      title: 'owner hat dich zu Vienna hinzugefügt',
+      body: 'Öffne die Reise, um gemeinsam zu planen.',
       deepLink: `tripinly://trips/${trip.id}`,
       read: false,
       count: 1,
@@ -184,11 +184,11 @@ describe('Notifications (integration)', () => {
       'join request push',
     );
     expect(push.to(OWNER_TABLET)[0]).toMatchObject({
-      title: 'Request to join Vienna',
-      body: 'stranger wants to join this trip.',
+      title: 'stranger wants to join Vienna',
+      body: 'Tap to accept or decline.',
       data: {
         type: 'join_requested',
-        deepLink: `tripinly://trips/${trip.id}`,
+        deepLink: `tripinly://trips/${trip.id}/members`,
       },
     });
     // Asking again doesn't notify again.
@@ -196,17 +196,20 @@ describe('Notifications (integration)', () => {
     await sleep(300);
     expect(push.to(OWNER_TABLET)).toHaveLength(1);
 
+    await device(stranger, 'stranger-phone-token-0000004', 'en');
     await as(owner)
       .post(`/v1/join-requests/${(request as { id: string }).id}/accept`)
       .expect(200);
-    await eventually(
-      async () =>
-        (await prisma.notification.count({
-          where: { recipientId: stranger.userId, type: 'added_to_trip' },
-        })) === 1,
+    const [accepted] = await eventually(
+      () => push.to('stranger-phone-token-0000004').length,
       5000,
-      'added row',
-    );
+      'accepted push',
+    ).then(() => push.to('stranger-phone-token-0000004'));
+    expect(accepted).toMatchObject({
+      title: 'owner accepted your request',
+      body: "You're in Vienna now.",
+      data: { type: 'join_accepted', deepLink: `tripinly://trips/${trip.id}` },
+    });
   });
 
   describe('comments', () => {
@@ -297,6 +300,7 @@ describe('Notifications (integration)', () => {
           tripChangedByCollaborator: true,
           likesGrouped: true,
           joinRequested: true,
+          newFollowers: true,
         });
       const markerId = await addMarker(owner);
       await as(stranger)
@@ -376,7 +380,7 @@ describe('Notifications (integration)', () => {
       await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      // Own likes never notify, and place likes notify no one.
+      // Own likes never notify, and a flame alone notifies no one.
       await as(owner).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/places/${placeId}/hot`).expect(200);
 
@@ -388,12 +392,12 @@ describe('Notifications (integration)', () => {
         5000,
         'likes pushes',
       );
-      expect(messages.map((message) => message.body).sort()).toEqual([
-        'editor liked your post in Vienna',
-        'stranger liked your post in Vienna',
+      expect(messages.map((message) => message.title).sort()).toEqual([
+        'editor liked your trip',
+        'stranger liked your trip',
       ]);
       expect(messages[0]).toMatchObject({
-        title: 'New likes',
+        body: 'Vienna',
         data: {
           type: 'likes_grouped',
           deepLink: `tripinly://trips/${trip.id}`,
@@ -401,6 +405,238 @@ describe('Notifications (integration)', () => {
       });
       await sleep(500);
       expect(push.to(OWNER_TABLET)).toHaveLength(2);
+    });
+    it('names the photo or comment and opens its stop', async () => {
+      const markerId = await addMarker(owner);
+      const { body: comment } = await as(owner)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'you coming?' })
+        .expect(201);
+      await as(stranger)
+        .put(`/v1/likes/comment/${(comment as { id: string }).id}`)
+        .expect(200);
+      const [liked] = await eventually(
+        () =>
+          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+        5000,
+        'comment like push',
+      );
+      expect(liked).toMatchObject({
+        title: 'stranger liked your comment',
+        body: '"you coming?" on Albertina',
+        data: {
+          type: 'likes_grouped',
+          deepLink: `tripinly://markers/${markerId}`,
+        },
+      });
+    });
+
+    it('stops likes, saves and flames when the Likes switch is off', async () => {
+      await as(owner)
+        .patch('/v1/me/notification-settings')
+        .send({ likesGrouped: false })
+        .expect(200);
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await eventually(
+        async () =>
+          (await prisma.notification.count({
+            where: { recipientId: owner.userId, pushedAt: { not: null } },
+          })) === 2,
+        5000,
+        'push jobs',
+      );
+      expect(push.to(OWNER_TABLET)).toEqual([]);
+    });
+  });
+
+  describe('saves', () => {
+    it('tells the owner once when someone saves their trip', async () => {
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await as(stranger).delete(`/v1/trips/${trip.id}/save`).expect(204);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      const [saved] = await eventually(
+        () =>
+          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+        5000,
+        'save push',
+      );
+      expect(saved).toMatchObject({
+        title: 'stranger saved your trip',
+        body: 'Vienna',
+        data: { type: 'trip_saved', deepLink: `tripinly://trips/${trip.id}` },
+      });
+      await sleep(500);
+      expect(push.to(OWNER_TABLET)).toHaveLength(1);
+    });
+  });
+
+  describe('follows', () => {
+    it('says followed, then friends when followed back, once a day per person', async () => {
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await as(stranger).delete(`/v1/users/${owner.userId}/follow`).expect(204);
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      const [followed] = await eventually(
+        () =>
+          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+        5000,
+        'follow push',
+      );
+      expect(followed).toMatchObject({
+        title: 'stranger followed you',
+        body: 'Follow back to become friends.',
+        data: { type: 'followed', deepLink: 'tripinly://users/stranger' },
+      });
+      await device(stranger, 'stranger-phone-token-0000004', 'en');
+      await as(owner).put(`/v1/users/${stranger.userId}/follow`).expect(204);
+      const [friends] = await eventually(
+        () =>
+          push.to('stranger-phone-token-0000004').length
+            ? push.to('stranger-phone-token-0000004')
+            : undefined,
+        5000,
+        'friends push',
+      );
+      expect(friends).toMatchObject({
+        title: 'You and owner are now friends',
+        data: { type: 'became_friends', deepLink: 'tripinly://users/owner' },
+      });
+      await sleep(500);
+      expect(push.to(OWNER_TABLET)).toHaveLength(1);
+    });
+
+    it('says nothing across a block, and stops with the New followers switch', async () => {
+      await as(owner)
+        .patch('/v1/me/notification-settings')
+        .send({ newFollowers: false })
+        .expect(200);
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await eventually(
+        async () =>
+          (await prisma.notification.count({
+            where: { recipientId: owner.userId, pushedAt: { not: null } },
+          })) === 1,
+        5000,
+        'push job',
+      );
+      expect(push.to(OWNER_TABLET)).toEqual([]);
+      await worker.get(NotificationPlanner).plan({
+        kind: 'followed',
+        actorId: editor.userId,
+        followeeId: owner.userId,
+      });
+      // The editor doesn't follow the owner: nothing to tell.
+      expect(
+        await prisma.notification.count({
+          where: { recipientId: owner.userId, actorId: editor.userId },
+        }),
+      ).toBe(0);
+    });
+  });
+
+  describe('spots getting hot', () => {
+    /** A spot the owner made by naming a stop, so they are its creator. */
+    async function ownersSpot(): Promise<{ spotId: string; markerId: string }> {
+      const { body } = await as(owner)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ name: 'DC Flats', location: { lat: 48.23, lng: 16.41 } })
+        .expect(201);
+      const stop = body as { id: string; placeId: string };
+      return { spotId: stop.placeId, markerId: stop.id };
+    }
+
+    it('tells only the creator, once per milestone, on their stop', async () => {
+      const { spotId, markerId } = await ownersSpot();
+      const planner = worker.get(NotificationPlanner);
+      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 4 });
+      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 5 });
+      // Taken back and given again: no second push for the same milestone.
+      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 5 });
+      const rows = await prisma.notification.findMany({
+        where: { type: 'place_hot' },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        recipientId: owner.userId,
+        actorId: null,
+        tripId: trip.id,
+        markerId,
+      });
+      const [hot] = await eventually(
+        () =>
+          push.to(OWNER_TABLET).find((m) => m.data.type === 'place_hot')
+            ? push.to(OWNER_TABLET).filter((m) => m.data.type === 'place_hot')
+            : undefined,
+        5000,
+        'hot push',
+      );
+      expect(hot).toMatchObject({
+        title: 'DC Flats is getting hot',
+        body: '5 people marked your spot hot. Nice find!',
+        data: { deepLink: `tripinly://markers/${markerId}` },
+      });
+      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 25 });
+      expect(
+        await prisma.notification.count({ where: { type: 'place_hot' } }),
+      ).toBe(2);
+    });
+
+    it('sends nothing for OpenStreetMap spots, which have no creator', async () => {
+      await worker
+        .get(NotificationPlanner)
+        .plan({ kind: 'place_hot', placeId, hotCount: 5 });
+      expect(
+        await prisma.notification.count({ where: { type: 'place_hot' } }),
+      ).toBe(0);
+    });
+  });
+
+  describe('new activity on stops', () => {
+    it('marks stops with unread notifications until I open them', async () => {
+      const markerId = await addMarker(owner);
+      await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Nice' })
+        .expect(201);
+      await eventually(async () => {
+        const { body } = await as(owner)
+          .get(`/v1/trips/${trip.id}/new-activity`)
+          .expect(200);
+        return (body as { markerIds: string[] }).markerIds.length === 1;
+      });
+      await as(owner)
+        .get(`/v1/trips/${trip.id}/new-activity`)
+        .expect(200, { markerIds: [markerId] });
+      await as(owner)
+        .post('/v1/notifications/read')
+        .send({ markerId })
+        .expect(204);
+      await as(owner)
+        .get(`/v1/trips/${trip.id}/new-activity`)
+        .expect(200, { markerIds: [] });
+    });
+
+    it('leaves out blocked people and refuses trips I cannot see', async () => {
+      const markerId = await addMarker(owner);
+      await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Nice' })
+        .expect(201);
+      await eventually(async () => (await list(owner)).items.length === 1);
+      await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
+      await as(owner)
+        .get(`/v1/trips/${trip.id}/new-activity`)
+        .expect(200, { markerIds: [] });
+      const { body: secret } = await as(owner)
+        .post('/v1/trips')
+        .send({ title: 'Secret', visibility: 'private' })
+        .expect(201);
+      await as(stranger)
+        .get(`/v1/trips/${(secret as TripBody).id}/new-activity`)
+        .expect(404);
+      await api(app)
+        .anonymous.get(`/v1/trips/${trip.id}/new-activity`)
+        .expect(401);
     });
   });
 
@@ -505,6 +741,7 @@ describe('Notifications (integration)', () => {
         tripChangedByCollaborator: true,
         likesGrouped: true,
         joinRequested: true,
+        newFollowers: true,
       });
     });
 

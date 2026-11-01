@@ -8,9 +8,11 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
+import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationRenderer, resolveLanguage } from './notification-renderer';
 import {
   type MarkReadDto,
+  type NewActivityDto,
   type NotificationPageDto,
   type NotificationSettingsDto,
   toNotificationDto,
@@ -22,35 +24,35 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly renderer: NotificationRenderer,
+    private readonly access: TripAccessService,
   ) {}
 
   /**
-   * Newest first. Left out: entries caused by someone with a block either way,
-   * and entries about trips I can no longer see (removed from a private trip).
+   * The stops of a trip with unread notifications for me, shown as "new"
+   * marks on their pins; the same entries the list shows (no blocked actors).
    */
+  async newActivity(userId: string, tripId: string): Promise<NewActivityDto> {
+    await this.access.assert(userId, tripId, 'view');
+    const rows = await this.prisma.notification.findMany({
+      where: {
+        AND: [
+          visibleTo(userId),
+          { tripId, readAt: null, markerId: { not: null } },
+        ],
+      },
+      distinct: ['markerId'],
+      select: { markerId: true },
+    });
+    return { markerIds: rows.map((row) => row.markerId!) };
+  }
+
+  /** Newest first, leaving out what visibleTo leaves out. */
   async list(
     userId: string,
     cursor?: string,
     limit = DEFAULT_PAGE_SIZE,
   ): Promise<NotificationPageDto> {
-    const visible: Prisma.NotificationWhereInput = {
-      recipientId: userId,
-      AND: [
-        {
-          OR: [
-            { actorId: null },
-            { actor: { is: BlocksService.notBlockedWith(userId) } },
-          ],
-        },
-        {
-          OR: [
-            { tripId: null },
-            { trip: { is: { visibility: 'public', hiddenAt: null } } },
-            { trip: { is: { members: { some: { userId } } } } },
-          ],
-        },
-      ],
-    };
+    const visible = visibleTo(userId);
     const position = cursor ? decodeCursor(cursor) : undefined;
     const [rows, unreadCount, user] = await Promise.all([
       this.prisma.notification.findMany({
@@ -90,7 +92,7 @@ export class NotificationsService {
           row,
           context,
           this.renderer.text(row, context, lang),
-          this.renderer.deepLink(row),
+          this.renderer.deepLink(row, context),
         ),
     );
     return { ...page, unreadCount };
@@ -101,7 +103,11 @@ export class NotificationsService {
       where: {
         recipientId: userId,
         readAt: null,
-        ...(input.all ? {} : { id: { in: input.ids ?? [] } }),
+        ...(input.all
+          ? {}
+          : input.markerId
+            ? { markerId: input.markerId }
+            : { id: { in: input.ids ?? [] } }),
       },
       data: { readAt: new Date() },
     });
@@ -124,6 +130,7 @@ export class NotificationsService {
       tripChangedByCollaborator: input.tripChangedByCollaborator,
       likesGrouped: input.likesGrouped,
       joinRequested: input.joinRequested,
+      newFollowers: input.newFollowers,
     };
     const row = await this.prisma.notificationSettings.upsert({
       where: { userId },
@@ -144,5 +151,31 @@ function pickSettings(
     tripChangedByCollaborator: row.tripChangedByCollaborator ?? true,
     likesGrouped: row.likesGrouped ?? true,
     joinRequested: row.joinRequested ?? true,
+    newFollowers: row.newFollowers ?? true,
+  };
+}
+
+/**
+ * Left out of every view: entries caused by someone with a block either way,
+ * and entries about trips I can no longer see (removed from a private trip).
+ */
+function visibleTo(userId: string): Prisma.NotificationWhereInput {
+  return {
+    recipientId: userId,
+    AND: [
+      {
+        OR: [
+          { actorId: null },
+          { actor: { is: BlocksService.notBlockedWith(userId) } },
+        ],
+      },
+      {
+        OR: [
+          { tripId: null },
+          { trip: { is: { visibility: 'public', hiddenAt: null } } },
+          { trip: { is: { members: { some: { userId } } } } },
+        ],
+      },
+    ],
   };
 }
