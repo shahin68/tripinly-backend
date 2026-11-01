@@ -64,7 +64,7 @@ export class PushService {
     if (!this.provider.enabled || recipient.devices.length === 0) return 0;
 
     const context = await this.renderer.context([notification]);
-    const deepLink = this.renderer.deepLink(notification);
+    const deepLink = this.renderer.deepLink(notification, context);
     const texts = new Map<string, RenderedText>();
     const messages = recipient.devices.map((device) => {
       const lang = resolveLanguage(device.locale, recipient.locale);

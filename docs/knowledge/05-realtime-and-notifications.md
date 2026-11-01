@@ -48,22 +48,30 @@ Domain events that don't go to a room as such: `join_request.created` (actor = t
 
 Triggered from domain events by the notifications module, executed as BullMQ jobs.
 
-| Type | Recipient | Rule |
-|---|---|---|
-| `comment_on_marker` | Trip owner and the marker's creator (if different), not the commenter | One push per comment |
-| `added_to_trip` | The added user | Includes trip title and who added them. Also sent when the owner accepts a join request |
-| `join_requested` | Trip owner | Right away, once per request (repeating a pending request doesn't notify again). Deep link to the trip |
-| `trip_changed_by_collaborator` | Trip owner and editors except the actor | Right away, one push per change ("Jonas added a place") |
-| `likes_grouped` | Owner of the liked item | Right away, one push per like ("Anna liked your post in Vienna") |
+| Type | Recipient | Push (en) | Tap opens | Switch |
+|---|---|---|---|---|
+| `comment_on_marker` | Trip owner and the marker's creator (if different), not the commenter | Anna commented on DC Flats / *the comment* | The stop (`markers/{id}`) | Comments |
+| `added_to_trip` | The person the owner added | Anna added you to Vienna / Open it to plan together. | The trip | Added to trips |
+| `join_accepted` | The person whose join request the owner accepted | Anna accepted your request / You're in Vienna now. | The trip | Added to trips |
+| `join_requested` | Trip owner, once per request | Anna wants to join Vienna / Tap to accept or decline. | The trip's Members sheet (`trips/{id}/members`) | Join requests |
+| `trip_changed_by_collaborator` | Trip owner and editors except the actor | Changes in Vienna / Anna added a place | The stop when it is about one (added, edited, photo added), else the trip | Collaborator changes |
+| `likes_grouped` | Owner of the liked item | Anna liked your trip / Vienna; Anna liked your photo / DC Flats · Vienna; Anna liked your comment / "you coming?" on DC Flats | The photo's or comment's stop; the trip for a trip like | Likes |
+| `trip_saved` | Trip owner | Anna saved your trip / Vienna | The trip | Likes |
+| `place_hot` | Only the creator of a spot someone made (OSM spots have none), when its hot count reaches 5, 25, 100, 500, 1000 or 5000, once per milestone | DC Flats is getting hot / 25 people marked your spot hot. Nice find! | The creator's newest stop at that spot, else the app | Likes |
+| `followed` | The person followed, at most once a day per follower | Anna followed you / Follow back to become friends. | Anna's profile (`users/{username}`) | New followers |
+| `became_friends` | The person followed back (instead of `followed`), at most once a day | You and Anna are now friends / You can add each other to trips. | Anna's profile | New followers |
+
+Silent on purpose: unfollows, a declined join request, being removed from a trip, and single flames (Shahin, 2026-11-01: pushes cost money, so a flame never pushes by itself; a famous spot can sit in hundreds of trips).
 
 - The API turns domain events into `plan` jobs on the `notifications` queue; the worker picks recipients, writes rows and sends. Recipients never include the actor, anyone with a block either way with the actor, inactive accounts, or anyone who can't view the trip.
 - **Every notification pushes at once** (Shahin, 2026-11-01; replaces the 10-minute batch and the hourly likes summary). The same notification again (same recipient, same person, same kind, same item: a like, unlike and like again; the same stop moved twice) within `NOTIFICATION_REPEAT_COOLDOWN_SECONDS` (worker, default 5) is dropped, row and push.
 - Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded.
-- Own likes never notify; hot marks notify no one. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
+- Own likes never notify. Hot marks only count toward `place_hot` milestones. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
 - At send time the recipient's access is checked again: someone who lost access to the trip gets no push and the entry is deleted. The in-app list also hides entries about trips the user can no longer see, and entries caused by someone they have a block with. Deleting a comment deletes its notifications.
-- Respect `notification-settings` per type; still create the in-app notification even if push is off.
+- Respect `notification-settings`: each switch turns off its whole group (column Switch above; `SETTING_FOR_TYPE`). The in-app notification is still created when the push is off, so pin marks still show.
+- **New-activity marks:** `GET /v1/trips/{id}/new-activity` returns the stops of the trip with unread notifications for me (same visibility as the list: no blocked actors). The app shows them as "new" dots on pins and day tabs; opening a stop sends `POST /v1/notifications/read` with `{ markerId }`, which clears it. A `notification.created` with a `markerId` adds a mark live.
 - Localize using the recipient's device `locale` (fallback user locale, then `en`). Templates live in the i18n files, keyed `push.<type>.title` / `.body` with ICU plural support.
-- Payload: a `notification` (title, body) plus `data: { type, notificationId, deepLink }`. Deep links: `tripinly://markers/{id}` (comments), `tripinly://trips/{id}` (everything else about one trip), `tripinly://notifications` (likes across several trips).
+- Payload: a `notification` (title, body) plus `data: { type, notificationId, deepLink }`. Deep links: `tripinly://markers/{id}` (anything about one stop; older apps open its trip), `tripinly://trips/{id}/members` (join requests), `tripinly://users/{username}` (follows), `tripinly://trips/{id}` (everything else about one trip), `tripinly://notifications` (nothing to open, e.g. an old grouped summary or a hot spot with no stop of the creator's).
 - Pushes are skipped while `FIREBASE_SERVICE_ACCOUNT_JSON` is unset; in-app notifications and realtime still work.
 - Remove device tokens that FCM reports as unregistered.
 - Never include private trip content in a push to someone who isn't a member.

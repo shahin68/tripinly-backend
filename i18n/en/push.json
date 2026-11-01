@@ -5,12 +5,12 @@
     "body": "{excerpt}"
   },
   "added_to_trip": {
-    "title": "Added to {trip}",
-    "body": "{actor} added you to this trip."
+    "title": "{actor} added you to {trip}",
+    "body": "Open it to plan together."
   },
   "join_requested": {
-    "title": "Request to join {trip}",
-    "body": "{actor} wants to join this trip."
+    "title": "{actor} wants to join {trip}",
+    "body": "Tap to accept or decline."
   },
   "trip_changed_by_collaborator": {
     "title": "Changes in {trip}",
@@ -36,6 +36,43 @@
     "anywhere": {
       "one": "{actor} liked your post",
       "other": "{count} people liked your posts"
+    }
+  },
+  "join_accepted": {
+    "title": "{actor} accepted your request",
+    "body": "You're in {trip} now."
+  },
+  "liked": {
+    "trip": {
+      "title": "{actor} liked your trip",
+      "body": "{trip}"
+    },
+    "photo": {
+      "title": "{actor} liked your photo",
+      "body": "{marker} · {trip}"
+    },
+    "comment": {
+      "title": "{actor} liked your comment",
+      "body": "\"{excerpt}\" on {marker}"
+    }
+  },
+  "followed": {
+    "title": "{actor} followed you",
+    "body": "Follow back to become friends."
+  },
+  "became_friends": {
+    "title": "You and {actor} are now friends",
+    "body": "You can add each other to trips."
+  },
+  "trip_saved": {
+    "title": "{actor} saved your trip",
+    "body": "{trip}"
+  },
+  "place_hot": {
+    "title": "{place} is getting hot",
+    "body": {
+      "one": "{count} person marked your spot hot. Nice find!",
+      "other": "{count} people marked your spot hot. Nice find!"
     }
   }
 }

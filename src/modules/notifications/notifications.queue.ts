@@ -32,6 +32,8 @@ export type PlanInput =
       actorId: string;
       tripId: string;
       userIds: string[];
+      /** The owner accepted their request to join (join_accepted push). */
+      viaJoinRequest?: boolean;
     }
   | {
       kind: 'join_requested';
@@ -46,6 +48,8 @@ export type PlanInput =
       change: TripChangeKind;
       /** What changed (stop, day or photo id), so the same change twice counts as a repeat; the trip when absent. */
       subjectId?: string;
+      /** The stop it is about (added, edited, or a photo added to it), so the push opens on it. */
+      markerId?: string;
     }
   | {
       kind: 'liked';
@@ -53,7 +57,10 @@ export type PlanInput =
       targetType: 'trip' | 'photo' | 'comment';
       targetId: string;
       tripId: string;
-    };
+    }
+  | { kind: 'followed'; actorId: string; followeeId: string }
+  | { kind: 'trip_saved'; actorId: string; tripId: string }
+  | { kind: 'place_hot'; placeId: string; hotCount: number };
 
 export interface NotificationJobData {
   notificationId: string;

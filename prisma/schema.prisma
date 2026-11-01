@@ -714,6 +714,11 @@ enum NotificationType {
   trip_changed_by_collaborator
   likes_grouped
   join_requested
+  followed
+  became_friends
+  join_accepted
+  trip_saved
+  place_hot
 }
 
 /// In-app notifications (docs/knowledge/05-realtime-and-notifications.md).
@@ -757,6 +762,7 @@ model NotificationSettings {
   tripChangedByCollaborator Boolean  @default(true)
   likesGrouped              Boolean  @default(true)
   joinRequested             Boolean  @default(true)
+  newFollowers              Boolean  @default(true)
   updatedAt                 DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

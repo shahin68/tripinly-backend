@@ -89,14 +89,25 @@ export class MarkReadDto {
     type: [String],
     format: 'uuid',
     maxItems: 100,
-    description: 'Mark these as read. Send either ids or all.',
+    description: 'Mark these as read. Send ids, markerId or all.',
   })
-  @ValidateIf((o: MarkReadDto) => o.all === undefined)
+  @ValidateIf(
+    (o: MarkReadDto) => o.all === undefined && o.markerId === undefined,
+  )
   @IsArray()
   @ArrayMaxSize(100)
   @ArrayUnique()
   @IsUUID('all', { each: true })
   ids?: string[];
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Mark everything about this stop as read (sent when I open it, which clears its "new" mark)',
+  })
+  @IsOptional()
+  @IsUUID()
+  markerId?: string;
 
   @ApiPropertyOptional({ enum: [true], description: 'Mark everything as read' })
   @IsOptional()
@@ -108,19 +119,38 @@ export class NotificationSettingsDto {
   @ApiProperty({ description: 'Push for comments on my places' })
   commentOnMarker: boolean;
 
-  @ApiProperty({ description: 'Push when someone adds me to a trip' })
+  @ApiProperty({
+    description:
+      'Push when someone adds me to a trip or accepts my request to join',
+  })
   addedToTrip: boolean;
 
-  @ApiProperty({
-    description: 'Push for collaborator changes (batched per 10 minutes)',
-  })
+  @ApiProperty({ description: 'Push for collaborator changes' })
   tripChangedByCollaborator: boolean;
 
-  @ApiProperty({ description: 'Push for likes (at most one per hour)' })
+  @ApiProperty({
+    description:
+      'Push for likes on my trips, photos and comments, saves of my trips, and my spots getting hot',
+  })
   likesGrouped: boolean;
 
   @ApiProperty({ description: 'Push when someone asks to join my trip' })
   joinRequested: boolean;
+
+  @ApiProperty({
+    description: 'Push when someone follows me or we become friends',
+  })
+  newFollowers: boolean;
+}
+
+export class NewActivityDto {
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Stops of this trip with unread notifications for me (the pins\' "new" marks)',
+  })
+  markerIds: string[];
 }
 
 export class UpdateNotificationSettingsDto {
@@ -148,6 +178,10 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean()
   joinRequested?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  newFollowers?: boolean;
 }
 
 export function toNotificationDto(

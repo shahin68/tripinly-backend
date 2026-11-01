@@ -13,7 +13,10 @@ import { NotificationPublisher } from './notification-publisher';
 import {
   type CommentPayload,
   excerpt,
+  FOLLOW_REPEAT_SECONDS,
+  HOT_MILESTONES,
   type LikesPayload,
+  type PlaceHotPayload,
   type TripChangesPayload,
 } from './notification-types';
 import {
@@ -65,6 +68,12 @@ export class NotificationPlanner {
         return this.tripChanged(input);
       case 'liked':
         return this.liked(input);
+      case 'followed':
+        return this.followed(input);
+      case 'trip_saved':
+        return this.tripSaved(input);
+      case 'place_hot':
+        return this.placeHot(input);
     }
   }
 
@@ -107,7 +116,7 @@ export class NotificationPlanner {
     )) {
       await this.immediate({
         recipientId,
-        type: 'added_to_trip',
+        type: input.viaJoinRequest ? 'join_accepted' : 'added_to_trip',
         actorId: input.actorId,
         tripId: input.tripId,
       });
@@ -145,6 +154,7 @@ export class NotificationPlanner {
       actorIds: [input.actorId],
       kinds: { [input.change]: 1 },
     };
+    const markerId = await this.existingStop(input.markerId);
     for (const recipientId of recipients) {
       if (
         !(await this.isFirstInCooldown(
@@ -158,6 +168,7 @@ export class NotificationPlanner {
         type: 'trip_changed_by_collaborator',
         actorId: input.actorId,
         tripId: input.tripId,
+        markerId,
         payload: payload as unknown as Prisma.InputJsonObject,
       });
     }
@@ -166,8 +177,9 @@ export class NotificationPlanner {
   private async liked(
     input: Extract<PlanInput, { kind: 'liked' }>,
   ): Promise<void> {
-    const ownerId = await this.likedItemOwner(input.targetType, input.targetId);
-    if (!ownerId) return;
+    const item = await this.likedItem(input.targetType, input.targetId);
+    if (!item) return;
+    const ownerId = item.ownerId;
     const [recipientId] = await this.eligible(input.actorId, input.tripId, [
       ownerId,
     ]);
@@ -182,24 +194,172 @@ export class NotificationPlanner {
     const payload: LikesPayload = {
       likerIds: [input.actorId],
       tripIds: [input.tripId],
+      targetType: input.targetType,
+      ...(item.markerName === undefined ? {} : { markerName: item.markerName }),
+      ...(item.excerpt === undefined ? {} : { excerpt: item.excerpt }),
     };
     await this.immediate({
       recipientId,
       type: 'likes_grouped',
       actorId: input.actorId,
       tripId: input.tripId,
+      markerId: item.markerId,
       payload: payload as unknown as Prisma.InputJsonObject,
     });
+  }
+
+  /**
+   * "Anna followed you", or "You and Anna are now friends" when I already
+   * follow Anna. At most one per pair per day, so following and unfollowing
+   * can't spam anyone.
+   */
+  private async followed(
+    input: Extract<PlanInput, { kind: 'followed' }>,
+  ): Promise<void> {
+    const { actorId, followeeId: recipientId } = input;
+    const [follows, blocked, recipient] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: {
+          OR: [
+            { followerId: actorId, followeeId: recipientId },
+            { followerId: recipientId, followeeId: actorId },
+          ],
+        },
+        select: { followerId: true },
+      }),
+      BlocksService.blockedAmong(this.prisma, actorId, [recipientId]),
+      this.prisma.user.findUnique({
+        where: { id: recipientId },
+        select: { status: true },
+      }),
+    ]);
+    // Unfollowed again before the job ran, a block, or gone: nothing to say.
+    if (!follows.some((follow) => follow.followerId === actorId)) return;
+    if (blocked.size > 0 || recipient?.status !== 'active') return;
+    const friends = follows.some((follow) => follow.followerId === recipientId);
+    const type = friends ? 'became_friends' : 'followed';
+    if (
+      !(await this.isFirstInCooldown(
+        `${recipientId}:${actorId}:${type}`,
+        FOLLOW_REPEAT_SECONDS,
+      ))
+    ) {
+      return;
+    }
+    await this.immediate({ recipientId, type, actorId });
+  }
+
+  /** "Anna saved your trip", to the owner; repeats within the cooldown are dropped. */
+  private async tripSaved(
+    input: Extract<PlanInput, { kind: 'trip_saved' }>,
+  ): Promise<void> {
+    const trip = await this.prisma.trip.findUnique({
+      where: { id: input.tripId },
+      select: { ownerId: true },
+    });
+    if (!trip) return;
+    const [recipientId] = await this.eligible(input.actorId, input.tripId, [
+      trip.ownerId,
+    ]);
+    if (!recipientId) return;
+    if (
+      !(await this.isFirstInCooldown(
+        `${recipientId}:${input.actorId}:saved:${input.tripId}`,
+      ))
+    ) {
+      return;
+    }
+    await this.immediate({
+      recipientId,
+      type: 'trip_saved',
+      actorId: input.actorId,
+      tripId: input.tripId,
+    });
+  }
+
+  /**
+   * A spot someone made themselves just reached a HOT_MILESTONES count: its
+   * creator, and only its creator, hears that it's getting hot, once per
+   * milestone. No per-flame pushes (Shahin, 2026-11-01: pushes cost money).
+   * The push opens the creator's own stop at that spot when they have one.
+   */
+  private async placeHot(
+    input: Extract<PlanInput, { kind: 'place_hot' }>,
+  ): Promise<void> {
+    const milestone = HOT_MILESTONES.find((m) => m === input.hotCount);
+    if (milestone === undefined) return;
+    const place = await this.prisma.place.findUnique({
+      where: { id: input.placeId },
+      select: {
+        name: true,
+        createdById: true,
+        createdBy: { select: { status: true } },
+      },
+    });
+    const recipientId = place?.createdById;
+    if (!place || !recipientId || place.createdBy?.status !== 'active') return;
+    // Once per milestone, even if flames are taken back and given again.
+    const sent = await this.prisma.notification.findFirst({
+      where: {
+        recipientId,
+        type: 'place_hot',
+        AND: [
+          { payload: { path: ['placeId'], equals: input.placeId } },
+          { payload: { path: ['milestone'], gte: milestone } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (sent) return;
+    const stop = await this.creatorsStop(recipientId, input.placeId);
+    const payload: PlaceHotPayload = {
+      placeId: input.placeId,
+      placeName: place.name,
+      milestone,
+    };
+    await this.immediate({
+      recipientId,
+      type: 'place_hot',
+      tripId: stop?.tripId,
+      markerId: stop?.id,
+      payload: payload as unknown as Prisma.InputJsonObject,
+    });
+  }
+
+  /** The creator's newest stop at a spot, on a trip they can still see. */
+  private async creatorsStop(
+    userId: string,
+    placeId: string,
+  ): Promise<{ id: string; tripId: string } | null> {
+    const stops = await this.prisma.marker.findMany({
+      where: { placeId, trip: { members: { some: { userId } } } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, tripId: true },
+      take: 1,
+    });
+    return stops[0] ?? null;
+  }
+
+  /** The stop, if it still exists (it may be deleted before the job runs). */
+  private async existingStop(markerId?: string): Promise<string | undefined> {
+    if (!markerId) return undefined;
+    const marker = await this.prisma.marker.findUnique({
+      where: { id: markerId },
+      select: { id: true },
+    });
+    return marker?.id;
   }
 
   /**
    * True for the first of identical notifications within the cooldown, so a
    * like, unlike and like again pushes once. If Redis can't answer, it sends.
    */
-  private async isFirstInCooldown(key: string): Promise<boolean> {
-    const seconds = this.config.get('NOTIFICATION_REPEAT_COOLDOWN_SECONDS', {
+  private async isFirstInCooldown(
+    key: string,
+    seconds = this.config.get('NOTIFICATION_REPEAT_COOLDOWN_SECONDS', {
       infer: true,
-    });
+    }),
+  ): Promise<boolean> {
     if (seconds === 0) return true;
     try {
       return (
@@ -219,39 +379,59 @@ export class NotificationPlanner {
     }
   }
 
-  /** Who gets the likes for an item: whoever posted it. */
-  private async likedItemOwner(
+  /**
+   * Who gets the likes for an item (whoever posted it), and what the push
+   * names: the stop of a photo or comment, and a comment's text.
+   */
+  private async likedItem(
     targetType: Extract<PlanInput, { kind: 'liked' }>['targetType'],
     targetId: string,
-  ): Promise<string | null> {
+  ): Promise<{
+    ownerId: string;
+    markerId?: string;
+    markerName?: string;
+    excerpt?: string;
+  } | null> {
     switch (targetType) {
-      case 'trip':
-        return (
-          (
-            await this.prisma.trip.findUnique({
-              where: { id: targetId },
-              select: { ownerId: true },
-            })
-          )?.ownerId ?? null
-        );
-      case 'photo':
-        return (
-          (
-            await this.prisma.photo.findUnique({
-              where: { id: targetId },
-              select: { uploaderId: true },
-            })
-          )?.uploaderId ?? null
-        );
-      case 'comment':
-        return (
-          (
-            await this.prisma.comment.findUnique({
-              where: { id: targetId },
-              select: { authorId: true },
-            })
-          )?.authorId ?? null
-        );
+      case 'trip': {
+        const trip = await this.prisma.trip.findUnique({
+          where: { id: targetId },
+          select: { ownerId: true },
+        });
+        return trip && { ownerId: trip.ownerId };
+      }
+      case 'photo': {
+        const photo = await this.prisma.photo.findUnique({
+          where: { id: targetId },
+          select: {
+            uploaderId: true,
+            marker: { select: { id: true, name: true } },
+          },
+        });
+        if (!photo?.uploaderId) return null;
+        return {
+          ownerId: photo.uploaderId,
+          markerId: photo.marker?.id,
+          markerName: photo.marker?.name,
+        };
+      }
+      case 'comment': {
+        const comment = await this.prisma.comment.findUnique({
+          where: { id: targetId },
+          select: {
+            authorId: true,
+            body: true,
+            marker: { select: { id: true, name: true } },
+          },
+        });
+        if (!comment?.authorId) return null;
+        return {
+          ownerId: comment.authorId,
+          markerId: comment.marker.id,
+          markerName: comment.marker.name,
+          excerpt: excerpt(comment.body),
+        };
+      }
     }
   }
 
@@ -295,8 +475,8 @@ export class NotificationPlanner {
   private async immediate(data: {
     recipientId: string;
     type: NotificationType;
-    actorId: string;
-    tripId: string;
+    actorId?: string;
+    tripId?: string;
     markerId?: string;
     payload?: Prisma.InputJsonObject;
   }): Promise<void> {

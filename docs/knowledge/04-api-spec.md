@@ -171,8 +171,9 @@ See `10-maps-places-routing.md` for response shape, buffers and caching.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/notifications` | Paginated (`cursor`, `limit`), newest first → `{ items, nextCursor, unreadCount }`. Item: `id`, `type`, `actor` (user summary or null), `trip` (`{ id, title }` or null), `markerId`, `count`, `title`, `body` (localized by `Accept-Language`, else the saved locale; the same text as the push), `deepLink`, `read`, `createdAt`, `updatedAt`. Hides entries caused by someone I have a block with and entries about trips I can no longer see |
-| POST | `/notifications/read` | Body `{ "ids": [...] }` (up to 100) or `{ "all": true }` → 204. Foreign or unknown ids are ignored |
-| GET/PATCH | `/me/notification-settings` | `{ commentOnMarker, addedToTrip, tripChangedByCollaborator, likesGrouped, joinRequested }`, all `true` by default; PATCH sends only what changes. Off stops the push, not the in-app entry |
+| POST | `/notifications/read` | Body `{ "ids": [...] }` (up to 100), `{ "markerId": "…" }` (everything about one stop: sent when I open it, clearing its "new" mark) or `{ "all": true }` → 204. Foreign or unknown ids are ignored |
+| GET | `/trips/{id}/new-activity` | `{ markerIds }`: stops of the trip with unread notifications for me, shown as "new" marks on their pins (added 2026-11-01). Leaves out blocked people; a trip I can't see → 404 |
+| GET/PATCH | `/me/notification-settings` | `{ commentOnMarker, addedToTrip, tripChangedByCollaborator, likesGrouped, joinRequested, newFollowers }`, all `true` by default; PATCH sends only what changes. Off stops the push of the whole group, not the in-app entry: `likesGrouped` covers likes, saves of my trips and my spots getting hot; `addedToTrip` covers accepted join requests; `newFollowers` (added 2026-11-01) covers follows and new friends |
 
 Real time: Socket.IO namespace `/v1/realtime`, see `05-realtime-and-notifications.md`.
 

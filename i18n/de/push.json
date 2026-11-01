@@ -5,12 +5,12 @@
     "body": "{excerpt}"
   },
   "added_to_trip": {
-    "title": "Zu {trip} hinzugefügt",
-    "body": "{actor} hat dich zu dieser Reise hinzugefügt."
+    "title": "{actor} hat dich zu {trip} hinzugefügt",
+    "body": "Öffne die Reise, um gemeinsam zu planen."
   },
   "join_requested": {
-    "title": "Beitrittsanfrage für {trip}",
-    "body": "{actor} möchte bei dieser Reise mitmachen."
+    "title": "{actor} möchte bei {trip} mitmachen",
+    "body": "Tippe, um anzunehmen oder abzulehnen."
   },
   "trip_changed_by_collaborator": {
     "title": "Änderungen in {trip}",
@@ -36,6 +36,43 @@
     "anywhere": {
       "one": "{actor} gefällt dein Beitrag",
       "other": "{count} Personen gefallen deine Beiträge"
+    }
+  },
+  "join_accepted": {
+    "title": "{actor} hat deine Anfrage angenommen",
+    "body": "Du bist jetzt bei {trip} dabei."
+  },
+  "liked": {
+    "trip": {
+      "title": "{actor} gefällt deine Reise",
+      "body": "{trip}"
+    },
+    "photo": {
+      "title": "{actor} gefällt dein Foto",
+      "body": "{marker} · {trip}"
+    },
+    "comment": {
+      "title": "{actor} gefällt dein Kommentar",
+      "body": "„{excerpt}“ zu {marker}"
+    }
+  },
+  "followed": {
+    "title": "{actor} folgt dir jetzt",
+    "body": "Folge zurück, um Freunde zu werden."
+  },
+  "became_friends": {
+    "title": "Du und {actor} seid jetzt Freunde",
+    "body": "Ihr könnt euch jetzt gegenseitig zu Reisen hinzufügen."
+  },
+  "trip_saved": {
+    "title": "{actor} hat deine Reise gespeichert",
+    "body": "{trip}"
+  },
+  "place_hot": {
+    "title": "{place} wird zum Hotspot",
+    "body": {
+      "one": "{count} Person hat deinen Ort als Hotspot markiert. Gute Entdeckung!",
+      "other": "{count} Personen haben deinen Ort als Hotspot markiert. Gute Entdeckung!"
     }
   }
 }

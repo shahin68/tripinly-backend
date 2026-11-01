@@ -3768,6 +3768,44 @@
         ]
       }
     },
+    "/v1/trips/{id}/new-activity": {
+      "get": {
+        "description": "The pins with a \"new\" mark. Opening a stop sends POST /notifications/read with its markerId, which clears its mark. Trips I can't see: 404.",
+        "operationId": "Notifications_newActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewActivityDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stops of a trip with unread notifications for me",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/v1/me/notification-settings": {
       "get": {
         "description": "All on by default. Off stops the push only; the in-app notification is still created.",
@@ -7099,7 +7137,12 @@
               "added_to_trip",
               "trip_changed_by_collaborator",
               "likes_grouped",
-              "join_requested"
+              "join_requested",
+              "followed",
+              "became_friends",
+              "join_accepted",
+              "trip_saved",
+              "place_hot"
             ]
           },
           "actor": {
@@ -7196,12 +7239,17 @@
         "properties": {
           "ids": {
             "maxItems": 100,
-            "description": "Mark these as read. Send either ids or all.",
+            "description": "Mark these as read. Send ids, markerId or all.",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "markerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Mark everything about this stop as read (sent when I open it, which clears its \"new\" mark)"
           },
           "all": {
             "type": "boolean",
@@ -7212,6 +7260,22 @@
           }
         }
       },
+      "NewActivityDto": {
+        "type": "object",
+        "properties": {
+          "markerIds": {
+            "description": "Stops of this trip with unread notifications for me (the pins' \"new\" marks)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "markerIds"
+        ]
+      },
       "NotificationSettingsDto": {
         "type": "object",
         "properties": {
@@ -7221,19 +7285,23 @@
           },
           "addedToTrip": {
             "type": "boolean",
-            "description": "Push when someone adds me to a trip"
+            "description": "Push when someone adds me to a trip or accepts my request to join"
           },
           "tripChangedByCollaborator": {
             "type": "boolean",
-            "description": "Push for collaborator changes (batched per 10 minutes)"
+            "description": "Push for collaborator changes"
           },
           "likesGrouped": {
             "type": "boolean",
-            "description": "Push for likes (at most one per hour)"
+            "description": "Push for likes on my trips, photos and comments, saves of my trips, and my spots getting hot"
           },
           "joinRequested": {
             "type": "boolean",
             "description": "Push when someone asks to join my trip"
+          },
+          "newFollowers": {
+            "type": "boolean",
+            "description": "Push when someone follows me or we become friends"
           }
         },
         "required": [
@@ -7241,7 +7309,8 @@
           "addedToTrip",
           "tripChangedByCollaborator",
           "likesGrouped",
-          "joinRequested"
+          "joinRequested",
+          "newFollowers"
         ]
       },
       "UpdateNotificationSettingsDto": {
@@ -7260,6 +7329,9 @@
             "type": "boolean"
           },
           "joinRequested": {
+            "type": "boolean"
+          },
+          "newFollowers": {
             "type": "boolean"
           }
         }

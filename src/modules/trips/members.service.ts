@@ -60,6 +60,8 @@ export class MembersService {
     tripId: string,
     memberId: string,
     addedById: string = actorId,
+    /** viaJoinRequest: the owner accepted their request (a different push). */
+    options: { viaJoinRequest?: boolean } = {},
   ): Promise<TripMemberDto> {
     const { member, created } = await this.prisma.$transaction(async (tx) => {
       await lockTrip(tx, tripId);
@@ -88,7 +90,7 @@ export class MembersService {
         domainEvent(
           DomainEvents.MEMBER_ADDED,
           actorId,
-          { member: dto },
+          { member: dto, viaJoinRequest: options.viaJoinRequest },
           tripId,
         ),
       );

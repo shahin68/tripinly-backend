@@ -32,7 +32,7 @@ export class NotificationPublisher {
         notification,
         context,
         this.renderer.text(notification, context, lang),
-        this.renderer.deepLink(notification),
+        this.renderer.deepLink(notification, context),
       ),
     });
   }

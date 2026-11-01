@@ -1,5 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { TripsModule } from '../trips/trips.module';
 import { NotificationRenderer } from './notification-renderer';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsListener } from './notifications.listener';
@@ -8,7 +9,10 @@ import { NotificationsService } from './notifications.service';
 
 /** API side: the in-app list and settings, and domain events → plan jobs. */
 @Module({
-  imports: [BullModule.registerQueue({ name: NOTIFICATIONS_QUEUE })],
+  imports: [
+    BullModule.registerQueue({ name: NOTIFICATIONS_QUEUE }),
+    TripsModule,
+  ],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,

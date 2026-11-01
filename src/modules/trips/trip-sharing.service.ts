@@ -40,10 +40,16 @@ export class TripSharingService {
   /** Idempotent. Only other people's public trips. */
   async save(userId: string, tripId: string): Promise<void> {
     await this.access.assert(userId, tripId, 'save');
-    await this.prisma.tripSave.createMany({
+    const { count } = await this.prisma.tripSave.createMany({
       data: [{ tripId, userId }],
       skipDuplicates: true,
     });
+    if (count > 0) {
+      this.events.emit(
+        DomainEvents.TRIP_SAVED,
+        domainEvent(DomainEvents.TRIP_SAVED, userId, {}, tripId),
+      );
+    }
   }
 
   /** Idempotent; works whatever the trip's state now. */
@@ -133,6 +139,8 @@ export class TripSharingService {
       userId,
       request.tripId,
       request.userId,
+      userId,
+      { viaJoinRequest: true },
     );
     await this.prisma.$transaction([
       this.prisma.tripJoinRequest.deleteMany({ where: { id: request.id } }),

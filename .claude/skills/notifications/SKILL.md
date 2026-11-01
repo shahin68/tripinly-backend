@@ -23,7 +23,9 @@ Rules and the type table live in `docs/knowledge/05-realtime-and-notifications.m
 
 - Look up the recipient's devices; skip if the per-type setting is off (in-app row still created).
 - Localize per device `locale` → user locale → `en`, with `nestjs-i18n` keys `push.<type>.title` / `push.<type>.body`, ICU plurals for counts ("{count, plural, one {# person} other {# people}} liked…").
-- Data payload: `{ type, notificationId, deepLink }`, deep links `tripinly://trips/{id}`, `tripinly://markers/{id}`.
+- Data payload: `{ type, notificationId, deepLink }`. Every push says what happened and where, and opens that place: `tripinly://markers/{id}` for anything about one stop (set the row's `markerId`), `tripinly://trips/{id}/members`, `tripinly://users/{username}`, else `tripinly://trips/{id}` (table in `05-realtime-and-notifications.md`).
+- A new type maps to an existing switch group in `SETTING_FOR_TYPE` unless Shahin wants a new switch. Pushes cost money: anything that can fire many times (flames, follows) gets a cooldown or a milestone, never one push per tap.
+- List the edge cases in the plan and test them: target deleted before the job runs (never write a `markerId` of a stop that's gone), blocks either way, lost access, inactive accounts, toggling (cooldowns), the switch off.
 - Use FCM multicast; delete tokens reported as `registration-token-not-registered` / invalid.
 - Never include private trip names or comment text for recipients who aren't members (shouldn't happen after step 2, but check again when sending).
 - Keep bodies short; truncate comment excerpts to ~80 chars.
