@@ -118,6 +118,7 @@ export class NotificationsListener {
       actorId: event.actorId,
       tripId: event.tripId,
       change,
+      subjectId: changeSubject(event.data),
     });
   }
 
@@ -152,4 +153,16 @@ export class NotificationsListener {
       );
     }
   }
+}
+
+/** The stop, day or photo a trip change is about, if the event names one. */
+function changeSubject(data: unknown): string | undefined {
+  const d = (data ?? {}) as {
+    marker?: { id?: string };
+    photo?: { id?: string };
+    day?: { id?: string };
+    markerId?: string;
+    dayId?: string;
+  };
+  return d.marker?.id ?? d.photo?.id ?? d.day?.id ?? d.markerId ?? d.dayId;
 }

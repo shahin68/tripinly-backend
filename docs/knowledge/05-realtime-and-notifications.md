@@ -38,7 +38,7 @@ Domain events that don't go to a room as such: `join_request.created` (actor = t
 
 | Event | Data |
 |---|---|
-| `notification.created` | notification (as in `GET /notifications`, in the user's saved language). Batched and grouped entries are sent again with the same `id` and a higher `count`: replace by id |
+| `notification.created` | notification (as in `GET /notifications`, in the user's saved language). Every push is its own entry now; entries from groups opened before 2026-11-01 may still come again with the same `id` and a higher `count`: replace by id |
 | `trips.changed` | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted |
 | `follows.changed` | `{ followerId, followeeId, following }` — someone followed or unfollowed; sent to both people, so profile counts and Friends/Following/Followers lists can reload |
 | `photo.ready` / `photo.failed` | Place photos only (they have no trip room): sent to their uploader, same data as in the trip room (`placeId` set, `markerId` null) |
@@ -53,13 +53,13 @@ Triggered from domain events by the notifications module, executed as BullMQ job
 | `comment_on_marker` | Trip owner and the marker's creator (if different), not the commenter | One push per comment |
 | `added_to_trip` | The added user | Includes trip title and who added them. Also sent when the owner accepts a join request |
 | `join_requested` | Trip owner | Right away, once per request (repeating a pending request doesn't notify again). Deep link to the trip |
-| `trip_changed_by_collaborator` | Trip owner and editors except the actor | **Batched:** collect for 10 minutes per trip per recipient, then one push ("Jonas added 3 markers to Vienna") |
-| `likes_grouped` | Owner of the liked item | **Grouped:** at most one push per recipient per hour summarizing new likes ("12 people liked your photos in Vienna") |
+| `trip_changed_by_collaborator` | Trip owner and editors except the actor | Right away, one push per change ("Jonas added a place") |
+| `likes_grouped` | Owner of the liked item | Right away, one push per like ("Anna liked your post in Vienna") |
 
 - The API turns domain events into `plan` jobs on the `notifications` queue; the worker picks recipients, writes rows and sends. Recipients never include the actor, anyone with a block either way with the actor, inactive accounts, or anyone who can't view the trip.
-- Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded. The summary names the latest actor ("Jonas added 3 places", "Jonas made 5 changes", "Jonas and others made 5 changes").
-- Grouped likes count people, not likes (a like, unlike and like again counts once); own likes never notify; hot marks notify no one. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
-- Batched and grouped entries are one row per group (`groupKey`) that collects until its push is sent; the next event opens a new row. The in-app row appears (and updates) immediately; only the push waits.
+- **Every notification pushes at once** (Shahin, 2026-11-01; replaces the 10-minute batch and the hourly likes summary). The same notification again (same recipient, same person, same kind, same item: a like, unlike and like again; the same stop moved twice) within `NOTIFICATION_REPEAT_COOLDOWN_SECONDS` (worker, default 5) is dropped, row and push.
+- Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded.
+- Own likes never notify; hot marks notify no one. Likes on a trip go to its owner, on a photo to its uploader, on a comment to its author. Stops have no likes of their own (their place does).
 - At send time the recipient's access is checked again: someone who lost access to the trip gets no push and the entry is deleted. The in-app list also hides entries about trips the user can no longer see, and entries caused by someone they have a block with. Deleting a comment deletes its notifications.
 - Respect `notification-settings` per type; still create the in-app notification even if push is off.
 - Localize using the recipient's device `locale` (fallback user locale, then `en`). Templates live in the i18n files, keyed `push.<type>.title` / `.body` with ICU plural support.

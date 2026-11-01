@@ -7,7 +7,11 @@ export const NotificationJobs = {
   PLAN: 'plan',
   /** Send the push for one notification. */
   PUSH: 'push',
-  /** Close a batched or grouped notification and send its summary push. */
+  /**
+   * Close a batched or grouped notification and send its summary push. Nothing
+   * schedules it since every push goes out at once (2026-11-01); it stays so
+   * groups opened before that deploy still send.
+   */
   FLUSH: 'flush',
 } as const;
 
@@ -40,6 +44,8 @@ export type PlanInput =
       actorId: string;
       tripId: string;
       change: TripChangeKind;
+      /** What changed (stop, day or photo id), so the same change twice counts as a repeat; the trip when absent. */
+      subjectId?: string;
     }
   | {
       kind: 'liked';
@@ -62,5 +68,3 @@ export const DELIVERY_RETRIES = {
 /** BullMQ custom job ids can't contain ':'. */
 export const pushJobId = (notificationId: string): string =>
   `push-${notificationId}`;
-export const flushJobId = (notificationId: string): string =>
-  `flush-${notificationId}`;

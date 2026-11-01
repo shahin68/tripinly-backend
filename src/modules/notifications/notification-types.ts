@@ -23,11 +23,6 @@ export const SETTING_FOR_TYPE = {
   keyof Omit<NotificationSettings, 'userId' | 'updatedAt'>
 >;
 
-/** Collaborator changes collect this long per trip and recipient before one push. */
-export const COLLABORATOR_BATCH_MS = 10 * 60 * 1000;
-/** At most one likes push per recipient per window. */
-export const LIKES_WINDOW_MS = 60 * 60 * 1000;
-
 /** Collaborator changes that count toward trip_changed_by_collaborator. */
 export const TRIP_CHANGE_KINDS = [
   'trip_updated',
@@ -42,10 +37,6 @@ export const TRIP_CHANGE_KINDS = [
 export type TripChangeKind = (typeof TRIP_CHANGE_KINDS)[number];
 
 export const COMMENT_EXCERPT_LENGTH = 80;
-/** Actor and trip ids kept on a group row; enough to name people and tell trips apart. */
-export const GROUP_ID_CAP = 10;
-/** Distinct likers tracked per likes group. */
-export const LIKERS_CAP = 500;
 
 /** Payloads stored in notifications.payload, per type. */
 export interface CommentPayload {

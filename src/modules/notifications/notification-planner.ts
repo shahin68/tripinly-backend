@@ -1,47 +1,47 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
+import type { Env } from '../../common/config/env';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { REDIS } from '../../common/redis/redis.module';
 import { type NotificationType, Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationPublisher } from './notification-publisher';
-import { NotificationTimings } from './notification-timings';
 import {
   type CommentPayload,
   excerpt,
-  GROUP_ID_CAP,
-  LIKERS_CAP,
   type LikesPayload,
   type TripChangesPayload,
 } from './notification-types';
 import {
   DELIVERY_RETRIES,
-  flushJobId,
   NotificationJobs,
   NOTIFICATIONS_QUEUE,
   type PlanInput,
   pushJobId,
 } from './notifications.queue';
 
-interface GroupUpdate<P> {
-  payload: P;
-  count: number;
-}
-
 /**
  * Decides who hears about a domain event (the notifications skill): never the
  * actor, never across a block, only people who can still see the trip. Writes
- * the in-app rows and schedules pushes: immediately for comments and
- * invitations, batched for collaborator changes, grouped for likes.
+ * the in-app row and sends its push at once, for every type (Shahin,
+ * 2026-11-01). The same thing again from the same person (a like, unlike and
+ * like; the same stop moved twice) within NOTIFICATION_REPEAT_COOLDOWN_SECONDS
+ * is dropped.
  */
 @Injectable()
 export class NotificationPlanner {
+  private readonly logger = new Logger(NotificationPlanner.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: TripAccessService,
     private readonly publisher: NotificationPublisher,
-    private readonly timings: NotificationTimings,
+    private readonly config: ConfigService<Env, true>,
+    @Inject(REDIS) private readonly redis: Redis,
     @InjectQueue(NOTIFICATIONS_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -141,24 +141,24 @@ export class NotificationPlanner {
       input.tripId,
       members.map((member) => member.userId),
     );
+    const payload: TripChangesPayload = {
+      actorIds: [input.actorId],
+      kinds: { [input.change]: 1 },
+    };
     for (const recipientId of recipients) {
-      await this.collect<TripChangesPayload>({
+      if (
+        !(await this.isFirstInCooldown(
+          `${recipientId}:${input.actorId}:${input.change}:${input.subjectId ?? input.tripId}`,
+        ))
+      ) {
+        continue;
+      }
+      await this.immediate({
         recipientId,
         type: 'trip_changed_by_collaborator',
-        groupKey: `changes:${input.tripId}:${recipientId}`,
         actorId: input.actorId,
         tripId: input.tripId,
-        windowMs: this.timings.collaboratorBatchMs,
-        merge: (current, count) => ({
-          payload: {
-            actorIds: frontOf(current?.actorIds, input.actorId, GROUP_ID_CAP),
-            kinds: {
-              ...current?.kinds,
-              [input.change]: (current?.kinds[input.change] ?? 0) + 1,
-            },
-          },
-          count: count + 1,
-        }),
+        payload: payload as unknown as Prisma.InputJsonObject,
       });
     }
   }
@@ -172,30 +172,51 @@ export class NotificationPlanner {
       ownerId,
     ]);
     if (!recipientId) return;
-    await this.collect<LikesPayload>({
+    if (
+      !(await this.isFirstInCooldown(
+        `${recipientId}:${input.actorId}:like:${input.targetType}:${input.targetId}`,
+      ))
+    ) {
+      return;
+    }
+    const payload: LikesPayload = {
+      likerIds: [input.actorId],
+      tripIds: [input.tripId],
+    };
+    await this.immediate({
       recipientId,
       type: 'likes_grouped',
-      groupKey: `likes:${recipientId}`,
       actorId: input.actorId,
       tripId: input.tripId,
-      windowMs: this.timings.likesWindowMs,
-      merge: (current) => {
-        const likerIds = current?.likerIds ?? [];
-        // A like, unlike and like again by the same person counts once.
-        if (likerIds.includes(input.actorId)) return undefined;
-        const nextLikers = [input.actorId, ...likerIds].slice(0, LIKERS_CAP);
-        const tripIds = current?.tripIds ?? [];
-        return {
-          payload: {
-            likerIds: nextLikers,
-            tripIds: tripIds.includes(input.tripId)
-              ? tripIds
-              : [...tripIds, input.tripId].slice(0, GROUP_ID_CAP),
-          },
-          count: nextLikers.length,
-        };
-      },
+      payload: payload as unknown as Prisma.InputJsonObject,
     });
+  }
+
+  /**
+   * True for the first of identical notifications within the cooldown, so a
+   * like, unlike and like again pushes once. If Redis can't answer, it sends.
+   */
+  private async isFirstInCooldown(key: string): Promise<boolean> {
+    const seconds = this.config.get('NOTIFICATION_REPEAT_COOLDOWN_SECONDS', {
+      infer: true,
+    });
+    if (seconds === 0) return true;
+    try {
+      return (
+        (await this.redis.set(
+          `notifications:repeat:${key}`,
+          '1',
+          'EX',
+          seconds,
+          'NX',
+        )) === 'OK'
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Repeat check skipped: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return true;
+    }
   }
 
   /** Who gets the likes for an item: whoever posted it. */
@@ -289,77 +310,4 @@ export class NotificationPlanner {
     );
     await this.publisher.publish(row.id);
   }
-
-  /**
-   * Adds to the recipient's open group for this key, or opens one and
-   * schedules its flush after the window. merge returns undefined when the
-   * event changes nothing (a repeat like).
-   */
-  private async collect<P>(options: {
-    recipientId: string;
-    type: NotificationType;
-    groupKey: string;
-    actorId: string;
-    tripId: string;
-    windowMs: number;
-    merge: (
-      current: P | undefined,
-      count: number,
-    ) => GroupUpdate<P> | undefined;
-  }): Promise<void> {
-    const open = await this.prisma.notification.findFirst({
-      where: { groupKey: options.groupKey, pushedAt: null },
-    });
-    if (open) {
-      const next = options.merge(open.payload as P, open.count);
-      if (!next) return;
-      const tripIds = (next.payload as { tripIds?: string[] }).tripIds;
-      const updated = await this.prisma.notification.updateMany({
-        // Only while still open; a flush may have closed it since we read it.
-        where: { id: open.id, pushedAt: null },
-        data: {
-          payload: next.payload as Prisma.InputJsonObject,
-          count: next.count,
-          actorId: options.actorId,
-          // Likes across several trips belong to no single trip.
-          tripId: tripIds && tripIds.length > 1 ? null : open.tripId,
-          readAt: null,
-        },
-      });
-      if (updated.count === 1) {
-        await this.publisher.publish(open.id);
-        return;
-      }
-    }
-    const first = options.merge(undefined, 0);
-    if (!first) return;
-    // A concurrent worker opening the same group trips the partial unique
-    // index; the job then retries and joins that group.
-    const row = await this.prisma.notification.create({
-      data: {
-        recipientId: options.recipientId,
-        type: options.type,
-        actorId: options.actorId,
-        tripId: options.tripId,
-        groupKey: options.groupKey,
-        payload: first.payload as Prisma.InputJsonObject,
-        count: first.count,
-      },
-    });
-    await this.queue.add(
-      NotificationJobs.FLUSH,
-      { notificationId: row.id },
-      {
-        ...DELIVERY_RETRIES,
-        jobId: flushJobId(row.id),
-        delay: options.windowMs,
-      },
-    );
-    await this.publisher.publish(row.id);
-  }
-}
-
-/** ids with `id` moved to the front, without duplicates, capped. */
-function frontOf(ids: string[] | undefined, id: string, cap: number): string[] {
-  return [id, ...(ids ?? []).filter((other) => other !== id)].slice(0, cap);
 }
