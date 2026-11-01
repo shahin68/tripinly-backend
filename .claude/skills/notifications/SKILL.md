@@ -15,9 +15,8 @@ Rules and the type table live in `docs/knowledge/05-realtime-and-notifications.m
    - exclude anyone with a block relation to the actor
    - exclude recipients who can no longer `view` the trip
 3. For each recipient:
-   - **Immediate types** (`comment_on_marker`, `added_to_trip`): create the in-app `notifications` row, enqueue `push.send`.
-   - **Batched** (`trip_changed_by_collaborator`): upsert a row with `groupKey = trip:{tripId}:changes:{recipientId}` and increment `count` / collect actor names; enqueue a **delayed** job (10 min) with a deterministic job ID so repeated events don't create more jobs. When it runs, send one push summarizing and close the group.
-   - **Grouped likes** (`likes_grouped`): same pattern with `groupKey = likes:{recipientId}` and a 1 h window; never one push per like.
+   - **Every type is immediate** (Shahin, 2026-11-01): create the in-app `notifications` row, enqueue `push.send`.
+   - **Repeats** (likes, collaborator changes): first claim the Redis key `notifications:repeat:{recipient}:{actor}:{kind}:{item}` with `SET NX EX NOTIFICATION_REPEAT_COOLDOWN_SECONDS`; if it's taken, the same thing already notified within the cooldown, so skip (a like, unlike and like again pushes once). If Redis fails, send.
 4. Emit `notification.created` to `user:{recipientId}` for the in-app list.
 
 ## Sending push
@@ -41,4 +40,4 @@ Rules and the type table live in `docs/knowledge/05-realtime-and-notifications.m
 2. Add it to the table in `05-realtime-and-notifications.md` with recipient and batching rule.
 3. Add i18n keys for **every** supported language.
 4. Add a per-type setting in `notification-settings` (default on unless told otherwise).
-5. Tests: recipient selection, actor excluded, blocked excluded, batching produces one push, setting off → no push but in-app row exists.
+5. Tests: recipient selection, actor excluded, blocked excluded, a repeat within the cooldown produces one push, setting off → no push but in-app row exists.

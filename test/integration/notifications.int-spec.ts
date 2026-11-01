@@ -8,7 +8,6 @@ import { EmailProvider } from '../../src/modules/notifications/email/email.provi
 import { EmailService } from '../../src/modules/notifications/email/email.service';
 import { EmailWorkerModule } from '../../src/modules/notifications/email/email-worker.module';
 import { NotificationPlanner } from '../../src/modules/notifications/notification-planner';
-import { NotificationTimings } from '../../src/modules/notifications/notification-timings';
 import { NotificationsWorkerModule } from '../../src/modules/notifications/notifications-worker.module';
 import { PushProvider } from '../../src/modules/notifications/push.provider';
 import {
@@ -22,9 +21,6 @@ import { createTestApp } from '../utils/create-test-app';
 import { FakeEmailProvider, FakePushProvider } from '../utils/fake-providers';
 import { insertPlace } from '../utils/places';
 import { connect, eventually, realtimeUrl, sleep } from '../utils/realtime';
-
-/** Batching windows shortened from 10 minutes and 1 hour. */
-const WINDOW_MS = 700;
 
 interface NotificationBody {
   id: string;
@@ -72,8 +68,6 @@ describe('Notifications (integration)', () => {
       .useValue(push)
       .overrideProvider(EmailProvider)
       .useValue(email)
-      .overrideProvider(NotificationTimings)
-      .useValue({ collaboratorBatchMs: WINDOW_MS, likesWindowMs: WINDOW_MS })
       .compile();
     worker = await moduleRef.init();
     prisma = app.get(PrismaService);
@@ -218,7 +212,8 @@ describe('Notifications (integration)', () => {
   describe('comments', () => {
     it('notifies the trip owner and the marker’s creator, not the commenter', async () => {
       const markerId = await addMarker(editor);
-      await sleep(WINDOW_MS + 500); // let the owner's batched change flush
+      // The owner hears about the new stop first.
+      await eventually(() => push.to(OWNER_TABLET).length === 1);
       push.reset();
 
       await as(stranger)
@@ -324,111 +319,59 @@ describe('Notifications (integration)', () => {
   });
 
   describe('collaborator changes', () => {
-    it('batches changes per trip and recipient into one push', async () => {
+    it('pushes every change at once', async () => {
       await addMarker(editor);
       await addMarker(editor);
       await addMarker(editor);
-      await sleep(200);
-      expect(push.to(OWNER_TABLET)).toEqual([]);
-      const [message] = await eventually(
+      const messages = await eventually(
         () =>
-          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+          push.to(OWNER_TABLET).length === 3
+            ? push.to(OWNER_TABLET)
+            : undefined,
         5000,
-        'batched push',
+        'three pushes',
       );
-      expect(message).toMatchObject({
+      expect(messages[0]).toMatchObject({
         title: 'Changes in Vienna',
-        body: 'editor added 3 places',
+        body: 'editor added a place',
         data: { type: 'trip_changed_by_collaborator' },
       });
       expect(push.to(OWNER_PHONE)[0].body).toBe(
-        'editor hat 3 Orte hinzugefügt',
+        'editor hat einen Ort hinzugefügt',
       );
-      await sleep(WINDOW_MS);
-      expect(push.to(OWNER_TABLET)).toHaveLength(1);
       // The editor made the changes, so hears nothing.
       expect(push.to(EDITOR_PHONE)).toEqual([]);
-
-      // A change after the push opens a new batch.
-      await as(editor).post(`/v1/trips/${trip.id}/days`).expect(201);
-      await eventually(
-        () => push.to(OWNER_TABLET).length === 2,
-        5000,
-        'second batch',
-      );
-      expect(push.to(OWNER_TABLET)[1].body).toBe('editor made a change');
       const rows = await prisma.notification.findMany({
         where: { recipientId: owner.userId },
-        orderBy: { createdAt: 'asc' },
       });
-      expect(rows.map((row) => row.count)).toEqual([3, 1]);
+      expect(rows.map((row) => row.count)).toEqual([1, 1, 1]);
     });
 
-    it('names several collaborators together', async () => {
-      await as(owner)
-        .post(`/v1/trips/${trip.id}/members`)
-        .send({ username: 'stranger' })
-        .expect(200);
-      await addMarker(editor);
-      await addMarker(stranger);
-      const [message] = await eventually(
-        () =>
-          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
-        5000,
-        'batched push',
-      );
-      expect(message.body).toBe('stranger and others made 2 changes');
-    });
-
-    it('drops a batched push, and its entry, for someone who lost access meanwhile', async () => {
-      const privateTrip = (
-        await as(owner)
-          .post('/v1/trips')
-          .send({
-            title: 'Secret',
-            visibility: 'private',
-            memberUsernames: ['editor'],
-          })
-          .expect(201)
-      ).body as TripBody;
-      await eventually(() => push.to(EDITOR_PHONE).length === 1);
-      push.reset();
-      await as(owner)
-        .post(`/v1/days/${privateTrip.days[0].id}/markers`)
-        .send({ placeId })
-        .expect(201);
-      await eventually(
-        async () =>
-          (await prisma.notification.count({
-            where: {
-              recipientId: editor.userId,
-              tripId: privateTrip.id,
-              type: 'trip_changed_by_collaborator',
-            },
-          })) === 1,
-      );
-      await as(owner)
-        .delete(`/v1/trips/${privateTrip.id}/members/${editor.userId}`)
-        .expect(204);
-      await sleep(WINDOW_MS + 700);
-      expect(push.to(EDITOR_PHONE)).toEqual([]);
+    it('drops the same change again within the cooldown', async () => {
+      const markerId = await addMarker(editor);
+      await eventually(() => push.to(OWNER_TABLET).length === 1);
+      const change = {
+        kind: 'trip_changed' as const,
+        actorId: editor.userId,
+        tripId: trip.id,
+        change: 'place_updated' as const,
+        subjectId: markerId,
+      };
+      await worker.get(NotificationPlanner).plan(change);
+      await worker.get(NotificationPlanner).plan(change);
+      await worker
+        .get(NotificationPlanner)
+        .plan({ ...change, change: 'place_deleted' });
       expect(
         await prisma.notification.count({
-          where: {
-            recipientId: editor.userId,
-            tripId: privateTrip.id,
-            type: 'trip_changed_by_collaborator',
-          },
+          where: { recipientId: owner.userId },
         }),
-      ).toBe(0);
-      // The earlier "added to" entry stays stored but is no longer listed.
-      const titles = (await list(editor)).items.map((item) => item.trip?.title);
-      expect(titles).not.toContain('Secret');
+      ).toBe(3);
     });
   });
 
   describe('likes', () => {
-    it('groups likes into one push per window and counts each person once', async () => {
+    it('pushes each like at once, once for a like, unlike and like again', async () => {
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
@@ -437,29 +380,27 @@ describe('Notifications (integration)', () => {
       await as(owner).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/places/${placeId}/hot`).expect(200);
 
-      const [message] = await eventually(
+      const messages = await eventually(
         () =>
-          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+          push.to(OWNER_TABLET).length === 2
+            ? push.to(OWNER_TABLET)
+            : undefined,
         5000,
-        'likes push',
+        'likes pushes',
       );
-      expect(message).toMatchObject({
+      expect(messages.map((message) => message.body).sort()).toEqual([
+        'editor liked your post in Vienna',
+        'stranger liked your post in Vienna',
+      ]);
+      expect(messages[0]).toMatchObject({
         title: 'New likes',
-        body: '2 people liked your posts in Vienna',
         data: {
           type: 'likes_grouped',
           deepLink: `tripinly://trips/${trip.id}`,
         },
       });
-      await sleep(WINDOW_MS);
-      expect(push.to(OWNER_TABLET)).toHaveLength(1);
-      const page = await list(owner);
-      expect(
-        page.items.find((item) => item.type === 'likes_grouped'),
-      ).toMatchObject({
-        count: 2,
-        body: '2 people liked your posts in Vienna',
-      });
+      await sleep(500);
+      expect(push.to(OWNER_TABLET)).toHaveLength(2);
     });
   });
 

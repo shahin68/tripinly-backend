@@ -89,6 +89,7 @@ Adding anything else: state the reason.
 | `OSM_IMPORT_TMP_DIR` | Scratch space for downloads (a few GB per region). Default: the OS temp dir |
 | `REVENUECAT_API_KEY`, `REVENUECAT_WEBHOOK_AUTH` | RevenueCat secret API key (api: the webhook reads the customer's purchases; worker: account deletion deletes the customer) and the webhook's shared Authorization value (api; the webhook refuses every call while unset). Unset key = customer deletion skipped with a warning |
 | `CONSENT_PROOF_RETENTION_YEARS` | How long the minimal consent proof is kept after account deletion (default 5) |
+| `NOTIFICATION_REPEAT_COOLDOWN_SECONDS` | Worker. Every notification pushes at once; the same one again (same person, same item: like, unlike, like) within this many seconds is dropped. Default 5, 0–300 (0 = off) |
 | `APP_TRIP_MAX_MEMBERS` | Most people in one trip, owner included (default 50, at least 2). Applies to trip creation, adding members (one or many) and invite links |
 | `APP_PLACES_REFRESH_SECONDS` | Sent to the apps by `GET /app-config`: how old a map square's places may get before the app reloads them in the background (default 300, at least 10) |
 | `APP_PIN_LARGE_MIN_PROMINENCE`, `APP_PIN_MEDIUM_MIN_PROMINENCE` | Sent to the apps by `GET /app-config` (`pinLargeMinProminence`, `pinMediumMinProminence`): a place's `prominence` from which its map pin is drawn largest (default 95) and middle-sized (default 60); below it, smallest. 0–100 |

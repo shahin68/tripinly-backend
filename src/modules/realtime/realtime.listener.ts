@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
@@ -9,9 +9,6 @@ import {
 } from '../../common/events/domain-events';
 import { RealtimePublisher } from './realtime.publisher';
 import { type RealtimeMessage, UserEvents } from './realtime.rooms';
-
-/** At most one like.count_changed per target, or place.hot_changed per place, per window, carrying the latest count. */
-export const LIKE_EVENT_THROTTLE_MS = 2000;
 
 /** Trip-room events that go out with the service's data as is. */
 const PASS_THROUGH = [
@@ -33,11 +30,6 @@ const VIEWER_NEUTRAL = {
   [DomainEvents.PHOTO_READY]: ['photo', 'likedByMe'],
 } as const;
 
-interface CountSlot {
-  timer: NodeJS.Timeout;
-  pending?: DomainEvent<CountData>;
-}
-
 /** A like.count_changed (`targetType`, `targetId`, `count`) or a place.hot_changed (`placeId`, `hotCount`). */
 type CountData =
   | { targetType: string; targetId: string; count: number }
@@ -48,19 +40,13 @@ type CountData =
  * api and the worker; each handles the events emitted in its own process.
  */
 @Injectable()
-export class RealtimeListener implements OnModuleDestroy {
+export class RealtimeListener {
   private readonly logger = new Logger(RealtimeListener.name);
-  private readonly countSlots = new Map<string, CountSlot>();
 
   constructor(
     private readonly publisher: RealtimePublisher,
     private readonly prisma: PrismaService,
   ) {}
-
-  onModuleDestroy(): void {
-    for (const slot of this.countSlots.values()) clearTimeout(slot.timer);
-    this.countSlots.clear();
-  }
 
   @OnDomainEvents(...PASS_THROUGH)
   onTripEvent(event: DomainEvent): Promise<void> {
@@ -112,14 +98,15 @@ export class RealtimeListener implements OnModuleDestroy {
   }
 
   @OnEvent(DomainEvents.LIKE_COUNT_CHANGED)
-  onLikeCountChanged(event: DomainEvent<CountData>): void {
-    if (event.tripId) this.throttleCount(event);
+  onLikeCountChanged(event: DomainEvent<CountData>): Promise<void> {
+    if (event.tripId) return this.sendCount(event);
+    return Promise.resolve();
   }
 
   /** A place's hot count shows on its stops, so it goes to every trip with a stop there. */
   @OnEvent(DomainEvents.PLACE_HOT_CHANGED)
-  onPlaceHotChanged(event: DomainEvent<CountData>): void {
-    this.throttleCount(event);
+  onPlaceHotChanged(event: DomainEvent<CountData>): Promise<void> {
+    return this.sendCount(event);
   }
 
   @OnEvent(DomainEvents.TRIP_CREATED)
@@ -276,26 +263,10 @@ export class RealtimeListener implements OnModuleDestroy {
     this.publisher.toUser(userId, message);
   }
 
-  /** Leading edge goes out at once; later changes in the window collapse into one trailing event. */
-  private throttleCount(event: DomainEvent<CountData>): void {
+  /** Every like and hot change goes out at once, with the count after it (Shahin, 2026-11-01: likes are live). */
+  private sendCount(event: DomainEvent<CountData>): Promise<void> {
     const { data } = event;
-    const key =
-      'placeId' in data
-        ? `place:${data.placeId}`
-        : `${data.targetType}:${data.targetId}`;
-    const slot = this.countSlots.get(key);
-    if (slot) {
-      slot.pending = event;
-      return;
-    }
-    const timer = setTimeout(() => {
-      const pending = this.countSlots.get(key)?.pending;
-      this.countSlots.delete(key);
-      if (pending) this.throttleCount(pending);
-    }, LIKE_EVENT_THROTTLE_MS);
-    timer.unref();
-    this.countSlots.set(key, { timer });
-    void this.safely(event, async () => {
+    return this.safely(event, async () => {
       if (!('placeId' in data)) {
         const { targetType, targetId, count } = data;
         return this.toTrip(event, { targetType, targetId, count });

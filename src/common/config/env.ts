@@ -98,6 +98,17 @@ export const envSchema = z
 
     /** Most people in one trip, owner included. Owners add friends in bulk, so this is the only cap. */
     APP_TRIP_MAX_MEMBERS: z.coerce.number().int().min(2).default(50),
+    /**
+     * Worker: every notification pushes at once; the same one again from the
+     * same person (like, unlike, like) within this many seconds is dropped.
+     * 0 turns the check off.
+     */
+    NOTIFICATION_REPEAT_COOLDOWN_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(300)
+      .default(5),
 
     // Auth (docs/knowledge/07-security-and-gdpr.md)
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),
