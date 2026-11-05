@@ -10,6 +10,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationRenderer, resolveLanguage } from './notification-renderer';
+import { isAboutComments } from './notification-types';
 import {
   type MarkReadDto,
   type NewActivityDto,
@@ -40,10 +41,15 @@ export class NotificationsService {
           { tripId, readAt: null, markerId: { not: null } },
         ],
       },
-      distinct: ['markerId'],
-      select: { markerId: true },
+      select: { markerId: true, type: true, payload: true },
     });
-    return { markerIds: rows.map((row) => row.markerId!) };
+    const unique = (list: typeof rows) => [
+      ...new Set(list.map((row) => row.markerId!)),
+    ];
+    return {
+      markerIds: unique(rows),
+      commentMarkerIds: unique(rows.filter(isAboutComments)),
+    };
   }
 
   /** Newest first, leaving out what visibleTo leaves out. */
@@ -99,6 +105,23 @@ export class NotificationsService {
   }
 
   async markRead(userId: string, input: MarkReadDto): Promise<void> {
+    if (input.markerId && input.kind) {
+      // Picked in code: old likes rows have no targetType in their payload.
+      const rows = await this.prisma.notification.findMany({
+        where: { recipientId: userId, readAt: null, markerId: input.markerId },
+        select: { id: true, type: true, payload: true },
+      });
+      const comments = input.kind === 'comments';
+      const ids = rows
+        .filter((row) => isAboutComments(row) === comments)
+        .map((row) => row.id);
+      if (ids.length === 0) return;
+      await this.prisma.notification.updateMany({
+        where: { id: { in: ids }, readAt: null },
+        data: { readAt: new Date() },
+      });
+      return;
+    }
     await this.prisma.notification.updateMany({
       where: {
         recipientId: userId,

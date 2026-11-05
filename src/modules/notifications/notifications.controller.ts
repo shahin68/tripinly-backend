@@ -67,7 +67,7 @@ export class NotificationsController {
   @ApiOperation({
     summary: 'Stops of a trip with unread notifications for me',
     description:
-      'The pins with a "new" mark. Opening a stop sends POST /notifications/read with its markerId, which clears its mark. Trips I can\'t see: 404.',
+      'The pins with a "new" mark, and which of them have news about their comments. Opening a stop sends POST /notifications/read with its markerId and kind other; seeing its comments sends kind comments. Trips I can\'t see: 404.',
   })
   @ApiOkResponse({ type: NewActivityDto })
   newActivity(

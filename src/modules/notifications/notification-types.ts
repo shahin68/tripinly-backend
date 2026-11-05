@@ -104,3 +104,18 @@ export function excerpt(text: string): string {
     ? flat
     : `${flat.slice(0, COMMENT_EXCERPT_LENGTH - 1).trimEnd()}…`;
 }
+
+/**
+ * About a stop's comments: a new comment, or a like on one. Their "new" mark
+ * clears once the stop's comments are seen; the rest clear when the stop opens.
+ */
+export function isAboutComments(row: {
+  type: string;
+  payload: unknown;
+}): boolean {
+  return (
+    row.type === 'comment_on_marker' ||
+    (row.type === 'likes_grouped' &&
+      (row.payload as Partial<LikesPayload> | null)?.targetType === 'comment')
+  );
+}
