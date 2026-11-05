@@ -3770,7 +3770,7 @@
     },
     "/v1/trips/{id}/new-activity": {
       "get": {
-        "description": "The pins with a \"new\" mark. Opening a stop sends POST /notifications/read with its markerId, which clears its mark. Trips I can't see: 404.",
+        "description": "The pins with a \"new\" mark, and which of them have news about their comments. Opening a stop sends POST /notifications/read with its markerId and kind other; seeing its comments sends kind comments. Trips I can't see: 404.",
         "operationId": "Notifications_newActivity",
         "parameters": [
           {
@@ -7169,6 +7169,10 @@
             "format": "uuid",
             "nullable": true
           },
+          "aboutComments": {
+            "type": "boolean",
+            "description": "About the stop's comments (a new comment or a like on one): its \"new\" mark clears when the comments are seen (added 2026-11-05)"
+          },
           "count": {
             "type": "number",
             "description": "trip_changed_by_collaborator: number of changes; likes_grouped: number of people; else 1"
@@ -7201,6 +7205,7 @@
           "actor",
           "trip",
           "markerId",
+          "aboutComments",
           "count",
           "title",
           "body",
@@ -7251,6 +7256,14 @@
             "format": "uuid",
             "description": "Mark everything about this stop as read (sent when I open it, which clears its \"new\" mark)"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "comments",
+              "other"
+            ],
+            "description": "With markerId: only what is about its comments (comments, sent when they are seen) or only the rest (other, sent when the stop opens); without it, everything about the stop (added 2026-11-05)"
+          },
           "all": {
             "type": "boolean",
             "enum": [
@@ -7270,10 +7283,19 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "commentMarkerIds": {
+            "description": "Those of markerIds with unread notifications about their comments, which clear when the comments are seen (added 2026-11-05)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
-          "markerIds"
+          "markerIds",
+          "commentMarkerIds"
         ]
       },
       "NotificationSettingsDto": {
