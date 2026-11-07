@@ -11,6 +11,7 @@ import {
 import type {
   CommentPayload,
   LikesPayload,
+  MembershipPayload,
   PlaceHotPayload,
   TripChangesPayload,
 } from './notification-types';
@@ -143,16 +144,27 @@ export class NotificationRenderer {
         };
       case 'likes_grouped': {
         const payload = row.payload as unknown as LikesPayload;
-        if (payload.targetType && row.count === 1) {
+        // One entry per item since 2026-11-07: the latest liker and how many others.
+        if (payload.targetType && (row.count === 1 || row.groupKey)) {
           const item = {
             ...args,
+            count: row.count - 1,
             marker: payload.markerName ?? '',
             excerpt: payload.excerpt ?? '',
           };
           const key = `push.liked.${payload.targetType}`;
           return {
-            title: this.t(`${key}.title`, lang, item),
-            body: this.t(`${key}.body`, lang, item),
+            title: this.t(
+              `${key}.${row.count > 1 ? 'title_others' : 'title'}`,
+              lang,
+              item,
+            ),
+            // A photo in a place's gallery has no trip.
+            body: this.t(
+              `${key}.${payload.targetType === 'photo' && !trip ? 'body_place' : 'body'}`,
+              lang,
+              item,
+            ),
           };
         }
         // Rows from before 2026-11-01, and old grouped summaries.
@@ -183,14 +195,24 @@ export class NotificationRenderer {
         };
       case 'place_hot': {
         const payload = row.payload as unknown as PlaceHotPayload;
+        // Rows from before 2026-11-07 were written once per milestone.
         const hot = {
           ...args,
           place: payload.placeName,
-          count: payload.milestone,
+          count: Math.max(row.count, payload.milestone ?? 0),
         };
         return {
           title: this.t('push.place_hot.title', lang, hot),
           body: this.t('push.place_hot.body', lang, hot),
+        };
+      }
+      case 'join_declined':
+      case 'removed_from_trip': {
+        const payload = row.payload as unknown as MembershipPayload;
+        const ended = { ...args, trip: payload.tripTitle };
+        return {
+          title: this.t(`push.${row.type}.title`, lang, ended),
+          body: this.t(`push.${row.type}.body`, lang, ended),
         };
       }
     }
@@ -215,6 +237,11 @@ export class NotificationRenderer {
         return row.tripId
           ? `tripinly://trips/${row.tripId}/members`
           : 'tripinly://notifications';
+      // The trip is public (a join request): open it to see why, or ask elsewhere.
+      case 'join_declined':
+        return `tripinly://trips/${(row.payload as unknown as MembershipPayload).tripId}`;
+      case 'removed_from_trip':
+        return 'tripinly://notifications';
       default:
         if (row.markerId) return `tripinly://markers/${row.markerId}`;
         return row.tripId

@@ -138,6 +138,7 @@ describe('Notifications (integration)', () => {
       items: NotificationBody[];
       nextCursor: string | null;
       unreadCount: number;
+      unseenCount: number;
     };
   }
 
@@ -210,6 +211,65 @@ describe('Notifications (integration)', () => {
       body: "You're in Vienna now.",
       data: { type: 'join_accepted', deepLink: `tripinly://trips/${trip.id}` },
     });
+  });
+
+  it('tells the person once when the owner declines their request or removes them', async () => {
+    const { body: request } = await as(stranger)
+      .post(`/v1/trips/${trip.id}/join-request`)
+      .expect(200);
+    await device(stranger, 'stranger-phone-token-0000004', 'en');
+    await as(owner)
+      .post(`/v1/join-requests/${(request as { id: string }).id}/decline`)
+      .expect(204);
+    const [declined] = await eventually(
+      () => push.to('stranger-phone-token-0000004').length,
+      5000,
+      'declined push',
+    ).then(() => push.to('stranger-phone-token-0000004'));
+    expect(declined).toMatchObject({
+      title: 'owner declined your request',
+      body: "You can't join Vienna.",
+      data: { type: 'join_declined', deepLink: `tripinly://trips/${trip.id}` },
+    });
+
+    // Removed from a private trip: the entry stays although the trip is gone from view.
+    await as(owner)
+      .patch(`/v1/trips/${trip.id}`)
+      .send({ visibility: 'private' })
+      .expect(200);
+    await as(owner)
+      .delete(`/v1/trips/${trip.id}/members/${editor.userId}`)
+      .expect(204);
+    const removed = await eventually(
+      () =>
+        push.to(EDITOR_PHONE).find((m) => m.data.type === 'removed_from_trip'),
+      5000,
+      'removed push',
+    );
+    expect(removed).toMatchObject({
+      title: 'owner eltávolított innen: Vienna',
+      data: { type: 'removed_from_trip', deepLink: 'tripinly://notifications' },
+    });
+    expect((await list(editor)).items[0]).toMatchObject({
+      type: 'removed_from_trip',
+      trip: null,
+      title: 'owner removed you from Vienna',
+    });
+
+    // Leaving says nothing.
+    await as(owner)
+      .post(`/v1/trips/${trip.id}/members`)
+      .send({ username: 'stranger' })
+      .expect(200);
+    await as(stranger)
+      .delete(`/v1/trips/${trip.id}/members/${stranger.userId}`)
+      .expect(204);
+    await sleep(500);
+    expect(
+      await prisma.notification.count({
+        where: { type: 'removed_from_trip', recipientId: stranger.userId },
+      }),
+    ).toBe(0);
   });
 
   describe('comments', () => {
@@ -486,37 +546,95 @@ describe('Notifications (integration)', () => {
   });
 
   describe('likes', () => {
-    it('pushes each like at once, once for a like, unlike and like again', async () => {
+    it('gathers likes on an item in one entry and pushes only at a milestone', async () => {
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      // Own likes never notify, and a flame alone notifies no one.
+      // Own likes never notify, and a flame on an OSM spot notifies no one.
       await as(owner).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/places/${placeId}/hot`).expect(200);
 
-      const messages = await eventually(
-        () =>
-          push.to(OWNER_TABLET).length === 2
-            ? push.to(OWNER_TABLET)
-            : undefined,
+      const [entry] = await eventually(
+        async () => {
+          const rows = await prisma.notification.findMany({
+            where: { recipientId: owner.userId, type: 'likes_grouped' },
+          });
+          return rows.length === 1 && rows[0].count === 2 ? rows : undefined;
+        },
         5000,
-        'likes pushes',
+        'likes entry',
       );
-      expect(messages.map((message) => message.title).sort()).toEqual([
-        'editor liked your trip',
-        'stranger liked your trip',
-      ]);
-      expect(messages[0]).toMatchObject({
+      expect(entry).toMatchObject({ actorId: editor.userId, tripId: trip.id });
+      expect((await list(owner)).items[0]).toMatchObject({
+        type: 'likes_grouped',
+        title: 'editor and 1 other liked your trip',
         body: 'Vienna',
+        deepLink: `tripinly://trips/${trip.id}`,
+        count: 2,
+      });
+      await sleep(500);
+      expect(push.to(OWNER_TABLET)).toEqual([]);
+
+      // The fifth like pushes, once.
+      const fifth = {
+        kind: 'liked' as const,
+        actorId: stranger.userId,
+        targetType: 'trip' as const,
+        targetId: trip.id,
+        tripId: trip.id,
+        count: 5,
+      };
+      await worker.get(NotificationPlanner).plan(fifth);
+      await worker.get(NotificationPlanner).plan(fifth);
+      const [milestone] = await eventually(
+        () =>
+          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+        5000,
+        'milestone push',
+      );
+      expect(milestone).toMatchObject({
+        title: 'stranger and 4 others liked your trip',
         data: {
           type: 'likes_grouped',
           deepLink: `tripinly://trips/${trip.id}`,
         },
       });
       await sleep(500);
-      expect(push.to(OWNER_TABLET)).toHaveLength(2);
+      expect(push.to(OWNER_TABLET)).toHaveLength(1);
+      expect(
+        await prisma.notification.count({ where: { type: 'likes_grouped' } }),
+      ).toBe(1);
     });
+
+    it('gathers likes on a photo in a place gallery too', async () => {
+      const photo = await prisma.photo.create({
+        data: {
+          uploaderId: owner.userId,
+          placeId,
+          status: 'ready',
+          mimeType: 'image/jpeg',
+          bytes: 10,
+          position: 0,
+        },
+      });
+      await as(stranger).put(`/v1/likes/photo/${photo.id}`).expect(200);
+      const [entry] = await eventually(
+        async () => {
+          const page = await list(owner);
+          return page.items.length ? page.items : undefined;
+        },
+        5000,
+        'place photo entry',
+      );
+      expect(entry).toMatchObject({
+        type: 'likes_grouped',
+        trip: null,
+        title: 'stranger liked your photo',
+        body: 'Albertina',
+      });
+    });
+
     it('names the photo or comment and opens its stop', async () => {
       const markerId = await addMarker(owner);
       const { body: comment } = await as(owner)
@@ -542,13 +660,27 @@ describe('Notifications (integration)', () => {
       });
     });
 
-    it('stops likes, saves and flames when the Likes switch is off', async () => {
+    it('stops likes and flames when the Likes switch is off', async () => {
       await as(owner)
         .patch('/v1/me/notification-settings')
         .send({ likesGrouped: false })
         .expect(200);
-      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
-      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      const markerId = await addMarker(owner);
+      const { body: comment } = await as(owner)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'you coming?' })
+        .expect(201);
+      await as(stranger)
+        .put(`/v1/likes/comment/${(comment as { id: string }).id}`)
+        .expect(200);
+      await worker.get(NotificationPlanner).plan({
+        kind: 'liked',
+        actorId: stranger.userId,
+        targetType: 'trip',
+        targetId: trip.id,
+        tripId: trip.id,
+        count: 5,
+      });
       await eventually(
         async () =>
           (await prisma.notification.count({
@@ -562,28 +694,34 @@ describe('Notifications (integration)', () => {
   });
 
   describe('saves', () => {
-    it('tells the owner once when someone saves their trip', async () => {
+    it('puts a save in the notification center, without a push', async () => {
       await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
       await as(stranger).delete(`/v1/trips/${trip.id}/save`).expect(204);
       await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
       const [saved] = await eventually(
-        () =>
-          push.to(OWNER_TABLET).length ? push.to(OWNER_TABLET) : undefined,
+        async () => {
+          const page = await list(owner);
+          return page.items.length ? page.items : undefined;
+        },
         5000,
-        'save push',
+        'save entry',
       );
       expect(saved).toMatchObject({
+        type: 'trip_saved',
         title: 'stranger saved your trip',
         body: 'Vienna',
-        data: { type: 'trip_saved', deepLink: `tripinly://trips/${trip.id}` },
+        deepLink: `tripinly://trips/${trip.id}`,
       });
       await sleep(500);
-      expect(push.to(OWNER_TABLET)).toHaveLength(1);
+      expect(push.to(OWNER_TABLET)).toEqual([]);
+      expect(
+        await prisma.notification.count({ where: { type: 'trip_saved' } }),
+      ).toBe(1);
     });
   });
 
   describe('follows', () => {
-    it('says followed, then friends when followed back, once a day per person', async () => {
+    it('says followed once per person ever, then friends when followed back, once a day', async () => {
       await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
       await as(stranger).delete(`/v1/users/${owner.userId}/follow`).expect(204);
       await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
@@ -656,22 +794,30 @@ describe('Notifications (integration)', () => {
       return { spotId: stop.placeId, markerId: stop.id };
     }
 
-    it('tells only the creator, once per milestone, on their stop', async () => {
+    it('gathers flames in one entry for the creator, pushing once per milestone', async () => {
       const { spotId, markerId } = await ownersSpot();
       const planner = worker.get(NotificationPlanner);
-      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 4 });
-      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 5 });
+      const flame = (hotCount: number) =>
+        planner.plan({
+          kind: 'place_hot',
+          actorId: stranger.userId,
+          placeId: spotId,
+          hotCount,
+        });
+      await flame(4);
+      await flame(5);
       // Taken back and given again: no second push for the same milestone.
-      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 5 });
+      await flame(5);
       const rows = await prisma.notification.findMany({
         where: { type: 'place_hot' },
       });
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
         recipientId: owner.userId,
-        actorId: null,
+        actorId: stranger.userId,
         tripId: trip.id,
         markerId,
+        count: 5,
       });
       const [hot] = await eventually(
         () =>
@@ -686,10 +832,21 @@ describe('Notifications (integration)', () => {
         body: '5 people marked your spot hot. Nice find!',
         data: { deepLink: `tripinly://markers/${markerId}` },
       });
-      await planner.plan({ kind: 'place_hot', placeId: spotId, hotCount: 25 });
+      await flame(25);
+      await eventually(
+        () =>
+          push.to(OWNER_TABLET).filter((m) => m.data.type === 'place_hot')
+            .length === 2,
+        5000,
+        'second milestone push',
+      );
       expect(
         await prisma.notification.count({ where: { type: 'place_hot' } }),
-      ).toBe(2);
+      ).toBe(1);
+      await sleep(300);
+      expect(
+        push.to(OWNER_TABLET).filter((m) => m.data.type === 'place_hot'),
+      ).toHaveLength(2);
     });
 
     it('sends nothing for OpenStreetMap spots, which have no creator', async () => {
@@ -824,6 +981,25 @@ describe('Notifications (integration)', () => {
       const after = await list(owner);
       expect(after.unreadCount).toBe(0);
       expect(after.items.every((item) => item.read)).toBe(true);
+    });
+
+    it('counts entries new since I last opened the center, read or not', async () => {
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await eventually(async () => (await list(owner)).unseenCount === 1);
+      await as(owner).post('/v1/notifications/seen').expect(204);
+      expect(await list(owner)).toMatchObject({
+        unseenCount: 0,
+        unreadCount: 1,
+      });
+      // An entry coming back on top (another like on the same trip) is unseen again.
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await eventually(async () => (await list(owner)).unseenCount === 1);
+      await as(editor).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await eventually(async () => (await list(owner)).items[0].count === 2);
+      await as(owner).post('/v1/notifications/seen').expect(204);
+      await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
+      await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
+      await eventually(async () => (await list(owner)).unseenCount === 1);
     });
 
     it('hides entries caused by someone I have a block with', async () => {

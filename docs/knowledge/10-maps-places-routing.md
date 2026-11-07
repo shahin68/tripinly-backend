@@ -4,18 +4,18 @@ This file records the map architecture decided with the product owner. It overri
 
 ## The stack
 
-| Part | Choice | Runs where | Cost |
-|---|---|---|---|
-| Map display | **Google Maps SDK** (Android + iOS) with Google's own POI icons **hidden** via map style | Client | Free on mobile |
-| Places shown on the map | **Our own `places` table**: Tripinly places (added/liked by users) + **OpenStreetMap POIs imported by us** | Backend (Postgres/PostGIS) | Free |
-| Place search (search box) | 1) our `places` table (POIs by name), 2) **Photon** (OSM geocoder) for addresses, streets, cities | Backend proxies both | Free (public Photon at first, self-host later) |
-| Routing (route lines, travel times, matrix) | **openrouteservice (ORS)** | Backend calls it | Free plan to start, paid/self-host later |
-| Places along a route | PostGIS query on our `places` table against the ORS route line | Backend | Free |
-| Best order (free) | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later) | Backend | Free/low |
+| Part                                        | Choice                                                                                                     | Runs where                 | Cost                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------- |
+| Map display                                 | **Google Maps SDK** (Android + iOS) with Google's own POI icons **hidden** via map style                   | Client                     | Free on mobile                                 |
+| Places shown on the map                     | **Our own `places` table**: Tripinly places (added/liked by users) + **OpenStreetMap POIs imported by us** | Backend (Postgres/PostGIS) | Free                                           |
+| Place search (search box)                   | 1) our `places` table (POIs by name), 2) **Photon** (OSM geocoder) for addresses, streets, cities          | Backend proxies both       | Free (public Photon at first, self-host later) |
+| Routing (route lines, travel times, matrix) | **openrouteservice (ORS)**                                                                                 | Backend calls it           | Free plan to start, paid/self-host later       |
+| Places along a route                        | PostGIS query on our `places` table against the ORS route line                                             | Backend                    | Free                                           |
+| Best order (free)                           | ORS matrix + our own ordering algorithm (Google Routes only if the product owner decides later)            | Backend                    | Free/low                                       |
 
 ## Legal rules (non-negotiable)
 
-1. **Never store Google Maps content**: no Google place IDs, names, coordinates, photos, ratings or route polylines from Google APIs in our database. The client uses Google only to *draw* the map.
+1. **Never store Google Maps content**: no Google place IDs, names, coordinates, photos, ratings or route polylines from Google APIs in our database. The client uses Google only to _draw_ the map.
 2. The client **hides Google POI icons** so users can only tap our places (which we're allowed to store).
 3. Our data on a Google map is fine. Google data on a non-Google map is not — we don't do either with Google data.
 4. **OpenStreetMap data (ODbL):** we may store and display it forever with the attribution **"© OpenStreetMap contributors"** visible in the app (client shows it on map screens) and in the app's legal/about screen. Our `places` table, enriched with QRank and prominence, is an ODbL **Derivative Database**, and the app uses it publicly. ODbL 4.6 then asks us to offer either that database or the method that made it; we offer the method (4.6(b)): `docs/legal/places-database-method.md`, to be published at a public URL before launch. Don't offer bulk downloads/exports of the places database to the public. A user's own data export may include places they used.
@@ -40,12 +40,14 @@ Two sources in one table (`places.source`):
 Stored per place: `name`, `names` (json of `name:<lang>` for localization), `category`, `location`, `source`, `osmType` + `osmId` (osm only, unique), `tags` (small json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image), `popularity`, `prominence`, `qrank`, `imageTagsHash`, `isActive`, `importedAt`.
 
 **Prominence** (how well known a place is, 0–100) is set by every import as `round(100 × max(Pq, Pt))`:
+
 - `Pq = min(1, log10(1 + QRank) / 6)`. QRank ranks Wikidata items by a year of Wikimedia page views (CC0, no attribution asked; downloaded from `QRANK_URL`, qrank.toolforge.org, a Wikimedia service, not OSM infrastructure). It joins on the `wikidata` tag; with several items (`Q1;Q2`) the best known counts. When QRank can't be read, places keep the ranks they have.
 - `Pt`, from OSM tags, at most 0.5: UNESCO `heritage=1` +0.4, a `wikipedia` tag +0.2, `tourism=attraction` +0.1, a castle, palace, monastery or cathedral +0.2, +0.02 per `name:<lang>` up to 0.1. Stolpersteine, plaques, wayside shrines and crosses, boundary stones and milestones are 0. A `wikidata` tag alone counts for nothing: every listed monument has one.
 - A place's score is `popularity + (prominence / 10) × 10 / (10 + popularity)`: the open rank is worth at most 10 likes and halves at 10 real likes, and a new like never lowers it. The map fill (places below `APP_PLACE_RANK_MIN_HOT_COUNT` likes) ranks by prominence; photo pins follow the pin order, liked places first. Places at or above `APP_PLACE_RANK_MIN_HOT_COUNT` rank by popularity, ahead of all others: our likes lead, QRank is the fallback.
 - `user` places that carry OSM ids (from Photon) get the kept tags, prominence and QRank from the import too, never a new name, popularity or id.
 
 **Place images** (place-photos plan PR 3): a place's card and pin image is its best photo that may represent it (a place's photo, or a photo on a stop there in a public trip, that at least `APP_PLACE_PHOTO_PIN_MIN_LIKES` (3) people other than its uploader liked (the trip's owner and members count); rule in `02-domain-rules.md`), else its most liked Wikimedia Commons image (Commons order on a tie). The app draws it inside the pin of a place with prominence ≥ `photoPinMinProminence` (90) or ≥ `photoPinMinHotCount` (3) likes, at most `mapMaxPhotoPins` (100) at once (`GET /app-config`).
+
 - Commons files come from the place's own OSM links, in order: the Wikidata main image (P18, through the `wikidata` tag; never P154 logo or P948 banner), `wikimedia_commons=File:…`, then `image=` when it points to a Commons file. At most 3 per place; `Category:` links and other hosts are ignored.
 - Only free licences pass: CC0, public domain, CC BY and CC BY-SA 1.0–4.0 with country ports. Refused: non-free, unknown or GFDL-only licences, files with restrictions or a deletion request, SVG, TIFF, GIF and files under 640 px on their longest edge.
 - The worker (queue `place-images`, one job at a time, only with `PLACE_IMAGES_SYNC_ENABLED` and storage) syncs the places whose image tags changed since its last run (`places.imagesSyncedHash`) daily and once on every worker start, and rechecks every stored image weekly: deleted or relicensed files are removed with their copies, changed files downloaded again, credits refreshed. It calls the Wikidata and Commons APIs about once a second with the User-Agent `TripinlyPlaceImages/1.0 (tripinly@gmail.com)`, honours 429/maxlag `Retry-After`, and downloads only the API's 1280 px thumbnails from Wikimedia's file hosts (`upload.wikimedia.org`, and `thumb.wikimedia.org`, where Commons has served thumbnails since October 2026).
@@ -93,11 +95,15 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 Host: `https://api.heigit.org/openrouteservice` (`ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
 
 ### `GET /routes?from=lat,lng&to=lat,lng&mode=walking&categories=…`
+
 and
+
 ### `GET /days/{id}/route?mode=walking&categories=…`
+
 (route through the day's markers in their current order; requires `view` on the trip)
 
 Returns:
+
 ```json
 {
   "route": { "polyline": "<encoded polyline, precision 5>", "distanceMeters": 3200, "durationSeconds": 2400,
@@ -108,6 +114,7 @@ Returns:
 ```
 
 **Along-the-way query** (PostGIS):
+
 - Buffer by mode: walking 250 m, cycling 500 m, driving 1500 m (configurable).
 - Simplify the route line first for long routes (`ST_Simplify` in a metric projection, tolerance ~20 m walking / 100 m driving).
 - `ST_DWithin(place.location, routeLine, buffer)`, active places only, requested categories.
@@ -118,6 +125,7 @@ Returns:
 **Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
 
 **Free vs premium:**
+
 - Route lines (a day's route and A→B) with along-the-way places: **Tripinly Pro** (entitlement `routes`; 403 `PREMIUM_REQUIRED` otherwise). Without Pro the app joins the day's stops with its own curved direction lines (no server call). (Product owner, 2026-10-18.)
 - **Best order (reorder a day):** **free for everyone**, a simple reordering: ORS matrix (`/v2/matrix/{profile}`, durations) + our ordering (nearest neighbour + 2-opt, first marker fixed) + `savedMinutes`; straight-line distances with `degraded: true` when travel times are unavailable.
 - Limits: ≤ 25 markers per optimization, ≤ 50 waypoints per day route.

@@ -84,9 +84,19 @@ export class NotificationsService {
       this.prisma.notification.count({ where: { ...visible, readAt: null } }),
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { locale: true },
+        select: { locale: true, notificationsSeenAt: true },
       }),
     ]);
+    const unseenCount = await this.prisma.notification.count({
+      where: {
+        AND: [
+          visible,
+          user?.notificationsSeenAt
+            ? { createdAt: { gt: user.notificationsSeenAt } }
+            : {},
+        ],
+      },
+    });
     const context = await this.renderer.context(rows);
     const lang = resolveLanguage(I18nContext.current()?.lang, user?.locale);
     const page = toPage(
@@ -101,7 +111,15 @@ export class NotificationsService {
           this.renderer.deepLink(row, context),
         ),
     );
-    return { ...page, unreadCount };
+    return { ...page, unreadCount, unseenCount };
+  }
+
+  /** The notification center was opened: what's in it now counts as seen. */
+  async markSeen(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { notificationsSeenAt: new Date() },
+    });
   }
 
   async markRead(userId: string, input: MarkReadDto): Promise<void> {

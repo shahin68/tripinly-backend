@@ -7,6 +7,7 @@ Values marked 🔑 are secrets. Paste them only into Railway (or Cloudflare / Fi
 ## 0. Before you start
 
 You need:
+
 - the Railway account, connected to GitHub with access to `shahin68/tripinly-backend`;
 - a terminal with `openssl` (macOS and Linux have it) to generate three secrets;
 - for photos: a Cloudflare account (step 3);
@@ -39,17 +40,17 @@ openssl rand -hex 32      # DEV_AUTH_SECRET (staging only)
 
 Project → **Settings** → **Shared Variables** → environment `staging` → add:
 
-| Variable | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `DEPLOY_ENV` | `staging` |
-| `LOG_LEVEL` | `info` |
-| `JWT_ACCESS_SECRET` 🔑 | from step 2 |
-| `ENCRYPTION_KEY` 🔑 | from step 2 |
-| `R2_ACCOUNT_ID` | from step 3 |
-| `R2_ACCESS_KEY_ID` 🔑 | from step 3 |
-| `R2_SECRET_ACCESS_KEY` 🔑 | from step 3 |
-| `R2_BUCKET` | `tripinly-staging` |
+| Variable                  | Value              |
+| ------------------------- | ------------------ |
+| `NODE_ENV`                | `production`       |
+| `DEPLOY_ENV`              | `staging`          |
+| `LOG_LEVEL`               | `info`             |
+| `JWT_ACCESS_SECRET` 🔑    | from step 2        |
+| `ENCRYPTION_KEY` 🔑       | from step 2        |
+| `R2_ACCOUNT_ID`           | from step 3        |
+| `R2_ACCESS_KEY_ID` 🔑     | from step 3        |
+| `R2_SECRET_ACCESS_KEY` 🔑 | from step 3        |
+| `R2_BUCKET`               | `tripinly-staging` |
 
 ## 5. The `api` service
 
@@ -122,44 +123,44 @@ DEV_AUTH_SECRET=<the staging value> node scripts/seed-test-accounts.mjs https://
 
 ## Checklist of every value
 
-| Where | Variable | Status |
-|---|---|---|
-| Shared | `NODE_ENV`, `DEPLOY_ENV`, `LOG_LEVEL`, `R2_BUCKET` | plain values |
-| Shared | `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY` | generated (step 2) |
-| Shared | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare (step 3) |
-| api + worker | `DATABASE_URL`, `REDIS_URL` | Railway references |
-| api | `DEV_AUTH_ENABLED`, `DEV_AUTH_SECRET`, `DEV_ACCOUNTS_PRO` | staging only |
-| api | `ORS_API_KEY` | you hold it |
-| api + worker | `REVENUECAT_API_KEY` | you hold it (api: the purchase webhook reads purchases with it; worker: account deletion) |
-| api | `REVENUECAT_WEBHOOK_AUTH` | a long random value; the same value goes in RevenueCat's webhook Authorization header (a `Bearer ` prefix on either side is fine) |
-| worker | `FIREBASE_SERVICE_ACCOUNT_JSON` | from Firebase, when ready |
-| worker | `OSM_IMPORT_ENABLED` | `true` |
-| worker | `PLACE_IMAGES_SYNC_ENABLED` | `true` (copies Commons images of places; the first run takes hours at one request a second) |
-| later | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL` | need the domain, developer accounts or the webhook |
-| api | the `APP_*` tuning values below | optional: the default applies while unset |
+| Where        | Variable                                                                            | Status                                                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Shared       | `NODE_ENV`, `DEPLOY_ENV`, `LOG_LEVEL`, `R2_BUCKET`                                  | plain values                                                                                                                      |
+| Shared       | `JWT_ACCESS_SECRET`, `ENCRYPTION_KEY`                                               | generated (step 2)                                                                                                                |
+| Shared       | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`                         | Cloudflare (step 3)                                                                                                               |
+| api + worker | `DATABASE_URL`, `REDIS_URL`                                                         | Railway references                                                                                                                |
+| api          | `DEV_AUTH_ENABLED`, `DEV_AUTH_SECRET`, `DEV_ACCOUNTS_PRO`                           | staging only                                                                                                                      |
+| api          | `ORS_API_KEY`                                                                       | you hold it                                                                                                                       |
+| api + worker | `REVENUECAT_API_KEY`                                                                | you hold it (api: the purchase webhook reads purchases with it; worker: account deletion)                                         |
+| api          | `REVENUECAT_WEBHOOK_AUTH`                                                           | a long random value; the same value goes in RevenueCat's webhook Authorization header (a `Bearer ` prefix on either side is fine) |
+| worker       | `FIREBASE_SERVICE_ACCOUNT_JSON`                                                     | from Firebase, when ready                                                                                                         |
+| worker       | `OSM_IMPORT_ENABLED`                                                                | `true`                                                                                                                            |
+| worker       | `PLACE_IMAGES_SYNC_ENABLED`                                                         | `true` (copies Commons images of places; the first run takes hours at one request a second)                                       |
+| later        | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_CLIENT_IDS`, `APPLE_*`, `APP_LINK_BASE_URL` | need the domain, developer accounts or the webhook                                                                                |
+| api          | the `APP_*` tuning values below                                                     | optional: the default applies while unset                                                                                         |
 
 ### App tuning values (api)
 
 Each one is optional and has a default. A value outside its range stops the api from booting, so check the range before changing one. The ones the apps read are sent by `GET /v1/app-config` and apply after the api restarts and the app relaunches.
 
-| Variable | Default | Range | What it changes |
-|---|---|---|---|
-| `APP_PLACES_REFRESH_SECONDS` | 300 | ≥ 10 | How old a map square's places get before the app reloads them |
-| `APP_PHOTO_MAX_EDGE_PX` | 2560 | 1024–4096 | Longest photo edge the app uploads |
-| `APP_PHOTO_JPEG_QUALITY` | 85 | 50–100 | JPEG quality of uploaded photos |
-| `APP_PHOTO_PARALLEL_UPLOADS` | 2 | 1–4 | Photos uploaded at once |
-| `APP_PIN_LARGE_MIN_PROMINENCE` | 95 | 0–100 | Prominence from which a place pin is largest |
-| `APP_PIN_MEDIUM_MIN_PROMINENCE` | 60 | 0–100 | Prominence from which a place pin is middle-sized |
-| `APP_MAP_MAX_PINS` | 150 | 20–1000 | Most place pins on the map at once |
-| `APP_PHOTO_PIN_MIN_PROMINENCE` | 90 | 0–100 | Prominence from which a pin shows its place's photo… |
-| `APP_PHOTO_PIN_MIN_HOT_COUNT` | 3 | ≥ 1 | …or the hot count from which it does |
-| `APP_MAP_MAX_PHOTO_PINS` | 100 | 0–500 | Most photo pins at once |
-| `APP_PIN_DOT_BELOW_ZOOM` | 14 | 0–22 | Below this camera zoom, place pins are small dots |
-| `APP_TRIP_MAX_MEMBERS` | 50 | ≥ 2 | Most people in one trip, owner included |
-| `APP_PLACE_PHOTO_PIN_MIN_LIKES` | 3 | ≥ 1 | Likes from people other than the uploader before a stop photo can represent its place |
-| `APP_PLACE_RANK_MIN_HOT_COUNT` | 1 | ≥ 1 | Hot count from which a place is a hot spot and ranks by it instead of prominence |
-| `APP_PLACE_PHOTO_DAILY_LIMIT` | 20 | ≥ 1 | Place photos one person may add a day |
-| `APP_EXPLORE_NEARBY_RADIUS_KM` | 50 | 1–500 | Radius of Explore's nearby trips |
+| Variable                        | Default | Range     | What it changes                                                                       |
+| ------------------------------- | ------- | --------- | ------------------------------------------------------------------------------------- |
+| `APP_PLACES_REFRESH_SECONDS`    | 300     | ≥ 10      | How old a map square's places get before the app reloads them                         |
+| `APP_PHOTO_MAX_EDGE_PX`         | 2560    | 1024–4096 | Longest photo edge the app uploads                                                    |
+| `APP_PHOTO_JPEG_QUALITY`        | 85      | 50–100    | JPEG quality of uploaded photos                                                       |
+| `APP_PHOTO_PARALLEL_UPLOADS`    | 2       | 1–4       | Photos uploaded at once                                                               |
+| `APP_PIN_LARGE_MIN_PROMINENCE`  | 95      | 0–100     | Prominence from which a place pin is largest                                          |
+| `APP_PIN_MEDIUM_MIN_PROMINENCE` | 60      | 0–100     | Prominence from which a place pin is middle-sized                                     |
+| `APP_MAP_MAX_PINS`              | 150     | 20–1000   | Most place pins on the map at once                                                    |
+| `APP_PHOTO_PIN_MIN_PROMINENCE`  | 90      | 0–100     | Prominence from which a pin shows its place's photo…                                  |
+| `APP_PHOTO_PIN_MIN_HOT_COUNT`   | 3       | ≥ 1       | …or the hot count from which it does                                                  |
+| `APP_MAP_MAX_PHOTO_PINS`        | 100     | 0–500     | Most photo pins at once                                                               |
+| `APP_PIN_DOT_BELOW_ZOOM`        | 14      | 0–22      | Below this camera zoom, place pins are small dots                                     |
+| `APP_TRIP_MAX_MEMBERS`          | 50      | ≥ 2       | Most people in one trip, owner included                                               |
+| `APP_PLACE_PHOTO_PIN_MIN_LIKES` | 3       | ≥ 1       | Likes from people other than the uploader before a stop photo can represent its place |
+| `APP_PLACE_RANK_MIN_HOT_COUNT`  | 1       | ≥ 1       | Hot count from which a place is a hot spot and ranks by it instead of prominence      |
+| `APP_PLACE_PHOTO_DAILY_LIMIT`   | 20      | ≥ 1       | Place photos one person may add a day                                                 |
+| `APP_EXPLORE_NEARBY_RADIUS_KM`  | 50      | 1–500     | Radius of Explore's nearby trips                                                      |
 
 A PR that adds, renames or removes a variable adds its row here in the same change.
 
@@ -174,11 +175,11 @@ A place pin shows a photo only when all of these hold:
 
 So, on the api, from biggest effect to smallest:
 
-| To show more photos | Change | Example |
-|---|---|---|
-| Less famous places too | Lower `APP_PHOTO_PIN_MIN_PROMINENCE` | 90 → 60 (the medium pin size); 0 shows every place's image |
-| Places marked hot by fewer people | Lower `APP_PHOTO_PIN_MIN_HOT_COUNT` | 3 → 1 |
-| More photo pins in a busy view | Raise `APP_MAP_MAX_PHOTO_PINS` (and `APP_MAP_MAX_PINS` if it's the lower one) | 100 → 200 |
-| Photos when zoomed further out | Lower `APP_PIN_DOT_BELOW_ZOOM` | 14 → 13 |
+| To show more photos               | Change                                                                        | Example                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Less famous places too            | Lower `APP_PHOTO_PIN_MIN_PROMINENCE`                                          | 90 → 60 (the medium pin size); 0 shows every place's image |
+| Places marked hot by fewer people | Lower `APP_PHOTO_PIN_MIN_HOT_COUNT`                                           | 3 → 1                                                      |
+| More photo pins in a busy view    | Raise `APP_MAP_MAX_PHOTO_PINS` (and `APP_MAP_MAX_PINS` if it's the lower one) | 100 → 200                                                  |
+| Photos when zoomed further out    | Lower `APP_PIN_DOT_BELOW_ZOOM`                                                | 14 → 13                                                    |
 
 More photo pins mean more image downloads and more markers drawn: raise them a step at a time and check the map stays smooth on an older phone. Changes apply after the api restarts (Railway restarts it when a variable is saved) and the app relaunches.

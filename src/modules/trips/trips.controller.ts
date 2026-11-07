@@ -270,7 +270,7 @@ export class TripsController {
   @ApiOperation({
     summary: 'Owner: decline a request',
     description:
-      "The person isn't told, and their myJoinRequest becomes declined; they can't ask again. Not the owner or already decided: 404.",
+      "The person gets a join_declined notification (once), and their myJoinRequest becomes declined; they can't ask again. Not the owner or already decided: 404.",
   })
   @ApiNoContentResponse()
   declineJoin(

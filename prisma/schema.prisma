@@ -63,6 +63,8 @@ model User {
   role                  UserRole       @default(user)
   status                UserStatus     @default(active)
   onboardedAt           DateTime?
+  /// When I last opened the notification center; newer entries count as unseen.
+  notificationsSeenAt   DateTime?
   /// The profile photo: a ready photo with no stop and no place. Optional; null shows the letter avatar.
   avatarPhotoId         String?        @unique @db.Uuid
   createdAt             DateTime       @default(now())
@@ -742,6 +744,8 @@ enum NotificationType {
   place_hot
   comment_reply
   comment_mention
+  join_declined
+  removed_from_trip
 }
 
 /// In-app notifications (docs/knowledge/05-realtime-and-notifications.md).
@@ -774,6 +778,7 @@ model Notification {
   @@index([actorId])
   @@index([tripId])
   @@index([markerId])
+  @@index([groupKey])
   @@map("notifications")
 }
 

@@ -89,6 +89,12 @@ export class NotificationPageDto {
 
   @ApiProperty({ description: 'Unread notifications in total' })
   unreadCount: number;
+
+  @ApiProperty({
+    description:
+      'Entries new or updated since I last opened the notification center (POST /notifications/seen): its red indicator (added 2026-11-07)',
+  })
+  unseenCount: number;
 }
 
 export const READ_KINDS = ['comments', 'other'] as const;
