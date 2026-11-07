@@ -126,8 +126,94 @@ describe('NotificationRenderer', () => {
       body: 'Nice',
     });
     expect(renderer.deepLink(comment, context)).toBe(
-      `tripinly://markers/${MARKER}`,
+      `tripinly://markers/${MARKER}/comments`,
     );
+  });
+
+  it('names the people of a group and opens what it is about', () => {
+    const anna = '77777777-7777-4777-8777-777777777777';
+    const mia = '88888888-8888-4888-8888-888888888888';
+    const people: RenderContext = {
+      ...context,
+      actors: new Map([
+        ...context.actors,
+        [
+          anna,
+          {
+            id: anna,
+            username: 'anna',
+            displayName: 'Anna',
+            avatarPhotoId: null,
+            avatarThumbUrl: null,
+          },
+        ],
+        [
+          mia,
+          {
+            id: mia,
+            username: 'mia',
+            displayName: 'Mia',
+            avatarPhotoId: null,
+            avatarThumbUrl: null,
+          },
+        ],
+      ]),
+    };
+    const comments = (actorIds: string[], count: number) =>
+      row({
+        type: 'comment_on_marker',
+        markerId: MARKER,
+        groupKey: 'comments:m:r',
+        count,
+        payload: {
+          commentId: 'c3',
+          markerName: 'Prater',
+          excerpt: 'see you at 9',
+          actorIds,
+        },
+      });
+    expect(renderer.text(comments([JONAS], 1), people, 'en').title).toBe(
+      'Jonas commented on Prater',
+    );
+    expect(renderer.text(comments([JONAS], 3), people, 'en').title).toBe(
+      'Jonas commented 3 times on Prater',
+    );
+    expect(renderer.text(comments([JONAS, anna], 3), people, 'en').title).toBe(
+      'Jonas and Anna commented on Prater',
+    );
+    expect(
+      renderer.text(comments([JONAS, anna, mia], 5), people, 'en').title,
+    ).toBe('Jonas and 2 others commented on Prater');
+
+    const follows = row({
+      type: 'followed',
+      tripId: null,
+      groupKey: 'follows:r',
+      count: 2,
+      payload: { actorIds: [JONAS, anna] },
+    });
+    expect(renderer.text(follows, people, 'en').title).toBe(
+      'Jonas and Anna followed you',
+    );
+    expect(renderer.deepLink(follows, people)).toBe('tripinly://me/followers');
+    const follow = row({
+      type: 'followed',
+      tripId: null,
+      groupKey: 'follows:r',
+      payload: { actorIds: [JONAS] },
+    });
+    expect(renderer.deepLink(follow, people)).toBe('tripinly://users/jonas');
+
+    const saves = row({
+      type: 'trip_saved',
+      groupKey: 'saves:t:r',
+      count: 4,
+      payload: { actorIds: [JONAS, anna, mia] },
+    });
+    expect(renderer.text(saves, people, 'de').title).toBe(
+      'Jonas und 2 weitere haben deine Reise gespeichert',
+    );
+    expect(renderer.deepLink(saves, people)).toBe(`tripinly://trips/${TRIP}`);
   });
 
   it('says what was liked and opens its stop', () => {

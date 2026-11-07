@@ -26,6 +26,7 @@ interface NotificationBody {
   id: string;
   type: string;
   actor: { username: string } | null;
+  actors: { id: string }[];
   trip: { id: string; title: string } | null;
   markerId: string | null;
   count: number;
@@ -298,12 +299,67 @@ describe('Notifications (integration)', () => {
         body: 'Go early in the morning, the queue gets long after ten!',
         data: {
           type: 'comment_on_marker',
-          deepLink: `tripinly://markers/${markerId}`,
+          deepLink: `tripinly://markers/${markerId}/comments`,
         },
       });
       expect(de.title).toBe('stranger hat Albertina kommentiert');
       expect(hu.title).toBe('stranger hozzászólt: Albertina');
       expect(en.data.notificationId).toEqual(expect.any(String));
+    });
+
+    it("gathers a stop's comments in one entry until it is read", async () => {
+      const markerId = await addMarker(owner);
+      const comment = async (session: Session, body: string) =>
+        (
+          (
+            await as(session)
+              .post(`/v1/markers/${markerId}/comments`)
+              .send({ body })
+              .expect(201)
+          ).body as { id: string }
+        ).id;
+      await comment(stranger, 'one');
+      const second = await comment(stranger, 'two');
+      await eventually(async () => (await list(owner)).items[0]?.count === 2);
+      expect((await list(owner)).items).toHaveLength(1);
+      expect((await list(owner)).items[0]).toMatchObject({
+        title: 'stranger commented 2 times on Albertina',
+        body: 'two',
+        actors: [{ id: stranger.userId }],
+        deepLink: `tripinly://markers/${markerId}/comments`,
+      });
+      await comment(editor, 'three');
+      await eventually(async () => (await list(owner)).items[0]?.count === 3);
+      const [group] = (await list(owner)).items;
+      expect(group).toMatchObject({
+        title: 'editor and stranger commented on Albertina',
+        body: 'three',
+        actors: [{ id: editor.userId }, { id: stranger.userId }],
+      });
+      // Every comment still pushes.
+      await eventually(
+        () =>
+          push
+            .to(OWNER_TABLET)
+            .filter((m) => m.data.type === 'comment_on_marker').length === 3,
+        5000,
+        'three comment pushes',
+      );
+
+      // A deleted comment leaves the group.
+      await as(stranger).delete(`/v1/comments/${second}`).expect(204);
+      await eventually(async () => (await list(owner)).items[0]?.count === 2);
+
+      // Once read (tapped), the next comment starts a new entry.
+      await as(owner)
+        .post('/v1/notifications/read')
+        .send({ ids: [group.id] })
+        .expect(204);
+      await comment(stranger, 'four');
+      await eventually(async () => (await list(owner)).items.length === 2);
+      const [fresh, old] = (await list(owner)).items;
+      expect(fresh).toMatchObject({ count: 1, body: 'four', read: false });
+      expect(old).toMatchObject({ id: group.id, count: 2, read: true });
     });
 
     it('removes the notification when the comment is deleted', async () => {
@@ -388,7 +444,11 @@ describe('Notifications (integration)', () => {
         .post(`/v1/markers/${markerId}/comments`)
         .send({ body: 'Lovely' })
         .expect(201);
-      await eventually(() => push.to(OWNER_TABLET).length);
+      // Both pushes of the first comment, so none lands after the reset.
+      await eventually(
+        () =>
+          push.to(OWNER_TABLET).length && push.to(EDITOR_PHONE).length === 2,
+      );
       push.reset();
 
       // stranger isn't on the trip: their handle stays plain text.
@@ -531,17 +591,24 @@ describe('Notifications (integration)', () => {
         tripId: trip.id,
         change: 'place_updated' as const,
         subjectId: markerId,
+        markerId,
       };
       await worker.get(NotificationPlanner).plan(change);
       await worker.get(NotificationPlanner).plan(change);
       await worker
         .get(NotificationPlanner)
         .plan({ ...change, change: 'place_deleted' });
-      expect(
-        await prisma.notification.count({
-          where: { recipientId: owner.userId },
-        }),
-      ).toBe(3);
+      // The stop's changes gather in its row (the new stop, its update, its deletion).
+      const rows = await prisma.notification.findMany({
+        where: { recipientId: owner.userId },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        count: 3,
+        payload: {
+          kinds: { place_added: 1, place_updated: 1, place_deleted: 1 },
+        },
+      });
     });
   });
 
@@ -655,7 +722,7 @@ describe('Notifications (integration)', () => {
         body: '"you coming?" on Albertina',
         data: {
           type: 'likes_grouped',
-          deepLink: `tripinly://markers/${markerId}`,
+          deepLink: `tripinly://markers/${markerId}/comments`,
         },
       });
     });
@@ -717,10 +784,32 @@ describe('Notifications (integration)', () => {
       expect(
         await prisma.notification.count({ where: { type: 'trip_saved' } }),
       ).toBe(1);
+      // Someone else's save joins the entry.
+      const visitor = await onboardedUser(app, 'visitor');
+      await as(visitor).put(`/v1/trips/${trip.id}/save`).expect(204);
+      await eventually(async () => (await list(owner)).items[0]?.count === 2);
+      expect((await list(owner)).items).toMatchObject([
+        { title: 'visitor and stranger saved your trip' },
+      ]);
     });
   });
 
   describe('follows', () => {
+    it('gathers new followers in one entry that opens my followers', async () => {
+      await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await as(editor).put(`/v1/users/${owner.userId}/follow`).expect(204);
+      await eventually(async () => (await list(owner)).items[0]?.count === 2);
+      expect((await list(owner)).items).toMatchObject([
+        {
+          type: 'followed',
+          title: 'editor and stranger followed you',
+          deepLink: 'tripinly://me/followers',
+        },
+      ]);
+      // Each new follower still pushes, once.
+      await eventually(() => push.to(OWNER_TABLET).length === 2);
+    });
+
     it('says followed once per person ever, then friends when followed back, once a day', async () => {
       await as(stranger).put(`/v1/users/${owner.userId}/follow`).expect(204);
       await as(stranger).delete(`/v1/users/${owner.userId}/follow`).expect(204);
@@ -939,8 +1028,9 @@ describe('Notifications (integration)', () => {
 
   describe('in-app list', () => {
     it('pages newest first, counts unread and marks read by id or all', async () => {
-      const markerId = await addMarker(owner);
+      // One stop each: comments on one stop gather in one entry.
       for (const text of ['one', 'two', 'three']) {
+        const markerId = await addMarker(owner);
         await as(stranger)
           .post(`/v1/markers/${markerId}/comments`)
           .send({ body: text })

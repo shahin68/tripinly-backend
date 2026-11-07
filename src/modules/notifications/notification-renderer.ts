@@ -15,6 +15,7 @@ import type {
   PlaceHotPayload,
   TripChangesPayload,
 } from './notification-types';
+import { COMMENT_TYPES, shownActorIds } from './notification-types';
 import { StorageService } from '../../common/storage/storage.service';
 
 export interface RenderContext {
@@ -58,7 +59,7 @@ export class NotificationRenderer {
     const actorIds = new Set<string>();
     const tripIds = new Set<string>();
     for (const row of rows) {
-      if (row.actorId) actorIds.add(row.actorId);
+      for (const id of shownActorIds(row)) actorIds.add(id);
       if (row.tripId) tripIds.add(row.tripId);
     }
     const [actors, trips] = await Promise.all([
@@ -99,9 +100,11 @@ export class NotificationRenderer {
       case 'comment_reply':
       case 'comment_mention': {
         const payload = row.payload as unknown as CommentPayload;
+        const people = this.people(row, context, lang);
         return {
-          title: this.t(`push.${row.type}.title`, lang, {
+          title: this.t(`push.${row.type}.${people.variant}`, lang, {
             ...args,
+            ...people.args,
             marker: payload.markerName,
           }),
           body: this.t(`push.${row.type}.body`, lang, {
@@ -178,21 +181,31 @@ export class NotificationRenderer {
           ),
         };
       }
-      case 'followed':
+      case 'followed': {
+        const people = this.people(row, context, lang);
         return {
-          title: this.t('push.followed.title', lang, args),
+          title: this.t(`push.followed.${people.variant}`, lang, {
+            ...args,
+            ...people.args,
+          }),
           body: this.t('push.followed.body', lang, args),
         };
+      }
       case 'became_friends':
         return {
           title: this.t('push.became_friends.title', lang, args),
           body: this.t('push.became_friends.body', lang, args),
         };
-      case 'trip_saved':
+      case 'trip_saved': {
+        const people = this.people(row, context, lang);
         return {
-          title: this.t('push.trip_saved.title', lang, args),
+          title: this.t(`push.trip_saved.${people.variant}`, lang, {
+            ...args,
+            ...people.args,
+          }),
           body: this.t('push.trip_saved.body', lang, args),
         };
+      }
       case 'place_hot': {
         const payload = row.payload as unknown as PlaceHotPayload;
         // Rows from before 2026-11-07 were written once per milestone.
@@ -219,15 +232,26 @@ export class NotificationRenderer {
   }
 
   /**
-   * Where a tap opens (client 04-realtime-and-push.md, Deep links): the stop
-   * when the notification is about one (`markers/{id}`, which older apps
-   * read as its trip), a trip's Members sheet for join requests, a profile
-   * for follows, else the trip.
+   * Where a tap opens (client 04-realtime-and-push.md, Deep links): a stop's
+   * comments sheet for comments and comment likes (`markers/{id}/comments`),
+   * the stop when the notification is about one (`markers/{id}`), a trip's
+   * Members sheet for join requests, the profile for a follow (my Followers
+   * for several, `me/followers`), else the trip.
    */
   deepLink(row: Notification, context: RenderContext): string {
+    const aboutComments =
+      (COMMENT_TYPES as readonly string[]).includes(row.type) ||
+      (row.type === 'likes_grouped' &&
+        (row.payload as Partial<LikesPayload>).targetType === 'comment');
+    if (aboutComments && row.markerId) {
+      return `tripinly://markers/${row.markerId}/comments`;
+    }
     switch (row.type) {
       case 'followed':
       case 'became_friends': {
+        if (row.type === 'followed' && shownActorIds(row).length > 1) {
+          return 'tripinly://me/followers';
+        }
         const actor = row.actorId ? context.actors.get(row.actorId) : undefined;
         return actor
           ? `tripinly://users/${actor.username}`
@@ -248,6 +272,35 @@ export class NotificationRenderer {
           ? `tripinly://trips/${row.tripId}`
           : 'tripinly://notifications';
     }
+  }
+
+  /**
+   * Who a grouped row names: one person once (`title`), one person several
+   * times (`title_times`), two people (`title_two`) or more (`title_many`,
+   * with how many others).
+   */
+  private people(
+    row: Notification,
+    context: RenderContext,
+    lang: string,
+  ): {
+    variant: 'title' | 'title_times' | 'title_two' | 'title_many';
+    args: Record<string, string | number>;
+  } {
+    const ids = (row.payload as { actorIds?: string[] } | null)?.actorIds ?? [];
+    const name = (id?: string) => {
+      const user = id ? context.actors.get(id) : undefined;
+      return (
+        user?.displayName ?? user?.username ?? this.t('push.someone', lang, {})
+      );
+    };
+    if (ids.length > 2) {
+      return { variant: 'title_many', args: { count: ids.length - 1 } };
+    }
+    if (ids.length === 2) {
+      return { variant: 'title_two', args: { actor2: name(ids[1]) } };
+    }
+    return { variant: row.count > 1 ? 'title_times' : 'title', args: {} };
   }
 
   private t(

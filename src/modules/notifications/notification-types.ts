@@ -70,9 +70,12 @@ export const COMMENT_EXCERPT_LENGTH = 80;
 
 /** Payloads stored in notifications.payload, per type. */
 export interface CommentPayload {
+  /** The latest comment; its text is [excerpt]. */
   commentId: string;
   markerName: string;
   excerpt: string;
+  /** A group's comments, oldest first (since 2026-11-07; single rows have only commentId). */
+  commentIds?: string[];
 }
 
 export interface TripChangesPayload {
@@ -107,6 +110,28 @@ export interface PlaceHotPayload {
 export interface MembershipPayload {
   tripId: string;
   tripTitle: string;
+}
+
+/**
+ * Every grouped row's people, latest first (since 2026-11-07; the row's actorId
+ * is the first). The center shows up to [SHOWN_ACTORS] of them.
+ */
+export interface GroupPayload {
+  actorIds?: string[];
+}
+
+export const SHOWN_ACTORS = 3;
+
+/** Up to [SHOWN_ACTORS] people of a row, latest first. */
+export function shownActorIds(row: {
+  actorId: string | null;
+  payload: unknown;
+}): string[] {
+  const ids = (row.payload as GroupPayload | null)?.actorIds;
+  return (ids?.length ? ids : row.actorId ? [row.actorId] : []).slice(
+    0,
+    SHOWN_ACTORS,
+  );
 }
 
 export type NotificationPayload =

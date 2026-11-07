@@ -15,6 +15,7 @@ import {
   type CommentPayload,
   excerpt,
   FOLLOW_REPEAT_SECONDS,
+  type GroupPayload,
   type LikesPayload,
   type MembershipPayload,
   milestoneReached,
@@ -33,11 +34,15 @@ import {
  * Decides who hears about a domain event (the notifications skill): never the
  * actor, never across a block, only people who can still see the trip. Writes
  * the in-app row (the notification center) and sends its push at once
- * (Shahin, 2026-11-01), except: likes on trips and photos and flames gather
- * in one entry per item and push only at APP_NOTIFICATION_MILESTONES, saves
- * never push, and a follow pushes once per pair (Shahin, 2026-11-07). The
- * same thing again from the same person (a like, unlike and like; the same
- * stop moved twice) within NOTIFICATION_REPEAT_COOLDOWN_SECONDS is dropped.
+ * (Shahin, 2026-11-01), except: likes on trips and photos and flames push
+ * only at APP_NOTIFICATION_MILESTONES, saves never push, and a follow pushes
+ * once per pair (Shahin, 2026-11-07). Most types group (Shahin, 2026-11-07):
+ * one row per stop's comments, comment thread, stop or trip changed, trip
+ * saved, liked item, flamed spot and for follows, growing until it is read
+ * (tapped, or its stop opened); then the next one starts a new row. Mentions
+ * and membership notices stay single. The same thing again from the same
+ * person (a like, unlike and like; the same stop moved twice) within
+ * NOTIFICATION_REPEAT_COOLDOWN_SECONDS is dropped.
  */
 @Injectable()
 export class NotificationPlanner {
@@ -57,20 +62,7 @@ export class NotificationPlanner {
       case 'comment_created':
         return this.commentCreated(input);
       case 'comment_deleted':
-        await this.prisma.notification.deleteMany({
-          where: {
-            OR: [
-              {
-                type: { in: [...COMMENT_TYPES] },
-                payload: { path: ['commentId'], equals: input.commentId },
-              },
-              {
-                groupKey: { startsWith: likesKey('comment', input.commentId) },
-              },
-            ],
-          },
-        });
-        return;
+        return this.commentDeleted(input.commentId);
       case 'added_to_trip':
         return this.addedToTrip(input);
       case 'join_requested':
@@ -142,23 +134,100 @@ export class NotificationPlanner {
       ...members.map((member) => member.userId),
       ...commenters.map((comment) => comment.authorId),
     ])) {
-      const mentioned = mentionIds.includes(recipientId);
-      await this.immediate(
+      const push = pushTo === null || pushTo.has(recipientId);
+      const data = {
+        recipientId,
+        actorId: input.actorId,
+        tripId: input.tripId,
+        markerId: input.markerId,
+        payload: payload as unknown as Prisma.InputJsonObject,
+      };
+      if (mentionIds.includes(recipientId)) {
+        await this.immediate({ ...data, type: 'comment_mention' }, push);
+        continue;
+      }
+      // A stop's comments, or one thread's replies, gather in one row.
+      await this.grouped(
+        { ...data, type: parentId ? 'comment_reply' : 'comment_on_marker' },
+        parentId
+          ? `replies:${parentId}:${recipientId}`
+          : `comments:${input.markerId}:${recipientId}`,
         {
-          recipientId,
-          type: mentioned
-            ? 'comment_mention'
-            : parentId
-              ? 'comment_reply'
-              : 'comment_on_marker',
-          actorId: input.actorId,
-          tripId: input.tripId,
-          markerId: input.markerId,
-          payload: payload as unknown as Prisma.InputJsonObject,
+          push: push ? 'always' : 'never',
+          merge: (old) => ({
+            ...payload,
+            commentIds: [
+              ...((old as Partial<CommentPayload>).commentIds ??
+                [(old as Partial<CommentPayload>).commentId].filter(
+                  (id): id is string => !!id,
+                )),
+              input.commentId,
+            ],
+          }),
         },
-        pushTo === null || pushTo.has(recipientId),
       );
     }
+  }
+
+  /**
+   * A deleted comment leaves the rows about it: a single one goes, a group
+   * shrinks to the comments still there (their latest text and people) or
+   * goes when none is left. Likes on it go too.
+   */
+  private async commentDeleted(commentId: string): Promise<void> {
+    const rows = await this.prisma.notification.findMany({
+      where: {
+        type: { in: [...COMMENT_TYPES] },
+        OR: [
+          { payload: { path: ['commentId'], equals: commentId } },
+          { payload: { path: ['commentIds'], array_contains: [commentId] } },
+        ],
+      },
+      select: { id: true, payload: true },
+    });
+    for (const row of rows) {
+      const payload = row.payload as unknown as CommentPayload;
+      const ids = (payload.commentIds ?? [payload.commentId]).filter(
+        (id) => id !== commentId,
+      );
+      const left = ids.length
+        ? await this.prisma.comment.findMany({
+            where: { id: { in: ids } },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, authorId: true, body: true },
+          })
+        : [];
+      const latest = left.at(-1);
+      if (!latest) {
+        await this.prisma.notification.delete({ where: { id: row.id } });
+        continue;
+      }
+      const actorIds = [
+        ...new Set(
+          left
+            .map((comment) => comment.authorId)
+            .filter((id): id is string => !!id)
+            .reverse(),
+        ),
+      ];
+      await this.prisma.notification.update({
+        where: { id: row.id },
+        data: {
+          count: left.length,
+          actorId: actorIds[0] ?? null,
+          payload: {
+            ...payload,
+            commentId: latest.id,
+            commentIds: left.map((comment) => comment.id),
+            excerpt: excerpt(latest.body),
+            actorIds,
+          },
+        },
+      });
+    }
+    await this.prisma.notification.deleteMany({
+      where: { groupKey: { startsWith: likesKey('comment', commentId) } },
+    });
   }
 
   private async addedToTrip(
@@ -218,14 +287,26 @@ export class NotificationPlanner {
       ) {
         continue;
       }
-      await this.immediate({
-        recipientId,
-        type: 'trip_changed_by_collaborator',
-        actorId: input.actorId,
-        tripId: input.tripId,
-        markerId,
-        payload: payload as unknown as Prisma.InputJsonObject,
-      });
+      // One row per changed stop (its "new" mark clears with it), and one for the trip's other changes.
+      await this.grouped(
+        {
+          recipientId,
+          type: 'trip_changed_by_collaborator',
+          actorId: input.actorId,
+          tripId: input.tripId,
+          markerId,
+          payload: payload as unknown as Prisma.InputJsonObject,
+        },
+        `changes:${input.tripId}:${markerId ?? 'trip'}:${recipientId}`,
+        {
+          push: 'always',
+          merge: (old) => {
+            const kinds = { ...(old as Partial<TripChangesPayload>).kinds };
+            kinds[input.change] = (kinds[input.change] ?? 0) + 1;
+            return { kinds };
+          },
+        },
+      );
     }
   }
 
@@ -269,8 +350,7 @@ export class NotificationPlanner {
         payload: payload as unknown as Prisma.InputJsonObject,
       },
       `${likesKey(input.targetType, input.targetId)}:${recipientId}`,
-      input.count ?? 1,
-      !isComment,
+      { count: input.count ?? 1, push: isComment ? 'always' : 'milestones' },
     );
   }
 
@@ -307,7 +387,14 @@ export class NotificationPlanner {
     if (
       type === 'followed' &&
       (await this.prisma.notification.findFirst({
-        where: { recipientId, actorId, type },
+        where: {
+          recipientId,
+          type,
+          OR: [
+            { actorId },
+            { payload: { path: ['actorIds'], array_contains: [actorId] } },
+          ],
+        },
         select: { id: true },
       }))
     ) {
@@ -322,7 +409,15 @@ export class NotificationPlanner {
     ) {
       return;
     }
-    await this.immediate({ recipientId, type, actorId });
+    if (type === 'became_friends') {
+      await this.immediate({ recipientId, type, actorId });
+      return;
+    }
+    await this.grouped(
+      { recipientId, type, actorId, payload: {} },
+      `follows:${recipientId}`,
+      { push: 'always' },
+    );
   }
 
   /** "Anna saved your trip", to the owner, in the center only; repeats within the cooldown are dropped. */
@@ -345,14 +440,16 @@ export class NotificationPlanner {
     ) {
       return;
     }
-    await this.immediate(
+    await this.grouped(
       {
         recipientId,
         type: 'trip_saved',
         actorId: input.actorId,
         tripId: input.tripId,
+        payload: {},
       },
-      false,
+      `saves:${input.tripId}:${recipientId}`,
+      { push: 'never' },
     );
   }
 
@@ -390,8 +487,7 @@ export class NotificationPlanner {
         payload: payload as unknown as Prisma.InputJsonObject,
       },
       `hot:${input.placeId}:${recipientId}`,
-      input.hotCount,
-      true,
+      { count: input.hotCount, push: 'milestones' },
     );
   }
 
@@ -573,9 +669,12 @@ export class NotificationPlanner {
   }
 
   /**
-   * Updates the one entry under [groupKey] (or starts it) to the latest
-   * person and [count], back on top of the center and unread. It pushes each
-   * time, or with [atMilestones] only when [count] reaches the next one.
+   * Adds to the open (unread) row under [groupKey], or starts one: the latest
+   * person first, [count] (else one more), back on top of the center. The
+   * push goes out each time, never, or only when [count] reaches the next
+   * milestone (remembered across the key's rows, so a new row after a read
+   * one doesn't push a milestone twice). [merge] combines the open row's
+   * payload with this one's.
    */
   private async grouped(
     data: {
@@ -587,25 +686,49 @@ export class NotificationPlanner {
       payload: Prisma.InputJsonObject;
     },
     groupKey: string,
-    count: number,
-    atMilestones: boolean,
+    options: {
+      count?: number;
+      push: 'always' | 'never' | 'milestones';
+      merge?: (old: Prisma.JsonObject) => Prisma.InputJsonObject;
+    },
   ): Promise<void> {
-    const existing = await this.prisma.notification.findFirst({
-      where: { groupKey },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, payload: true },
-    });
-    const pushed = (existing?.payload as { milestone?: number } | undefined)
+    const [open, last] = await Promise.all([
+      this.prisma.notification.findFirst({
+        where: { groupKey, readAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, payload: true, count: true },
+      }),
+      options.push === 'milestones'
+        ? this.prisma.notification.findFirst({
+            where: { groupKey },
+            orderBy: { createdAt: 'desc' },
+            select: { payload: true },
+          })
+        : null,
+    ]);
+    const old = (open?.payload ?? {}) as Prisma.JsonObject;
+    const count = options.count ?? (open ? open.count + 1 : 1);
+    const pushed = (last?.payload as { milestone?: number } | undefined)
       ?.milestone;
-    const milestone = atMilestones
-      ? milestoneReached(
-          count,
-          this.config.get('APP_NOTIFICATION_MILESTONES', { infer: true }),
-          pushed,
-        )
-      : undefined;
+    const milestone =
+      options.push === 'milestones'
+        ? milestoneReached(
+            count,
+            this.config.get('APP_NOTIFICATION_MILESTONES', { infer: true }),
+            pushed,
+          )
+        : undefined;
+    const actorIds = [
+      ...new Set(
+        [data.actorId, ...((old as GroupPayload).actorIds ?? [])].filter(
+          (id): id is string => !!id,
+        ),
+      ),
+    ];
     const payload = {
       ...data.payload,
+      ...(open && options.merge ? options.merge(old) : {}),
+      actorIds,
       ...((milestone ?? pushed) === undefined
         ? {}
         : { milestone: milestone ?? pushed }),
@@ -617,18 +740,20 @@ export class NotificationPlanner {
       markerId: data.markerId ?? null,
       payload,
       count,
-      readAt: null,
       createdAt: new Date(),
     };
-    const row = existing
+    const row = open
       ? await this.prisma.notification.update({
-          where: { id: existing.id },
+          where: { id: open.id },
           data: fields,
         })
       : await this.prisma.notification.create({
           data: { ...fields, groupKey },
         });
-    if (!atMilestones || milestone !== undefined) {
+    if (
+      options.push === 'always' ||
+      (options.push === 'milestones' && milestone !== undefined)
+    ) {
       await this.queue.add(
         NotificationJobs.PUSH,
         { notificationId: row.id },

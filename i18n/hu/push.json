@@ -2,11 +2,23 @@
   "someone": "Valaki",
   "comment_on_marker": {
     "title": "{actor} hozzászólt: {marker}",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} {count} hozzászólást írt: {marker}",
+    "title_two": "{actor} és {actor2} hozzászólt: {marker}",
+    "title_many": {
+      "one": "{actor} és még 1 ember hozzászólt: {marker}",
+      "other": "{actor} és még {count} ember hozzászólt: {marker}"
+    }
   },
   "comment_reply": {
     "title": "{actor} válaszolt: {marker}",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} {count} választ írt: {marker}",
+    "title_two": "{actor} és {actor2} válaszolt: {marker}",
+    "title_many": {
+      "one": "{actor} és még 1 ember válaszolt: {marker}",
+      "other": "{actor} és még {count} ember válaszolt: {marker}"
+    }
   },
   "comment_mention": {
     "title": "{actor} megemlített: {marker}",
@@ -79,7 +91,13 @@
   },
   "followed": {
     "title": "{actor} követ téged",
-    "body": "Kövesd vissza, és barátok lesztek."
+    "body": "Kövesd vissza, és barátok lesztek.",
+    "title_times": "{actor} követ téged",
+    "title_two": "{actor} és {actor2} követ téged",
+    "title_many": {
+      "one": "{actor} és még 1 ember követ téged",
+      "other": "{actor} és még {count} ember követ téged"
+    }
   },
   "became_friends": {
     "title": "{actor} és te mostantól barátok vagytok",
@@ -87,7 +105,13 @@
   },
   "trip_saved": {
     "title": "{actor} elmentette az utadat",
-    "body": "{trip}"
+    "body": "{trip}",
+    "title_times": "{actor} elmentette az utadat",
+    "title_two": "{actor} és {actor2} elmentette az utadat",
+    "title_many": {
+      "one": "{actor} és még 1 ember elmentette az utadat",
+      "other": "{actor} és még {count} ember elmentette az utadat"
+    }
   },
   "place_hot": {
     "title": "{place} kezd hotspottá válni",

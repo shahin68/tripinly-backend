@@ -2,11 +2,23 @@
   "someone": "Jemand",
   "comment_on_marker": {
     "title": "{actor} hat {marker} kommentiert",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} hat {count}-mal {marker} kommentiert",
+    "title_two": "{actor} und {actor2} haben {marker} kommentiert",
+    "title_many": {
+      "one": "{actor} und 1 weitere Person haben {marker} kommentiert",
+      "other": "{actor} und {count} weitere haben {marker} kommentiert"
+    }
   },
   "comment_reply": {
     "title": "{actor} hat auf {marker} geantwortet",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} hat {count}-mal auf {marker} geantwortet",
+    "title_two": "{actor} und {actor2} haben auf {marker} geantwortet",
+    "title_many": {
+      "one": "{actor} und 1 weitere Person haben auf {marker} geantwortet",
+      "other": "{actor} und {count} weitere haben auf {marker} geantwortet"
+    }
   },
   "comment_mention": {
     "title": "{actor} hat dich bei {marker} erwähnt",
@@ -79,7 +91,13 @@
   },
   "followed": {
     "title": "{actor} folgt dir jetzt",
-    "body": "Folge zurück, um Freunde zu werden."
+    "body": "Folge zurück, um Freunde zu werden.",
+    "title_times": "{actor} folgt dir jetzt",
+    "title_two": "{actor} und {actor2} folgen dir jetzt",
+    "title_many": {
+      "one": "{actor} und 1 weitere Person folgen dir jetzt",
+      "other": "{actor} und {count} weitere folgen dir jetzt"
+    }
   },
   "became_friends": {
     "title": "Du und {actor} seid jetzt Freunde",
@@ -87,7 +105,13 @@
   },
   "trip_saved": {
     "title": "{actor} hat deine Reise gespeichert",
-    "body": "{trip}"
+    "body": "{trip}",
+    "title_times": "{actor} hat deine Reise gespeichert",
+    "title_two": "{actor} und {actor2} haben deine Reise gespeichert",
+    "title_many": {
+      "one": "{actor} und 1 weitere Person haben deine Reise gespeichert",
+      "other": "{actor} und {count} weitere haben deine Reise gespeichert"
+    }
   },
   "place_hot": {
     "title": "{place} wird zum Hotspot",
