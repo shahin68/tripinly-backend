@@ -4,6 +4,14 @@
     "title": "{actor} commented on {marker}",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} replied on {marker}",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} mentioned you on {marker}",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} added you to {trip}",
     "body": "Open it to plan together."
@@ -45,15 +53,28 @@
   "liked": {
     "trip": {
       "title": "{actor} liked your trip",
-      "body": "{trip}"
+      "body": "{trip}",
+      "title_others": {
+        "one": "{actor} and 1 other liked your trip",
+        "other": "{actor} and {count} others liked your trip"
+      }
     },
     "photo": {
       "title": "{actor} liked your photo",
-      "body": "{marker} · {trip}"
+      "body": "{marker} · {trip}",
+      "title_others": {
+        "one": "{actor} and 1 other liked your photo",
+        "other": "{actor} and {count} others liked your photo"
+      },
+      "body_place": "{marker}"
     },
     "comment": {
       "title": "{actor} liked your comment",
-      "body": "\"{excerpt}\" on {marker}"
+      "body": "\"{excerpt}\" on {marker}",
+      "title_others": {
+        "one": "{actor} and 1 other liked your comment",
+        "other": "{actor} and {count} others liked your comment"
+      }
     }
   },
   "followed": {
@@ -74,5 +95,13 @@
       "one": "{count} person marked your spot hot. Nice find!",
       "other": "{count} people marked your spot hot. Nice find!"
     }
+  },
+  "join_declined": {
+    "title": "{actor} declined your request",
+    "body": "You can't join {trip}."
+  },
+  "removed_from_trip": {
+    "title": "{actor} removed you from {trip}",
+    "body": "You can't see the trip any more."
   }
 }

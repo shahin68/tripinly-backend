@@ -25,7 +25,20 @@ describe('validateEnv', () => {
       APP_PLACE_PHOTO_DAILY_LIMIT: 20,
       APP_EXPLORE_NEARBY_RADIUS_KM: 50,
       APP_TRIP_MAX_MEMBERS: 50,
+      APP_NOTIFICATION_MILESTONES: [5, 25, 100, 500, 1000, 5000],
     });
+  });
+
+  it('reads the push milestones as ascending whole numbers', () => {
+    expect(
+      validateEnv({ ...valid, APP_NOTIFICATION_MILESTONES: ' 10, 50 ,200' })
+        .APP_NOTIFICATION_MILESTONES,
+    ).toEqual([10, 50, 200]);
+    for (const wrong of ['50,10', '5,x', '0,5', '5,,25', '2.5']) {
+      expect(() =>
+        validateEnv({ ...valid, APP_NOTIFICATION_MILESTONES: wrong }),
+      ).toThrow(/APP_NOTIFICATION_MILESTONES/);
+    }
   });
 
   it('treats empty optional values as unset and parses flags', () => {

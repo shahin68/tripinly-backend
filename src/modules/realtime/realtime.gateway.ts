@@ -17,10 +17,13 @@ import { AccessTokenService } from '../auth/access-token.service';
 import { ConsentsService } from '../consents/consents.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { REALTIME_NAMESPACE, tripRoom, userRoom } from './realtime.rooms';
+import { type View, ViewingService } from './viewing.service';
 
 interface SocketData {
   userId: string;
   expiresAt: number;
+  /** What this socket has open, so a disconnect closes it. */
+  views?: Set<View>;
 }
 
 type AuthedSocket = Socket<
@@ -33,6 +36,7 @@ type AuthedSocket = Socket<
 export interface SubscribeAck {
   ok: boolean;
   tripId?: string;
+  markerId?: string;
   error?: { code: string };
 }
 
@@ -53,6 +57,7 @@ export class RealtimeGateway
     private readonly access: TripAccessService,
     private readonly prisma: PrismaService,
     private readonly consents: ConsentsService,
+    private readonly viewing: ViewingService,
   ) {}
 
   afterInit(namespace: Namespace): void {
@@ -85,9 +90,15 @@ export class RealtimeGateway
     this.expiryTimers.set(socket.id, timer);
   }
 
-  handleDisconnect(socket: AuthedSocket): void {
+  async handleDisconnect(socket: AuthedSocket): Promise<void> {
     clearTimeout(this.expiryTimers.get(socket.id));
     this.expiryTimers.delete(socket.id);
+    const { userId, views } = socket.data;
+    await Promise.all(
+      [...(views ?? [])].map((view) =>
+        this.viewing.close(userId, view, socket.id),
+      ),
+    );
   }
 
   @SubscribeMessage('trip.subscribe')
@@ -103,6 +114,7 @@ export class RealtimeGateway
       return this.fail(socket, errorCode(error), tripId);
     }
     await socket.join(tripRoom(tripId));
+    await this.openView(socket, `trip:${tripId}`);
     return { ok: true, tripId };
   }
 
@@ -114,7 +126,46 @@ export class RealtimeGateway
     const tripId = tripIdOf(body);
     if (!tripId) return this.fail(socket, ErrorCode.VALIDATION_FAILED);
     await socket.leave(tripRoom(tripId));
+    await this.closeView(socket, `trip:${tripId}`);
     return { ok: true, tripId };
+  }
+
+  /** A stop's comments are open: no comment pushes about it (05-realtime-and-notifications.md, Open views). */
+  @SubscribeMessage('comments.watch')
+  async watchComments(
+    @ConnectedSocket() socket: AuthedSocket,
+    @MessageBody() body: unknown,
+  ): Promise<SubscribeAck> {
+    const markerId = markerIdOf(body);
+    if (!markerId) return this.fail(socket, ErrorCode.VALIDATION_FAILED);
+    try {
+      await this.access.assertForMarker(socket.data.userId, markerId, 'view');
+    } catch (error) {
+      return { ok: false, markerId, error: { code: errorCode(error) } };
+    }
+    await this.openView(socket, `comments:${markerId}`);
+    return { ok: true, markerId };
+  }
+
+  @SubscribeMessage('comments.unwatch')
+  async unwatchComments(
+    @ConnectedSocket() socket: AuthedSocket,
+    @MessageBody() body: unknown,
+  ): Promise<SubscribeAck> {
+    const markerId = markerIdOf(body);
+    if (!markerId) return this.fail(socket, ErrorCode.VALIDATION_FAILED);
+    await this.closeView(socket, `comments:${markerId}`);
+    return { ok: true, markerId };
+  }
+
+  private async openView(socket: AuthedSocket, view: View): Promise<void> {
+    (socket.data.views ??= new Set()).add(view);
+    await this.viewing.open(socket.data.userId, view, socket.id);
+  }
+
+  private async closeView(socket: AuthedSocket, view: View): Promise<void> {
+    socket.data.views?.delete(view);
+    await this.viewing.close(socket.data.userId, view, socket.id);
   }
 
   private async authenticate(socket: AuthedSocket): Promise<void> {
@@ -164,6 +215,13 @@ export class RealtimeGateway
 function tripIdOf(body: unknown): string | undefined {
   const tripId = (body as { tripId?: unknown } | null)?.tripId;
   return typeof tripId === 'string' && isUUID(tripId) ? tripId : undefined;
+}
+
+function markerIdOf(body: unknown): string | undefined {
+  const markerId = (body as { markerId?: unknown } | null)?.markerId;
+  return typeof markerId === 'string' && isUUID(markerId)
+    ? markerId
+    : undefined;
 }
 
 function errorCode(error: unknown): string {

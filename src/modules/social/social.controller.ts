@@ -45,7 +45,11 @@ export class SocialController {
   ) {}
 
   @Get('markers/:id/comments')
-  @ApiOperation({ summary: "A marker's comments, oldest first" })
+  @ApiOperation({
+    summary: "A marker's main comments, most liked first, then newest first",
+    description:
+      'Replies are not in this list: each main comment carries its replyCount, and GET /comments/{id}/replies lists them.',
+  })
   @ApiOkResponse({ type: CommentPageDto })
   listComments(
     @CurrentUser() user: AuthUser,
@@ -55,13 +59,24 @@ export class SocialController {
     return this.comments.list(user.id, id, query.cursor, query.limit);
   }
 
+  @Get('comments/:id/replies')
+  @ApiOperation({ summary: "A main comment's replies, oldest first" })
+  @ApiOkResponse({ type: CommentPageDto })
+  listReplies(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+    @Query() query: PageQueryDto,
+  ): Promise<CommentPageDto> {
+    return this.comments.replies(user.id, id, query.cursor, query.limit);
+  }
+
   @Post('markers/:id/comments')
   @Idempotent()
   @Throttle({ default: COMMENT_RATE_LIMIT })
   @ApiOperation({
     summary: 'Comment on a marker',
     description:
-      'Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute.',
+      "Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute. With parentId it's a reply (to a reply: under the same main comment; 404 when that comment is gone or hidden from me). @username mentions of the trip's owner and members are kept in mentions; other handles stay plain text. Deleting a main comment deletes its replies.",
   })
   @ApiCreatedResponse({ type: CommentDto })
   createComment(
@@ -69,7 +84,7 @@ export class SocialController {
     @Param() { id }: IdParamDto,
     @Body() body: CreateCommentDto,
   ): Promise<CommentDto> {
-    return this.comments.create(user.id, id, body.body);
+    return this.comments.create(user.id, id, body.body, body.parentId);
   }
 
   @Delete('comments/:id')

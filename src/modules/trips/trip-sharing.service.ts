@@ -151,13 +151,23 @@ export class TripSharingService {
     return member;
   }
 
-  /** Owner: declines; the person can't ask again. */
+  /** Owner: declines; the person can't ask again and hears about it once. */
   async decline(userId: string, requestId: string): Promise<void> {
     const request = await this.ownersPendingRequest(userId, requestId);
-    await this.prisma.tripJoinRequest.updateMany({
+    const { count } = await this.prisma.tripJoinRequest.updateMany({
       where: { id: request.id, status: 'pending' },
       data: { status: 'declined', decidedAt: new Date() },
     });
+    if (count === 0) return;
+    this.events.emit(
+      DomainEvents.JOIN_DECLINED,
+      domainEvent(
+        DomainEvents.JOIN_DECLINED,
+        userId,
+        { userId: request.userId },
+        request.tripId,
+      ),
+    );
   }
 
   /**

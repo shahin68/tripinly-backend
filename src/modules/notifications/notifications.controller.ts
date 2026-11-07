@@ -63,6 +63,18 @@ export class NotificationsController {
     await this.notifications.markRead(user.id, body);
   }
 
+  @Post('notifications/seen')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'I opened the notification center',
+    description:
+      'Everything in it now counts as seen: unseenCount drops to 0 until a new or updated entry arrives. Seen is not read: the red dots on stops stay.',
+  })
+  @ApiNoContentResponse()
+  async markSeen(@CurrentUser() user: AuthUser): Promise<void> {
+    await this.notifications.markSeen(user.id);
+  }
+
   @Get('trips/:id/new-activity')
   @ApiOperation({
     summary: 'Stops of a trip with unread notifications for me',

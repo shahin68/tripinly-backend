@@ -4,6 +4,14 @@
     "title": "{actor} hozzászólt: {marker}",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} válaszolt: {marker}",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} megemlített: {marker}",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} hozzáadott ehhez: {trip}",
     "body": "Nyisd meg, és tervezzetek együtt."
@@ -45,15 +53,28 @@
   "liked": {
     "trip": {
       "title": "{actor} kedveli az utadat",
-      "body": "{trip}"
+      "body": "{trip}",
+      "title_others": {
+        "one": "{actor} és még 1 ember kedveli az utadat",
+        "other": "{actor} és még {count} ember kedveli az utadat"
+      }
     },
     "photo": {
       "title": "{actor} kedveli a fotódat",
-      "body": "{marker} · {trip}"
+      "body": "{marker} · {trip}",
+      "title_others": {
+        "one": "{actor} és még 1 ember kedveli a fotódat",
+        "other": "{actor} és még {count} ember kedveli a fotódat"
+      },
+      "body_place": "{marker}"
     },
     "comment": {
       "title": "{actor} kedveli a hozzászólásodat",
-      "body": "„{excerpt}” – {marker}"
+      "body": "„{excerpt}” – {marker}",
+      "title_others": {
+        "one": "{actor} és még 1 ember kedveli a hozzászólásodat",
+        "other": "{actor} és még {count} ember kedveli a hozzászólásodat"
+      }
     }
   },
   "followed": {
@@ -74,5 +95,13 @@
       "one": "{count} ember jelölte hotspotként a helyedet. Szép találat!",
       "other": "{count} ember jelölte hotspotként a helyedet. Szép találat!"
     }
+  },
+  "join_declined": {
+    "title": "{actor} elutasította a kérésedet",
+    "body": "Nem csatlakozhatsz ehhez az úthoz: {trip}."
+  },
+  "removed_from_trip": {
+    "title": "{actor} eltávolított innen: {trip}",
+    "body": "Már nem látod az utat."
   }
 }

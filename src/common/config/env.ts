@@ -109,6 +109,26 @@ export const envSchema = z
       .min(0)
       .max(300)
       .default(5),
+    /**
+     * Worker: the like and flame counts that push (trip likes, photo likes,
+     * flames on a spot someone made), once each; every other like shows only
+     * in the notification center. Comma-separated, ascending.
+     */
+    APP_NOTIFICATION_MILESTONES: z
+      .string()
+      .default('5,25,100,500,1000,5000')
+      .transform((value) => value.split(',').map((item) => Number(item.trim())))
+      .pipe(
+        z
+          .array(z.number().int().min(1).max(1_000_000))
+          .min(1)
+          .max(20)
+          .refine(
+            (counts) =>
+              counts.every((count, i) => i === 0 || count > counts[i - 1]),
+            'must be ascending',
+          ),
+      ),
 
     // Auth (docs/knowledge/07-security-and-gdpr.md)
     JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters'),

@@ -56,12 +56,16 @@ export class NotificationsListener {
   @OnEvent(DomainEvents.COMMENT_CREATED)
   onCommentCreated(
     event: DomainEvent<{
-      comment: { id: string; markerId: string; body: string };
-      markerCreatorId: string | null;
-      tripOwnerId: string;
+      comment: {
+        id: string;
+        markerId: string;
+        body: string;
+        parentId: string | null;
+        mentions: { userId: string }[];
+      };
     }>,
   ): Promise<void> {
-    const { comment, markerCreatorId, tripOwnerId } = event.data;
+    const { comment } = event.data;
     return this.enqueue({
       kind: 'comment_created',
       actorId: event.actorId,
@@ -69,9 +73,8 @@ export class NotificationsListener {
       markerId: comment.markerId,
       commentId: comment.id,
       body: comment.body,
-      recipientIds: [tripOwnerId, markerCreatorId].filter(
-        (id): id is string => !!id,
-      ),
+      parentId: comment.parentId,
+      mentionIds: comment.mentions.map((mention) => mention.userId),
     });
   }
 
@@ -121,10 +124,11 @@ export class NotificationsListener {
   onPlaceHotChanged(
     event: DomainEvent<{ placeId: string; hotCount: number; hot?: boolean }>,
   ): Promise<void> {
-    // Only a flame given can reach a milestone; the planner checks which.
+    // Only flames given notify (the spot's creator, in the center; pushes at milestones).
     if (event.data.hot === false) return Promise.resolve();
     return this.enqueue({
       kind: 'place_hot',
+      actorId: event.actorId,
       placeId: event.data.placeId,
       hotCount: event.data.hotCount,
     });
@@ -172,12 +176,13 @@ export class NotificationsListener {
     event: DomainEvent<{
       targetType: string;
       targetId: string;
+      count: number;
       liked: boolean;
     }>,
   ): Promise<void> {
-    const { targetType, targetId, liked } = event.data;
-    // Unlikes never notify, nor do likes without a trip (place images).
-    if (!liked || !event.tripId) {
+    const { targetType, targetId, count, liked } = event.data;
+    // Unlikes never notify, nor do likes on Commons images (nobody posted them).
+    if (!liked || !['trip', 'photo', 'comment'].includes(targetType)) {
       return Promise.resolve();
     }
     return this.enqueue({
@@ -186,6 +191,31 @@ export class NotificationsListener {
       targetType: targetType as 'trip' | 'photo' | 'comment',
       targetId,
       tripId: event.tripId,
+      count,
+    });
+  }
+
+  @OnEvent(DomainEvents.MEMBER_REMOVED)
+  onMemberRemoved(
+    event: DomainEvent<{ userId: string; reason: string }>,
+  ): Promise<void> {
+    // Leaving, a block or a deleted account says nothing.
+    if (event.data.reason !== 'removed') return Promise.resolve();
+    return this.enqueue({
+      kind: 'removed_from_trip',
+      actorId: event.actorId,
+      tripId: event.tripId!,
+      userId: event.data.userId,
+    });
+  }
+
+  @OnEvent(DomainEvents.JOIN_DECLINED)
+  onJoinDeclined(event: DomainEvent<{ userId: string }>): Promise<void> {
+    return this.enqueue({
+      kind: 'join_declined',
+      actorId: event.actorId,
+      tripId: event.tripId!,
+      userId: event.data.userId,
     });
   }
 

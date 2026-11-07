@@ -11,11 +11,13 @@ import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationPublisher } from './notification-publisher';
 import {
+  COMMENT_TYPES,
   type CommentPayload,
   excerpt,
   FOLLOW_REPEAT_SECONDS,
-  HOT_MILESTONES,
   type LikesPayload,
+  type MembershipPayload,
+  milestoneReached,
   type PlaceHotPayload,
   type TripChangesPayload,
 } from './notification-types';
@@ -30,10 +32,12 @@ import {
 /**
  * Decides who hears about a domain event (the notifications skill): never the
  * actor, never across a block, only people who can still see the trip. Writes
- * the in-app row and sends its push at once, for every type (Shahin,
- * 2026-11-01). The same thing again from the same person (a like, unlike and
- * like; the same stop moved twice) within NOTIFICATION_REPEAT_COOLDOWN_SECONDS
- * is dropped.
+ * the in-app row (the notification center) and sends its push at once
+ * (Shahin, 2026-11-01), except: likes on trips and photos and flames gather
+ * in one entry per item and push only at APP_NOTIFICATION_MILESTONES, saves
+ * never push, and a follow pushes once per pair (Shahin, 2026-11-07). The
+ * same thing again from the same person (a like, unlike and like; the same
+ * stop moved twice) within NOTIFICATION_REPEAT_COOLDOWN_SECONDS is dropped.
  */
 @Injectable()
 export class NotificationPlanner {
@@ -55,8 +59,15 @@ export class NotificationPlanner {
       case 'comment_deleted':
         await this.prisma.notification.deleteMany({
           where: {
-            type: 'comment_on_marker',
-            payload: { path: ['commentId'], equals: input.commentId },
+            OR: [
+              {
+                type: { in: [...COMMENT_TYPES] },
+                payload: { path: ['commentId'], equals: input.commentId },
+              },
+              {
+                groupKey: { startsWith: likesKey('comment', input.commentId) },
+              },
+            ],
           },
         });
         return;
@@ -74,35 +85,79 @@ export class NotificationPlanner {
         return this.tripSaved(input);
       case 'place_hot':
         return this.placeHot(input);
+      case 'join_declined':
+      case 'removed_from_trip':
+        return this.membershipEnded(input);
     }
   }
 
+  /**
+   * Everyone on the trip and everyone who commented on the stop gets the
+   * notification (the stop's red dot, the center). The push goes to the same
+   * people for a main comment, and to the thread (the main comment's author
+   * and its repliers) for a reply. A comment that @mentions someone pushes to
+   * the mentioned people only.
+   */
   private async commentCreated(
     input: Extract<PlanInput, { kind: 'comment_created' }>,
   ): Promise<void> {
-    const marker = await this.prisma.marker.findUnique({
-      where: { id: input.markerId },
-      select: { name: true },
-    });
+    const parentId = input.parentId ?? null;
+    const mentionIds = input.mentionIds ?? [];
+    const [marker, members, commenters, thread] = await Promise.all([
+      this.prisma.marker.findUnique({
+        where: { id: input.markerId },
+        select: { name: true },
+      }),
+      this.prisma.tripMember.findMany({
+        where: { tripId: input.tripId },
+        select: { userId: true },
+      }),
+      this.prisma.comment.findMany({
+        where: { markerId: input.markerId },
+        distinct: ['authorId'],
+        select: { authorId: true },
+      }),
+      parentId
+        ? this.prisma.comment.findMany({
+            where: { OR: [{ id: parentId }, { parentId }] },
+            distinct: ['authorId'],
+            select: { authorId: true },
+          })
+        : [],
+    ]);
     if (!marker) return;
     const payload: CommentPayload = {
       commentId: input.commentId,
       markerName: marker.name,
       excerpt: excerpt(input.body),
     };
-    for (const recipientId of await this.eligible(
-      input.actorId,
-      input.tripId,
-      input.recipientIds,
-    )) {
-      await this.immediate({
-        recipientId,
-        type: 'comment_on_marker',
-        actorId: input.actorId,
-        tripId: input.tripId,
-        markerId: input.markerId,
-        payload: payload as unknown as Prisma.InputJsonObject,
-      });
+    // Null: everyone who gets the row.
+    const pushTo =
+      mentionIds.length > 0
+        ? new Set(mentionIds)
+        : parentId
+          ? new Set(thread.map((comment) => comment.authorId))
+          : null;
+    for (const recipientId of await this.eligible(input.actorId, input.tripId, [
+      ...members.map((member) => member.userId),
+      ...commenters.map((comment) => comment.authorId),
+    ])) {
+      const mentioned = mentionIds.includes(recipientId);
+      await this.immediate(
+        {
+          recipientId,
+          type: mentioned
+            ? 'comment_mention'
+            : parentId
+              ? 'comment_reply'
+              : 'comment_on_marker',
+          actorId: input.actorId,
+          tripId: input.tripId,
+          markerId: input.markerId,
+          payload: payload as unknown as Prisma.InputJsonObject,
+        },
+        pushTo === null || pushTo.has(recipientId),
+      );
     }
   }
 
@@ -174,17 +229,23 @@ export class NotificationPlanner {
     }
   }
 
+  /**
+   * One entry per liked item for whoever posted it, showing the latest liker
+   * and the count. A comment like pushes each time; trip and photo likes push
+   * only when the count reaches a milestone, once each.
+   */
   private async liked(
     input: Extract<PlanInput, { kind: 'liked' }>,
   ): Promise<void> {
     const item = await this.likedItem(input.targetType, input.targetId);
     if (!item) return;
-    const ownerId = item.ownerId;
     const [recipientId] = await this.eligible(input.actorId, input.tripId, [
-      ownerId,
+      item.ownerId,
     ]);
     if (!recipientId) return;
+    const isComment = input.targetType === 'comment';
     if (
+      isComment &&
       !(await this.isFirstInCooldown(
         `${recipientId}:${input.actorId}:like:${input.targetType}:${input.targetId}`,
       ))
@@ -193,25 +254,30 @@ export class NotificationPlanner {
     }
     const payload: LikesPayload = {
       likerIds: [input.actorId],
-      tripIds: [input.tripId],
+      tripIds: input.tripId ? [input.tripId] : [],
       targetType: input.targetType,
       ...(item.markerName === undefined ? {} : { markerName: item.markerName }),
       ...(item.excerpt === undefined ? {} : { excerpt: item.excerpt }),
     };
-    await this.immediate({
-      recipientId,
-      type: 'likes_grouped',
-      actorId: input.actorId,
-      tripId: input.tripId,
-      markerId: item.markerId,
-      payload: payload as unknown as Prisma.InputJsonObject,
-    });
+    await this.grouped(
+      {
+        recipientId,
+        type: 'likes_grouped',
+        actorId: input.actorId,
+        tripId: input.tripId,
+        markerId: item.markerId,
+        payload: payload as unknown as Prisma.InputJsonObject,
+      },
+      `${likesKey(input.targetType, input.targetId)}:${recipientId}`,
+      input.count ?? 1,
+      !isComment,
+    );
   }
 
   /**
-   * "Anna followed you", or "You and Anna are now friends" when I already
-   * follow Anna. At most one per pair per day, so following and unfollowing
-   * can't spam anyone.
+   * "Anna followed you", once per pair ever, or "You and Anna are now
+   * friends" when I already follow Anna, at most once per pair per day, so
+   * following and unfollowing can't spam anyone.
    */
   private async followed(
     input: Extract<PlanInput, { kind: 'followed' }>,
@@ -239,6 +305,16 @@ export class NotificationPlanner {
     const friends = follows.some((follow) => follow.followerId === recipientId);
     const type = friends ? 'became_friends' : 'followed';
     if (
+      type === 'followed' &&
+      (await this.prisma.notification.findFirst({
+        where: { recipientId, actorId, type },
+        select: { id: true },
+      }))
+    ) {
+      return;
+    }
+    if (
+      type === 'became_friends' &&
       !(await this.isFirstInCooldown(
         `${recipientId}:${actorId}:${type}`,
         FOLLOW_REPEAT_SECONDS,
@@ -249,7 +325,7 @@ export class NotificationPlanner {
     await this.immediate({ recipientId, type, actorId });
   }
 
-  /** "Anna saved your trip", to the owner; repeats within the cooldown are dropped. */
+  /** "Anna saved your trip", to the owner, in the center only; repeats within the cooldown are dropped. */
   private async tripSaved(
     input: Extract<PlanInput, { kind: 'trip_saved' }>,
   ): Promise<void> {
@@ -269,59 +345,80 @@ export class NotificationPlanner {
     ) {
       return;
     }
-    await this.immediate({
-      recipientId,
-      type: 'trip_saved',
-      actorId: input.actorId,
-      tripId: input.tripId,
-    });
+    await this.immediate(
+      {
+        recipientId,
+        type: 'trip_saved',
+        actorId: input.actorId,
+        tripId: input.tripId,
+      },
+      false,
+    );
   }
 
   /**
-   * A spot someone made themselves just reached a HOT_MILESTONES count: its
-   * creator, and only its creator, hears that it's getting hot, once per
-   * milestone. No per-flame pushes (Shahin, 2026-11-01: pushes cost money).
-   * The push opens the creator's own stop at that spot when they have one.
+   * A flame on a spot someone made themselves: its creator, and only its
+   * creator, has one entry per spot with the latest flame and the count, and
+   * hears that it's getting hot at each milestone, once. No per-flame pushes
+   * (Shahin, 2026-11-01: pushes cost money). The entry opens the creator's
+   * own stop at that spot when they have one.
    */
   private async placeHot(
     input: Extract<PlanInput, { kind: 'place_hot' }>,
   ): Promise<void> {
-    const milestone = HOT_MILESTONES.find((m) => m === input.hotCount);
-    if (milestone === undefined) return;
     const place = await this.prisma.place.findUnique({
       where: { id: input.placeId },
-      select: {
-        name: true,
-        createdById: true,
-        createdBy: { select: { status: true } },
-      },
+      select: { name: true, createdById: true },
     });
-    const recipientId = place?.createdById;
-    if (!place || !recipientId || place.createdBy?.status !== 'active') return;
-    // Once per milestone, even if flames are taken back and given again.
-    const sent = await this.prisma.notification.findFirst({
-      where: {
-        recipientId,
-        type: 'place_hot',
-        AND: [
-          { payload: { path: ['placeId'], equals: input.placeId } },
-          { payload: { path: ['milestone'], gte: milestone } },
-        ],
-      },
-      select: { id: true },
-    });
-    if (sent) return;
+    if (!place?.createdById) return;
+    const [recipientId] = input.actorId
+      ? await this.eligible(input.actorId, undefined, [place.createdById])
+      : [place.createdById];
+    if (!recipientId) return;
     const stop = await this.creatorsStop(recipientId, input.placeId);
     const payload: PlaceHotPayload = {
       placeId: input.placeId,
       placeName: place.name,
-      milestone,
+    };
+    await this.grouped(
+      {
+        recipientId,
+        type: 'place_hot',
+        actorId: input.actorId,
+        tripId: stop?.tripId,
+        markerId: stop?.id,
+        payload: payload as unknown as Prisma.InputJsonObject,
+      },
+      `hot:${input.placeId}:${recipientId}`,
+      input.hotCount,
+      true,
+    );
+  }
+
+  /**
+   * "Anna declined your request" or "Anna removed you from Rome": once, to
+   * that person, even though they can't see the trip any more (its name is in
+   * the payload).
+   */
+  private async membershipEnded(
+    input: Extract<PlanInput, { kind: 'join_declined' | 'removed_from_trip' }>,
+  ): Promise<void> {
+    const [[recipientId], trip] = await Promise.all([
+      this.eligible(input.actorId, undefined, [input.userId]),
+      this.prisma.trip.findUnique({
+        where: { id: input.tripId },
+        select: { title: true },
+      }),
+    ]);
+    if (!recipientId || !trip) return;
+    const payload: MembershipPayload = {
+      tripId: input.tripId,
+      tripTitle: trip.title,
     };
     await this.immediate({
       recipientId,
-      type: 'place_hot',
-      tripId: stop?.tripId,
-      markerId: stop?.id,
+      type: input.kind,
+      actorId: input.actorId,
       payload: payload as unknown as Prisma.InputJsonObject,
     });
   }
@@ -406,13 +503,15 @@ export class NotificationPlanner {
           select: {
             uploaderId: true,
             marker: { select: { id: true, name: true } },
+            place: { select: { name: true } },
           },
         });
         if (!photo?.uploaderId) return null;
+        // A photo in a place's gallery is named after the place.
         return {
           ownerId: photo.uploaderId,
           markerId: photo.marker?.id,
-          markerName: photo.marker?.name,
+          markerName: photo.marker?.name ?? photo.place?.name,
         };
       }
       case 'comment': {
@@ -437,11 +536,12 @@ export class NotificationPlanner {
 
   /**
    * Candidates minus the actor, anyone with a block either way with the actor,
-   * inactive accounts, and anyone who can no longer see the trip.
+   * inactive accounts, and anyone who can no longer see the trip (when there
+   * is one).
    */
   private async eligible(
     actorId: string,
-    tripId: string,
+    tripId: string | undefined,
     candidateIds: (string | null)[],
   ): Promise<string[]> {
     const ids = [
@@ -458,7 +558,7 @@ export class NotificationPlanner {
     const result: string[] = [];
     for (const { id } of active) {
       if (blocked.has(id)) continue;
-      if (await this.canView(id, tripId)) result.push(id);
+      if (!tripId || (await this.canView(id, tripId))) result.push(id);
     }
     return result;
   }
@@ -472,22 +572,102 @@ export class NotificationPlanner {
     }
   }
 
-  private async immediate(data: {
-    recipientId: string;
-    type: NotificationType;
-    actorId?: string;
-    tripId?: string;
-    markerId?: string;
-    payload?: Prisma.InputJsonObject;
-  }): Promise<void> {
+  /**
+   * Updates the one entry under [groupKey] (or starts it) to the latest
+   * person and [count], back on top of the center and unread. It pushes each
+   * time, or with [atMilestones] only when [count] reaches the next one.
+   */
+  private async grouped(
+    data: {
+      recipientId: string;
+      type: NotificationType;
+      actorId?: string;
+      tripId?: string;
+      markerId?: string;
+      payload: Prisma.InputJsonObject;
+    },
+    groupKey: string,
+    count: number,
+    atMilestones: boolean,
+  ): Promise<void> {
+    const existing = await this.prisma.notification.findFirst({
+      where: { groupKey },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, payload: true },
+    });
+    const pushed = (existing?.payload as { milestone?: number } | undefined)
+      ?.milestone;
+    const milestone = atMilestones
+      ? milestoneReached(
+          count,
+          this.config.get('APP_NOTIFICATION_MILESTONES', { infer: true }),
+          pushed,
+        )
+      : undefined;
+    const payload = {
+      ...data.payload,
+      ...((milestone ?? pushed) === undefined
+        ? {}
+        : { milestone: milestone ?? pushed }),
+    };
+    const fields = {
+      ...data,
+      actorId: data.actorId ?? null,
+      tripId: data.tripId ?? null,
+      markerId: data.markerId ?? null,
+      payload,
+      count,
+      readAt: null,
+      createdAt: new Date(),
+    };
+    const row = existing
+      ? await this.prisma.notification.update({
+          where: { id: existing.id },
+          data: fields,
+        })
+      : await this.prisma.notification.create({
+          data: { ...fields, groupKey },
+        });
+    if (!atMilestones || milestone !== undefined) {
+      await this.queue.add(
+        NotificationJobs.PUSH,
+        { notificationId: row.id },
+        {
+          ...DELIVERY_RETRIES,
+          jobId: pushJobId(row.id, row.updatedAt.getTime()),
+        },
+      );
+    }
+    await this.publisher.publish(row.id);
+  }
+
+  /** Writes the row and sends it live; [push] false keeps it to the app (dot, center). */
+  private async immediate(
+    data: {
+      recipientId: string;
+      type: NotificationType;
+      actorId?: string;
+      tripId?: string;
+      markerId?: string;
+      payload?: Prisma.InputJsonObject;
+    },
+    push = true,
+  ): Promise<void> {
     const row = await this.prisma.notification.create({
       data: { ...data, payload: data.payload ?? {} },
     });
-    await this.queue.add(
-      NotificationJobs.PUSH,
-      { notificationId: row.id },
-      { ...DELIVERY_RETRIES, jobId: pushJobId(row.id) },
-    );
+    if (push) {
+      await this.queue.add(
+        NotificationJobs.PUSH,
+        { notificationId: row.id },
+        { ...DELIVERY_RETRIES, jobId: pushJobId(row.id) },
+      );
+    }
     await this.publisher.publish(row.id);
   }
+}
+
+/** The start of a liked item's group keys (one per recipient). */
+function likesKey(targetType: string, targetId: string): string {
+  return `like:${targetType}:${targetId}`;
 }

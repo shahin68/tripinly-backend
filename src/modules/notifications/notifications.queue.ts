@@ -24,7 +24,10 @@ export type PlanInput =
       markerId: string;
       commentId: string;
       body: string;
-      recipientIds: string[];
+      /** The main comment, when this is a reply. */
+      parentId?: string | null;
+      /** Trip people it @mentions (checked by the api). */
+      mentionIds?: string[];
     }
   | { kind: 'comment_deleted'; commentId: string }
   | {
@@ -56,11 +59,27 @@ export type PlanInput =
       actorId: string;
       targetType: 'trip' | 'photo' | 'comment';
       targetId: string;
-      tripId: string;
+      /** Absent for a photo in a place's gallery. */
+      tripId?: string;
+      /** The like count after this like (absent on jobs queued before 2026-11-07). */
+      count?: number;
     }
   | { kind: 'followed'; actorId: string; followeeId: string }
   | { kind: 'trip_saved'; actorId: string; tripId: string }
-  | { kind: 'place_hot'; placeId: string; hotCount: number };
+  | {
+      kind: 'place_hot';
+      placeId: string;
+      hotCount: number;
+      /** Who gave the flame (absent on jobs queued before 2026-11-07). */
+      actorId?: string;
+    }
+  | {
+      /** The owner declined a join request, or removed a member. */
+      kind: 'join_declined' | 'removed_from_trip';
+      actorId: string;
+      tripId: string;
+      userId: string;
+    };
 
 export interface NotificationJobData {
   notificationId: string;
@@ -72,6 +91,11 @@ export const DELIVERY_RETRIES = {
   backoff: { type: 'exponential', delay: 2000 },
 } as const;
 
-/** BullMQ custom job ids can't contain ':'. */
-export const pushJobId = (notificationId: string): string =>
-  `push-${notificationId}`;
+/**
+ * BullMQ custom job ids can't contain ':'. A grouped entry pushes again at
+ * its next milestone, so [version] (its update time) tells the pushes apart.
+ */
+export const pushJobId = (notificationId: string, version?: number): string =>
+  version === undefined
+    ? `push-${notificationId}`
+    : `push-${notificationId}-${version}`;

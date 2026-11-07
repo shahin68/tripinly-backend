@@ -38,29 +38,34 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
-/** Keyset position: a sort value (ISO timestamp) plus the id tiebreaker. */
+/**
+ * Keyset position: a sort value (ISO timestamp) plus the id tiebreaker, and
+ * [rank] for lists sorted by a count first (comments by likes).
+ */
 export interface CursorPosition {
   at: string;
   id: string;
+  rank?: number;
 }
 
 export function encodeCursor(position: CursorPosition): string {
-  return Buffer.from(JSON.stringify([position.at, position.id])).toString(
-    'base64url',
-  );
+  const values: unknown[] = [position.at, position.id];
+  if (position.rank !== undefined) values.push(position.rank);
+  return Buffer.from(JSON.stringify(values)).toString('base64url');
 }
 
 export function decodeCursor(cursor: string): CursorPosition {
   try {
-    const [at, id] = JSON.parse(
+    const [at, id, rank] = JSON.parse(
       Buffer.from(cursor, 'base64url').toString(),
     ) as unknown[];
     if (
       typeof at === 'string' &&
       typeof id === 'string' &&
-      !Number.isNaN(Date.parse(at))
+      !Number.isNaN(Date.parse(at)) &&
+      (rank === undefined || Number.isInteger(rank))
     ) {
-      return { at, id };
+      return rank === undefined ? { at, id } : { at, id, rank: rank as number };
     }
   } catch {
     // fall through

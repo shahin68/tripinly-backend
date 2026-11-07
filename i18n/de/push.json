@@ -4,6 +4,14 @@
     "title": "{actor} hat {marker} kommentiert",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} hat auf {marker} geantwortet",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} hat dich bei {marker} erwähnt",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} hat dich zu {trip} hinzugefügt",
     "body": "Öffne die Reise, um gemeinsam zu planen."
@@ -45,15 +53,28 @@
   "liked": {
     "trip": {
       "title": "{actor} gefällt deine Reise",
-      "body": "{trip}"
+      "body": "{trip}",
+      "title_others": {
+        "one": "{actor} und 1 weitere Person mögen deine Reise",
+        "other": "{actor} und {count} weitere mögen deine Reise"
+      }
     },
     "photo": {
       "title": "{actor} gefällt dein Foto",
-      "body": "{marker} · {trip}"
+      "body": "{marker} · {trip}",
+      "title_others": {
+        "one": "{actor} und 1 weitere Person mögen dein Foto",
+        "other": "{actor} und {count} weitere mögen dein Foto"
+      },
+      "body_place": "{marker}"
     },
     "comment": {
       "title": "{actor} gefällt dein Kommentar",
-      "body": "„{excerpt}“ zu {marker}"
+      "body": "„{excerpt}“ zu {marker}",
+      "title_others": {
+        "one": "{actor} und 1 weitere Person mögen deinen Kommentar",
+        "other": "{actor} und {count} weitere mögen deinen Kommentar"
+      }
     }
   },
   "followed": {
@@ -74,5 +95,13 @@
       "one": "{count} Person hat deinen Ort als Hotspot markiert. Gute Entdeckung!",
       "other": "{count} Personen haben deinen Ort als Hotspot markiert. Gute Entdeckung!"
     }
+  },
+  "join_declined": {
+    "title": "{actor} hat deine Anfrage abgelehnt",
+    "body": "Du kannst {trip} nicht beitreten."
+  },
+  "removed_from_trip": {
+    "title": "{actor} hat dich aus {trip} entfernt",
+    "body": "Du kannst die Reise nicht mehr sehen."
   }
 }

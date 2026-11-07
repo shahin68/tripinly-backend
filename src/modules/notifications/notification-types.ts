@@ -14,12 +14,24 @@ export const NOTIFICATION_TYPES = [
   'join_accepted',
   'trip_saved',
   'place_hot',
+  'comment_reply',
+  'comment_mention',
+  'join_declined',
+  'removed_from_trip',
+] as const satisfies readonly NotificationType[];
+
+/** A new comment on a stop, a reply, or a mention in either: payload CommentPayload. */
+export const COMMENT_TYPES = [
+  'comment_on_marker',
+  'comment_reply',
+  'comment_mention',
 ] as const satisfies readonly NotificationType[];
 
 /**
  * The per-type push switch in notification_settings: each switch turns off
- * its whole group (Likes covers flames and saves; New followers covers
- * friends; Added to trips covers accepted join requests).
+ * its whole group (Comments covers replies and mentions; Likes covers flames
+ * and saves; New followers covers friends; Added to trips covers accepted
+ * join requests).
  */
 export const SETTING_FOR_TYPE = {
   comment_on_marker: 'commentOnMarker',
@@ -32,6 +44,10 @@ export const SETTING_FOR_TYPE = {
   join_accepted: 'addedToTrip',
   trip_saved: 'likesGrouped',
   place_hot: 'likesGrouped',
+  comment_reply: 'commentOnMarker',
+  comment_mention: 'commentOnMarker',
+  join_declined: 'addedToTrip',
+  removed_from_trip: 'addedToTrip',
 } as const satisfies Record<
   NotificationType,
   keyof Omit<NotificationSettings, 'userId' | 'updatedAt'>
@@ -73,13 +89,24 @@ export interface LikesPayload {
   markerName?: string;
   /** The liked comment's text, shortened. */
   excerpt?: string;
+  /** The highest APP_NOTIFICATION_MILESTONES count already pushed. */
+  milestone?: number;
 }
 
 export interface PlaceHotPayload {
   placeId: string;
   placeName: string;
-  /** The hot count reached, one of HOT_MILESTONES. */
-  milestone: number;
+  /** The highest APP_NOTIFICATION_MILESTONES count already pushed. */
+  milestone?: number;
+}
+
+/**
+ * join_declined and removed_from_trip: the trip is named here, not in
+ * tripId, so the entry stays (and pushes) after access to it is gone.
+ */
+export interface MembershipPayload {
+  tripId: string;
+  tripTitle: string;
 }
 
 export type NotificationPayload =
@@ -87,15 +114,22 @@ export type NotificationPayload =
   | TripChangesPayload
   | LikesPayload
   | PlaceHotPayload
+  | MembershipPayload
   | Record<string, never>;
 
 /**
- * Hot counts at which a spot's creator hears that it is getting hot, once
- * each (Shahin, 2026-11-01: rarely, pushes cost money).
+ * The count to push for: one of [milestones] that is above the one already
+ * pushed. Likes and flames in between show only in the notification center.
  */
-export const HOT_MILESTONES = [5, 25, 100, 500, 1000, 5000] as const;
+export function milestoneReached(
+  count: number,
+  milestones: readonly number[],
+  pushed = 0,
+): number | undefined {
+  return milestones.includes(count) && count > pushed ? count : undefined;
+}
 
-/** Follow and friend pushes: at most one per pair per day, so toggling can't spam. */
+/** Friend pushes: at most one per pair per day, so toggling can't spam (a follow pushes once per pair ever). */
 export const FOLLOW_REPEAT_SECONDS = 24 * 60 * 60;
 
 export function excerpt(text: string): string {
@@ -106,15 +140,16 @@ export function excerpt(text: string): string {
 }
 
 /**
- * About a stop's comments: a new comment, or a like on one. Their "new" mark
- * clears once the stop's comments are seen; the rest clear when the stop opens.
+ * About a stop's comments: a new comment or reply, a mention, or a like on a
+ * comment. Their "new" mark clears once the stop's comments are seen; the rest
+ * clear when the stop opens.
  */
 export function isAboutComments(row: {
   type: string;
   payload: unknown;
 }): boolean {
   return (
-    row.type === 'comment_on_marker' ||
+    (COMMENT_TYPES as readonly string[]).includes(row.type) ||
     (row.type === 'likes_grouped' &&
       (row.payload as Partial<LikesPayload> | null)?.targetType === 'comment')
   );
