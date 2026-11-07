@@ -50,6 +50,13 @@ export const TRIP_DETAIL_INCLUDE = {
     },
   },
   photos: TRIP_FIRST_PHOTO,
+  // The owner's map shows who asks to join (newest first, three faces).
+  joinRequests: {
+    where: { status: 'pending', user: { status: 'active' } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 3,
+    select: { user: { select: USER_SUMMARY_SELECT } },
+  },
   _count: {
     select: {
       saves: true,
@@ -147,6 +154,12 @@ export function toTripDto(
     savedByMe: viewer.savedByMe,
     myJoinRequest: viewer.joinRequest,
     pendingJoinRequestCount: myRole === 'owner' ? trip._count.joinRequests : 0,
+    joinRequesters:
+      myRole === 'owner'
+        ? trip.joinRequests.map((request) =>
+            toUserSummary(request.user, signer),
+          )
+        : [],
     ...tripCover(
       trip.days.flatMap((day) => day.markers),
       trip.photos[0],

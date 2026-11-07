@@ -566,7 +566,13 @@ describe('Social (integration)', () => {
         .post(`/v1/join-requests/${request.id}/accept`)
         .expect(404);
       const ownersView = await as(owner).get(`/v1/trips/${trip.id}`);
-      expect(ownersView.body.pendingJoinRequestCount).toBe(1);
+      expect(ownersView.body).toMatchObject({
+        pendingJoinRequestCount: 1,
+        joinRequesters: [expect.objectContaining({ id: stranger.userId })],
+      });
+      expect(
+        (await as(editor).get(`/v1/trips/${trip.id}`)).body.joinRequesters,
+      ).toEqual([]);
       const list = await as(owner)
         .get(`/v1/trips/${trip.id}/join-requests`)
         .expect(200);

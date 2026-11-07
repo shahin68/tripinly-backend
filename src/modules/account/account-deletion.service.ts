@@ -239,10 +239,13 @@ export class AccountDeletionService {
   }
 
   /**
-   * Notifications they caused: grouped ones (likes, collaborator changes) lose
-   * them from their list and pass to the next person, or go when nobody is
-   * left; the rest are deleted. Reports they filed lose the reporter by
-   * foreign key; reports about them or their deleted content are closed.
+   * Notifications they caused: grouped ones (likes, comments, changes, saves,
+   * follows) lose them from their people and pass to the next person, or go
+   * when nobody is left; the rest are deleted. Comment groups get their count
+   * and excerpt back from the comments left (comment_deleted, planner). Their
+   * own notifications go with the user row. Reports they filed lose the
+   * reporter by foreign key; reports about them or their deleted content are
+   * closed.
    */
   private async cleanUpReferences(userId: string): Promise<void> {
     await this.prisma.$transaction([
@@ -251,16 +254,18 @@ export class AccountDeletionService {
           payload = jsonb_set(payload, '{likerIds}', (payload->'likerIds') - ${userId}::text),
           count = greatest(count - 1, 0)
         WHERE type = 'likes_grouped' AND payload->'likerIds' ? ${userId}::text`,
+      // One follow or save per person; changes and comments keep their count.
       this.prisma.$executeRaw`
         UPDATE notifications SET
-          payload = jsonb_set(payload, '{actorIds}', (payload->'actorIds') - ${userId}::text)
-        WHERE type = 'trip_changed_by_collaborator' AND payload->'actorIds' ? ${userId}::text`,
+          payload = jsonb_set(payload, '{actorIds}', (payload->'actorIds') - ${userId}::text),
+          count = CASE WHEN type IN ('followed', 'trip_saved') THEN greatest(count - 1, 1) ELSE count END
+        WHERE payload->'actorIds' ? ${userId}::text`,
       // Theirs alone (or not grouped): delete.
       this.prisma.$executeRaw`
         DELETE FROM notifications
         WHERE "actorId" = ${userId}::uuid AND NOT (
           (type = 'likes_grouped' AND jsonb_array_length(payload->'likerIds') > 0)
-          OR (type = 'trip_changed_by_collaborator' AND jsonb_array_length(payload->'actorIds') > 0)
+          OR coalesce(jsonb_array_length(payload->'actorIds'), 0) > 0
         )`,
       // Shared with others: the latest remaining person becomes the actor.
       this.prisma.$executeRaw`

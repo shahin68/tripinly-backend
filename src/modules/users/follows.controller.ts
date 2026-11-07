@@ -70,6 +70,21 @@ export class FollowsController {
     return this.follows.unfollow(user.id, id);
   }
 
+  @Delete('me/followers/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove a follower',
+    description:
+      'They stop following me (and we stop being friends); they are not told. Idempotent, also when they did not follow me. Yourself → 400 VALIDATION_FAILED.',
+  })
+  @ApiNoContentResponse()
+  removeFollower(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    return this.follows.unfollow(id, user.id);
+  }
+
   @Get('me/friends')
   @ApiOperation({
     summary: 'My friends (people I follow who follow me back)',

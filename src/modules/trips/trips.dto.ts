@@ -244,6 +244,13 @@ export class TripDto {
   })
   pendingJoinRequestCount: number;
 
+  @ApiProperty({
+    type: [UserSummaryDto],
+    description:
+      "Up to 3 people asking to join, newest first (the owner's map pill); empty for everyone else. Added 2026-11-07",
+  })
+  joinRequesters: UserSummaryDto[];
+
   @ApiProperty({ type: [TripDayDto] })
   days: TripDayDto[];
 

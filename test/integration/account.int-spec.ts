@@ -246,6 +246,19 @@ describe('Account deletion and export (integration)', () => {
         },
       });
 
+      // A group of followers she shares with Bob (2026-11-07 grouping).
+      const sharedFollows = await prisma.notification.create({
+        data: {
+          recipientId: carol.userId,
+          type: 'followed',
+          actorId: alice.userId,
+          groupKey: `follows:${carol.userId}`,
+          payload: { actorIds: [alice.userId, bob.userId] },
+          count: 2,
+          pushedAt: new Date(),
+        },
+      });
+
       const { body } = await as(alice).delete('/v1/me').expect(202);
       expect(body).toEqual({ status: 'deleting' });
       // Signed out everywhere at once.
@@ -328,6 +341,16 @@ describe('Account deletion and export (integration)', () => {
           payload: { likerIds: [bob.userId], tripIds: [carols.id] },
         }),
       ]);
+
+      expect(
+        await prisma.notification.findUniqueOrThrow({
+          where: { id: sharedFollows.id },
+        }),
+      ).toMatchObject({
+        actorId: bob.userId,
+        count: 1,
+        payload: { actorIds: [bob.userId] },
+      });
 
       // Kept: a keyed consent proof, the username hold, and her report
       // without a reporter; the report about her is closed.

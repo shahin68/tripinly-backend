@@ -74,7 +74,11 @@ describe('Follows (integration)', () => {
     expect(usernames(await list(ann, '/v1/me/following'))).toEqual(['bea']);
     expect(usernames(await list(bea, '/v1/me/followers'))).toEqual(['ann']);
 
-    await as(ann).delete(`/v1/users/${bea.userId}/follow`).expect(204);
+    // Bea removes Ann as a follower; Ann unfollowing after that changes nothing.
+    await as(bea).delete(`/v1/me/followers/${ann.userId}`).expect(204);
+    await as(bea).delete(`/v1/me/followers/${ann.userId}`).expect(204);
+    expect((await list(bea, '/v1/me/followers')).items).toEqual([]);
+    await as(bea).delete(`/v1/me/followers/${bea.userId}`).expect(400);
     await as(ann).delete(`/v1/users/${bea.userId}/follow`).expect(204);
     expect(await prisma.follow.count()).toBe(0);
     expect((await list(ann, '/v1/me/following')).items).toEqual([]);
