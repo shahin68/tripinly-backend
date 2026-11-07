@@ -5607,13 +5607,6 @@
             "type": "number",
             "description": "Requests waiting for the owner; 0 for everyone else"
           },
-          "joinRequesters": {
-            "description": "Up to 3 people asking to join, newest first (the owner's map pill); empty for everyone else. Added 2026-11-07",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserSummaryDto"
-            }
-          },
           "days": {
             "type": "array",
             "items": {
@@ -5645,7 +5638,6 @@
           "savedByMe",
           "myJoinRequest",
           "pendingJoinRequestCount",
-          "joinRequesters",
           "days",
           "createdAt",
           "updatedAt"

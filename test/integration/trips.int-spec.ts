@@ -66,7 +66,6 @@ describe('Trips, days and members (integration)', () => {
         savedByMe: false,
         myJoinRequest: null,
         pendingJoinRequestCount: 0,
-        joinRequesters: [],
         coverPhotoId: null,
         coverThumbUrl: null,
       });
