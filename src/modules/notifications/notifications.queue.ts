@@ -24,7 +24,10 @@ export type PlanInput =
       markerId: string;
       commentId: string;
       body: string;
-      recipientIds: string[];
+      /** The main comment, when this is a reply. */
+      parentId?: string | null;
+      /** Trip people it @mentions (checked by the api). */
+      mentionIds?: string[];
     }
   | { kind: 'comment_deleted'; commentId: string }
   | {

@@ -4,6 +4,14 @@
     "title": "{actor} hozzászólt: {marker}",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} válaszolt: {marker}",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} megemlített: {marker}",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} hozzáadott ehhez: {trip}",
     "body": "Nyisd meg, és tervezzetek együtt."

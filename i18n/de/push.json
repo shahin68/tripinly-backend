@@ -4,6 +4,14 @@
     "title": "{actor} hat {marker} kommentiert",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} hat auf {marker} geantwortet",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} hat dich bei {marker} erwähnt",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} hat dich zu {trip} hinzugefügt",
     "body": "Öffne die Reise, um gemeinsam zu planen."

@@ -213,7 +213,7 @@ describe('Notifications (integration)', () => {
   });
 
   describe('comments', () => {
-    it('notifies the trip owner and the marker’s creator, not the commenter', async () => {
+    it('notifies everyone on the trip, not the commenter', async () => {
       const markerId = await addMarker(editor);
       // The owner hears about the new stop first.
       await eventually(() => push.to(OWNER_TABLET).length === 1);
@@ -252,11 +252,12 @@ describe('Notifications (integration)', () => {
         .post(`/v1/markers/${markerId}/comments`)
         .send({ body: 'Nice' })
         .expect(201);
+      // The owner and the editor (a member).
       await eventually(
         async () =>
           (await prisma.notification.count({
             where: { type: 'comment_on_marker' },
-          })) === 1,
+          })) === 2,
       );
       await as(stranger)
         .delete(`/v1/comments/${(body as { id: string }).id}`)
@@ -271,6 +272,117 @@ describe('Notifications (integration)', () => {
       );
     });
 
+    it('pushes a reply to its thread only; the rest of the trip gets the entry', async () => {
+      const STRANGER_PHONE = 'stranger-phone-token-0000004';
+      await device(stranger, STRANGER_PHONE, 'en');
+      const markerId = await addMarker(owner);
+      await eventually(() => push.to(EDITOR_PHONE).length === 1);
+      const { body: main } = await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Worth it?' })
+        .expect(201);
+      await eventually(
+        () =>
+          push.to(OWNER_TABLET).length && push.to(EDITOR_PHONE).length === 2,
+        5000,
+        'main comment pushes',
+      );
+      push.reset();
+
+      await as(editor)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Totally', parentId: (main as { id: string }).id })
+        .expect(201);
+      const [reply] = await eventually(
+        () => push.to(STRANGER_PHONE).length && push.to(STRANGER_PHONE),
+        5000,
+        'reply push',
+      );
+      expect(reply).toMatchObject({
+        title: 'editor replied on Albertina',
+        body: 'Totally',
+        data: { type: 'comment_reply' },
+      });
+      // The owner isn't in the thread: an entry and a red dot, no push.
+      await eventually(
+        async () =>
+          prisma.notification.findFirst({
+            where: { recipientId: owner.userId, type: 'comment_reply' },
+          }),
+        5000,
+        'owner entry',
+      );
+      await sleep(300);
+      expect(push.to(OWNER_TABLET)).toEqual([]);
+      await as(owner)
+        .get(`/v1/trips/${trip.id}/new-activity`)
+        .expect(200, { markerIds: [markerId], commentMarkerIds: [markerId] });
+    });
+
+    it('pushes a comment with a mention to the mentioned people only', async () => {
+      const STRANGER_PHONE = 'stranger-phone-token-0000004';
+      await device(stranger, STRANGER_PHONE, 'en');
+      const markerId = await addMarker(owner);
+      await eventually(() => push.to(EDITOR_PHONE).length === 1);
+      await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Lovely' })
+        .expect(201);
+      await eventually(() => push.to(OWNER_TABLET).length);
+      push.reset();
+
+      // stranger isn't on the trip: their handle stays plain text.
+      const { body } = await as(owner)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: '@editor, @stranger: shall we go?' })
+        .expect(201);
+      expect(body).toMatchObject({
+        mentions: [{ userId: editor.userId, username: 'editor' }],
+      });
+      const [mention] = await eventually(
+        () => push.to(EDITOR_PHONE).length && push.to(EDITOR_PHONE),
+        5000,
+        'mention push',
+      );
+      expect(mention.data.type).toBe('comment_mention');
+      await eventually(async () =>
+        prisma.notification.findFirst({
+          where: { recipientId: stranger.userId, type: 'comment_on_marker' },
+        }),
+      );
+      await sleep(300);
+      expect(push.to(STRANGER_PHONE)).toEqual([]);
+    });
+
+    it('sends no comment push while that stop’s comments are open', async () => {
+      const markerId = await addMarker(owner);
+      await eventually(() => push.to(EDITOR_PHONE).length === 1);
+      push.reset();
+      const socket = await connect(await realtimeUrl(app), editor);
+      try {
+        await expect(
+          socket.emit('comments.watch', { markerId }),
+        ).resolves.toEqual({ ok: true, markerId });
+        await as(stranger)
+          .post(`/v1/markers/${markerId}/comments`)
+          .send({ body: 'Nice' })
+          .expect(201);
+        await eventually(() => push.to(OWNER_TABLET).length);
+        await sleep(300);
+        expect(push.to(EDITOR_PHONE)).toEqual([]);
+
+        // Closed again: pushes come back.
+        await socket.emit('comments.unwatch', { markerId });
+        await as(stranger)
+          .post(`/v1/markers/${markerId}/comments`)
+          .send({ body: 'Again' })
+          .expect(201);
+        await eventually(() => push.to(EDITOR_PHONE).length, 5000, 'push');
+      } finally {
+        socket.close();
+      }
+    });
+
     it('skips recipients with a block with the actor', async () => {
       const markerId = await addMarker(owner);
       await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
@@ -281,7 +393,6 @@ describe('Notifications (integration)', () => {
         markerId,
         commentId: '00000000-0000-4000-8000-000000000000',
         body: 'hello',
-        recipientIds: [owner.userId],
       });
       expect(
         await prisma.notification.count({

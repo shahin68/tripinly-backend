@@ -3065,6 +3065,7 @@
     },
     "/v1/markers/{id}/comments": {
       "get": {
+        "description": "Replies are not in this list: each main comment carries its replyCount, and GET /comments/{id}/replies lists them.",
         "operationId": "Social_listComments",
         "parameters": [
           {
@@ -3114,13 +3115,13 @@
             "bearer": []
           }
         ],
-        "summary": "A marker's comments, oldest first",
+        "summary": "A marker's main comments, most liked first, then newest first",
         "tags": [
           "social"
         ]
       },
       "post": {
-        "description": "Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute.",
+        "description": "Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute. With parentId it's a reply (to a reply: under the same main comment; 404 when that comment is gone or hidden from me). @username mentions of the trip's owner and members are kept in mentions; other handles stay plain text. Deleting a main comment deletes its replies.",
         "operationId": "Social_createComment",
         "parameters": [
           {
@@ -3172,6 +3173,63 @@
           }
         ],
         "summary": "Comment on a marker",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/v1/comments/{id}/replies": {
+      "get": {
+        "operationId": "Social_listReplies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A main comment's replies, oldest first",
         "tags": [
           "social"
         ]
@@ -6819,6 +6877,24 @@
           "photoId"
         ]
       },
+      "MentionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "example": "jonas.k",
+            "description": "Their username now"
+          }
+        },
+        "required": [
+          "userId",
+          "username"
+        ]
+      },
       "CommentDto": {
         "type": "object",
         "properties": {
@@ -6846,6 +6922,23 @@
             "type": "boolean",
             "description": "I wrote it, or I own the trip"
           },
+          "parentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The main comment this replies to; null for a main comment"
+          },
+          "replyCount": {
+            "type": "number",
+            "description": "Replies I can see (0 on replies)"
+          },
+          "mentions": {
+            "description": "Trip people the body @mentions; other @handles in the body are plain text",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionDto"
+            }
+          },
           "createdAt": {
             "type": "string"
           }
@@ -6858,6 +6951,9 @@
           "likeCount",
           "likedByMe",
           "canDelete",
+          "parentId",
+          "replyCount",
+          "mentions",
           "createdAt"
         ]
       },
@@ -6887,6 +6983,11 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reply to this comment. A reply to a reply goes under the same main comment."
           }
         },
         "required": [
@@ -7142,7 +7243,9 @@
               "became_friends",
               "join_accepted",
               "trip_saved",
-              "place_hot"
+              "place_hot",
+              "comment_reply",
+              "comment_mention"
             ]
           },
           "actor": {

@@ -94,14 +94,16 @@ export class NotificationRenderer {
       count: row.count,
     };
     switch (row.type) {
-      case 'comment_on_marker': {
+      case 'comment_on_marker':
+      case 'comment_reply':
+      case 'comment_mention': {
         const payload = row.payload as unknown as CommentPayload;
         return {
-          title: this.t('push.comment_on_marker.title', lang, {
+          title: this.t(`push.${row.type}.title`, lang, {
             ...args,
             marker: payload.markerName,
           }),
-          body: this.t('push.comment_on_marker.body', lang, {
+          body: this.t(`push.${row.type}.body`, lang, {
             excerpt: payload.excerpt,
           }),
         };

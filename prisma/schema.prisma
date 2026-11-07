@@ -82,6 +82,7 @@ model User {
   placesCreated        Place[]
   photosUploaded       Photo[]
   comments             Comment[]
+  commentMentions      CommentMention[]
   likes                Like[]
   entitlements         Entitlement[]
   notifications        Notification[]        @relation("NotificationRecipient")
@@ -644,20 +645,40 @@ model Comment {
   /// Denormalized from the marker for access checks.
   tripId    String    @db.Uuid
   authorId  String    @db.Uuid
+  /// The main comment this one replies to; null for a main comment. Replies are one level deep.
+  parentId  String?   @db.Uuid
   body      String
   likeCount Int       @default(0)
   hiddenAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  marker Marker @relation(fields: [markerId], references: [id], onDelete: Cascade)
-  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  marker   Marker           @relation(fields: [markerId], references: [id], onDelete: Cascade)
+  trip     Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author   User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent   Comment?         @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[]        @relation("CommentReplies")
+  mentions CommentMention[]
 
   @@index([markerId, createdAt, id])
+  @@index([markerId, likeCount, createdAt, id])
+  @@index([parentId, createdAt, id])
   @@index([tripId])
   @@index([authorId])
   @@map("comments")
+}
+
+/// Trip people a comment @mentions (checked when it was written).
+model CommentMention {
+  commentId String @db.Uuid
+  userId    String @db.Uuid
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([userId])
+  @@map("comment_mentions")
 }
 
 enum LikeTargetType {
@@ -719,6 +740,8 @@ enum NotificationType {
   join_accepted
   trip_saved
   place_hot
+  comment_reply
+  comment_mention
 }
 
 /// In-app notifications (docs/knowledge/05-realtime-and-notifications.md).

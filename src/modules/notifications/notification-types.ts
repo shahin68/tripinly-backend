@@ -14,12 +14,22 @@ export const NOTIFICATION_TYPES = [
   'join_accepted',
   'trip_saved',
   'place_hot',
+  'comment_reply',
+  'comment_mention',
+] as const satisfies readonly NotificationType[];
+
+/** A new comment on a stop, a reply, or a mention in either: payload CommentPayload. */
+export const COMMENT_TYPES = [
+  'comment_on_marker',
+  'comment_reply',
+  'comment_mention',
 ] as const satisfies readonly NotificationType[];
 
 /**
  * The per-type push switch in notification_settings: each switch turns off
- * its whole group (Likes covers flames and saves; New followers covers
- * friends; Added to trips covers accepted join requests).
+ * its whole group (Comments covers replies and mentions; Likes covers flames
+ * and saves; New followers covers friends; Added to trips covers accepted
+ * join requests).
  */
 export const SETTING_FOR_TYPE = {
   comment_on_marker: 'commentOnMarker',
@@ -32,6 +42,8 @@ export const SETTING_FOR_TYPE = {
   join_accepted: 'addedToTrip',
   trip_saved: 'likesGrouped',
   place_hot: 'likesGrouped',
+  comment_reply: 'commentOnMarker',
+  comment_mention: 'commentOnMarker',
 } as const satisfies Record<
   NotificationType,
   keyof Omit<NotificationSettings, 'userId' | 'updatedAt'>
@@ -106,15 +118,16 @@ export function excerpt(text: string): string {
 }
 
 /**
- * About a stop's comments: a new comment, or a like on one. Their "new" mark
- * clears once the stop's comments are seen; the rest clear when the stop opens.
+ * About a stop's comments: a new comment or reply, a mention, or a like on a
+ * comment. Their "new" mark clears once the stop's comments are seen; the rest
+ * clear when the stop opens.
  */
 export function isAboutComments(row: {
   type: string;
   payload: unknown;
 }): boolean {
   return (
-    row.type === 'comment_on_marker' ||
+    (COMMENT_TYPES as readonly string[]).includes(row.type) ||
     (row.type === 'likes_grouped' &&
       (row.payload as Partial<LikesPayload> | null)?.targetType === 'comment')
   );

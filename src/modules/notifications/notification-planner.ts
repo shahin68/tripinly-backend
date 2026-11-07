@@ -11,6 +11,7 @@ import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationPublisher } from './notification-publisher';
 import {
+  COMMENT_TYPES,
   type CommentPayload,
   excerpt,
   FOLLOW_REPEAT_SECONDS,
@@ -55,7 +56,7 @@ export class NotificationPlanner {
       case 'comment_deleted':
         await this.prisma.notification.deleteMany({
           where: {
-            type: 'comment_on_marker',
+            type: { in: [...COMMENT_TYPES] },
             payload: { path: ['commentId'], equals: input.commentId },
           },
         });
@@ -77,32 +78,73 @@ export class NotificationPlanner {
     }
   }
 
+  /**
+   * Everyone on the trip and everyone who commented on the stop gets the
+   * notification (the stop's red dot, the center). The push goes to the same
+   * people for a main comment, and to the thread (the main comment's author
+   * and its repliers) for a reply. A comment that @mentions someone pushes to
+   * the mentioned people only.
+   */
   private async commentCreated(
     input: Extract<PlanInput, { kind: 'comment_created' }>,
   ): Promise<void> {
-    const marker = await this.prisma.marker.findUnique({
-      where: { id: input.markerId },
-      select: { name: true },
-    });
+    const parentId = input.parentId ?? null;
+    const mentionIds = input.mentionIds ?? [];
+    const [marker, members, commenters, thread] = await Promise.all([
+      this.prisma.marker.findUnique({
+        where: { id: input.markerId },
+        select: { name: true },
+      }),
+      this.prisma.tripMember.findMany({
+        where: { tripId: input.tripId },
+        select: { userId: true },
+      }),
+      this.prisma.comment.findMany({
+        where: { markerId: input.markerId },
+        distinct: ['authorId'],
+        select: { authorId: true },
+      }),
+      parentId
+        ? this.prisma.comment.findMany({
+            where: { OR: [{ id: parentId }, { parentId }] },
+            distinct: ['authorId'],
+            select: { authorId: true },
+          })
+        : [],
+    ]);
     if (!marker) return;
     const payload: CommentPayload = {
       commentId: input.commentId,
       markerName: marker.name,
       excerpt: excerpt(input.body),
     };
-    for (const recipientId of await this.eligible(
-      input.actorId,
-      input.tripId,
-      input.recipientIds,
-    )) {
-      await this.immediate({
-        recipientId,
-        type: 'comment_on_marker',
-        actorId: input.actorId,
-        tripId: input.tripId,
-        markerId: input.markerId,
-        payload: payload as unknown as Prisma.InputJsonObject,
-      });
+    // Null: everyone who gets the row.
+    const pushTo =
+      mentionIds.length > 0
+        ? new Set(mentionIds)
+        : parentId
+          ? new Set(thread.map((comment) => comment.authorId))
+          : null;
+    for (const recipientId of await this.eligible(input.actorId, input.tripId, [
+      ...members.map((member) => member.userId),
+      ...commenters.map((comment) => comment.authorId),
+    ])) {
+      const mentioned = mentionIds.includes(recipientId);
+      await this.immediate(
+        {
+          recipientId,
+          type: mentioned
+            ? 'comment_mention'
+            : parentId
+              ? 'comment_reply'
+              : 'comment_on_marker',
+          actorId: input.actorId,
+          tripId: input.tripId,
+          markerId: input.markerId,
+          payload: payload as unknown as Prisma.InputJsonObject,
+        },
+        pushTo === null || pushTo.has(recipientId),
+      );
     }
   }
 
@@ -472,22 +514,28 @@ export class NotificationPlanner {
     }
   }
 
-  private async immediate(data: {
-    recipientId: string;
-    type: NotificationType;
-    actorId?: string;
-    tripId?: string;
-    markerId?: string;
-    payload?: Prisma.InputJsonObject;
-  }): Promise<void> {
+  /** Writes the row and sends it live; [push] false keeps it to the app (dot, center). */
+  private async immediate(
+    data: {
+      recipientId: string;
+      type: NotificationType;
+      actorId?: string;
+      tripId?: string;
+      markerId?: string;
+      payload?: Prisma.InputJsonObject;
+    },
+    push = true,
+  ): Promise<void> {
     const row = await this.prisma.notification.create({
       data: { ...data, payload: data.payload ?? {} },
     });
-    await this.queue.add(
-      NotificationJobs.PUSH,
-      { notificationId: row.id },
-      { ...DELIVERY_RETRIES, jobId: pushJobId(row.id) },
-    );
+    if (push) {
+      await this.queue.add(
+        NotificationJobs.PUSH,
+        { notificationId: row.id },
+        { ...DELIVERY_RETRIES, jobId: pushJobId(row.id) },
+      );
+    }
     await this.publisher.publish(row.id);
   }
 }

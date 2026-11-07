@@ -4,6 +4,14 @@
     "title": "{actor} commented on {marker}",
     "body": "{excerpt}"
   },
+  "comment_reply": {
+    "title": "{actor} replied on {marker}",
+    "body": "{excerpt}"
+  },
+  "comment_mention": {
+    "title": "{actor} mentioned you on {marker}",
+    "body": "{excerpt}"
+  },
   "added_to_trip": {
     "title": "{actor} added you to {trip}",
     "body": "Open it to plan together."

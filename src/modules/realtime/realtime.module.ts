@@ -5,11 +5,17 @@ import { TripsModule } from '../trips/trips.module';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeListener } from './realtime.listener';
 import { RealtimePublisher } from './realtime.publisher';
+import { ViewingService } from './viewing.service';
 
 /** API side: the Socket.IO gateway plus the domain-event bridge. */
 @Module({
   imports: [AuthModule, ConsentsModule, TripsModule],
-  providers: [RealtimeGateway, RealtimePublisher, RealtimeListener],
+  providers: [
+    RealtimeGateway,
+    RealtimePublisher,
+    RealtimeListener,
+    ViewingService,
+  ],
   exports: [RealtimePublisher],
 })
 export class RealtimeModule {}

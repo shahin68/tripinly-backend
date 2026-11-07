@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, IsUUID, Length } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import type { Page } from '../../common/pagination/pagination';
 import { UserSummaryDto } from '../users/user-summary';
 
@@ -64,6 +64,23 @@ export class CreateCommentDto {
   @IsString()
   @Length(1, COMMENT_MAX_LENGTH)
   body: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Reply to this comment. A reply to a reply goes under the same main comment.',
+  })
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
+}
+
+export class MentionDto {
+  @ApiProperty({ format: 'uuid' })
+  userId: string;
+
+  @ApiProperty({ example: 'jonas.k', description: 'Their username now' })
+  username: string;
 }
 
 export class CommentDto {
@@ -87,6 +104,26 @@ export class CommentDto {
 
   @ApiProperty({ description: 'I wrote it, or I own the trip' })
   canDelete: boolean;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The main comment this replies to; null for a main comment',
+  })
+  parentId: string | null;
+
+  @ApiProperty({
+    description: 'Replies I can see (0 on replies)',
+  })
+  replyCount: number;
+
+  @ApiProperty({
+    type: [MentionDto],
+    description:
+      'Trip people the body @mentions; other @handles in the body are plain text',
+  })
+  mentions: MentionDto[];
 
   @ApiProperty()
   createdAt: string;

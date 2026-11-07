@@ -56,12 +56,16 @@ export class NotificationsListener {
   @OnEvent(DomainEvents.COMMENT_CREATED)
   onCommentCreated(
     event: DomainEvent<{
-      comment: { id: string; markerId: string; body: string };
-      markerCreatorId: string | null;
-      tripOwnerId: string;
+      comment: {
+        id: string;
+        markerId: string;
+        body: string;
+        parentId: string | null;
+        mentions: { userId: string }[];
+      };
     }>,
   ): Promise<void> {
-    const { comment, markerCreatorId, tripOwnerId } = event.data;
+    const { comment } = event.data;
     return this.enqueue({
       kind: 'comment_created',
       actorId: event.actorId,
@@ -69,9 +73,8 @@ export class NotificationsListener {
       markerId: comment.markerId,
       commentId: comment.id,
       body: comment.body,
-      recipientIds: [tripOwnerId, markerCreatorId].filter(
-        (id): id is string => !!id,
-      ),
+      parentId: comment.parentId,
+      mentionIds: comment.mentions.map((mention) => mention.userId),
     });
   }
 

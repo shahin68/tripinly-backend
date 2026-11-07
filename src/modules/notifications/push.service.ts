@@ -7,7 +7,8 @@ import {
   type RenderedText,
   resolveLanguage,
 } from './notification-renderer';
-import { SETTING_FOR_TYPE } from './notification-types';
+import { isAboutComments, SETTING_FOR_TYPE } from './notification-types';
+import { type View, ViewingService } from '../realtime/viewing.service';
 import { PushProvider } from './push.provider';
 
 /**
@@ -24,6 +25,7 @@ export class PushService {
     private readonly access: TripAccessService,
     private readonly renderer: NotificationRenderer,
     private readonly provider: PushProvider,
+    private readonly viewing: ViewingService,
   ) {}
 
   /** Returns how many devices were sent to (for logs and tests). */
@@ -62,6 +64,8 @@ export class PushService {
     const setting = SETTING_FOR_TYPE[notification.type];
     if (recipient.notificationSettings?.[setting] === false) return 0;
     if (!this.provider.enabled || recipient.devices.length === 0) return 0;
+    const view = openViewFor(notification);
+    if (view && (await this.viewing.isOpen(row.recipientId, view))) return 0;
 
     const context = await this.renderer.context([notification]);
     const deepLink = this.renderer.deepLink(notification, context);
@@ -109,4 +113,22 @@ export class PushService {
       return false;
     }
   }
+}
+
+/**
+ * The view that makes this push pointless while it's open on any of my
+ * devices: the stop's comments for news about them, the trip's map for a
+ * collaborator's change.
+ */
+function openViewFor(row: {
+  type: string;
+  payload: unknown;
+  markerId: string | null;
+  tripId: string | null;
+}): View | undefined {
+  if (row.markerId && isAboutComments(row)) return `comments:${row.markerId}`;
+  if (row.type === 'trip_changed_by_collaborator' && row.tripId) {
+    return `trip:${row.tripId}`;
+  }
+  return undefined;
 }

@@ -20,6 +20,9 @@ interface CommentBody {
   likeCount: number;
   likedByMe: boolean;
   canDelete: boolean;
+  parentId: string | null;
+  replyCount: number;
+  mentions: { userId: string; username: string }[];
 }
 
 const ALBERTINA = { lat: 48.2046, lng: 16.3683 };
@@ -291,24 +294,31 @@ describe('Social (integration)', () => {
   });
 
   describe('comments', () => {
-    it('lists comments oldest first with pagination', async () => {
+    it('lists main comments most liked first, then newest first, with pagination', async () => {
+      const ids: Record<string, string> = {};
       for (const body of ['First', 'Second', 'Third']) {
-        await as(stranger)
+        const { body: comment } = await as(stranger)
           .post(`/v1/markers/${markerId}/comments`)
           .send({ body: `  ${body}  ` })
           .expect(201);
+        ids[body] = (comment as CommentBody).id;
       }
+      await as(owner).put(`/v1/likes/comment/${ids.First}`).expect(200);
       const page1 = await as(owner)
         .get(`/v1/markers/${markerId}/comments?limit=2`)
         .expect(200);
       expect(page1.body.items.map((c: CommentBody) => c.body)).toEqual([
         'First',
-        'Second',
+        'Third',
       ]);
       expect(page1.body.items[0]).toMatchObject({
         author: { username: 'stranger' },
         canDelete: true,
-        likedByMe: false,
+        likedByMe: true,
+        likeCount: 1,
+        parentId: null,
+        replyCount: 0,
+        mentions: [],
       });
       const page2 = await as(owner)
         .get(
@@ -316,7 +326,7 @@ describe('Social (integration)', () => {
         )
         .expect(200);
       expect(page2.body.items.map((c: CommentBody) => c.body)).toEqual([
-        'Third',
+        'Second',
       ]);
       expect(page2.body.nextCursor).toBeNull();
 
@@ -324,6 +334,73 @@ describe('Social (integration)', () => {
       expect(asEditor.body.items[0].canDelete).toBe(false);
       const marker = await as(owner).get(`/v1/markers/${markerId}`);
       expect(marker.body.commentCount).toBe(3);
+    });
+
+    it('keeps replies one level deep, oldest first, and deletes them with their main comment', async () => {
+      const post = async (session: Session, body: string, parentId?: string) =>
+        (
+          await as(session)
+            .post(`/v1/markers/${markerId}/comments`)
+            .send({ body, parentId })
+            .expect(201)
+        ).body as CommentBody;
+      const main = await post(stranger, 'Worth it?');
+      const first = await post(editor, 'Yes', main.id);
+      // A reply to a reply goes under the same main comment.
+      const second = await post(owner, '@editor agreed', first.id);
+      expect(first.parentId).toBe(main.id);
+      expect(second).toMatchObject({
+        parentId: main.id,
+        mentions: [{ userId: editor.userId, username: 'editor' }],
+      });
+
+      const list = await as(owner).get(`/v1/markers/${markerId}/comments`);
+      expect(list.body.items).toHaveLength(1);
+      expect(list.body.items[0]).toMatchObject({ id: main.id, replyCount: 2 });
+      const replies = await as(owner)
+        .get(`/v1/comments/${main.id}/replies?limit=1`)
+        .expect(200);
+      expect(replies.body.items.map((c: CommentBody) => c.body)).toEqual([
+        'Yes',
+      ]);
+      const rest = await as(owner)
+        .get(
+          `/v1/comments/${main.id}/replies?cursor=${replies.body.nextCursor}`,
+        )
+        .expect(200);
+      expect(rest.body.items.map((c: CommentBody) => c.body)).toEqual([
+        '@editor agreed',
+      ]);
+
+      // Not on another stop's comment.
+      const otherMarker = await addMarker(owner, trip.days[1].id, placeId);
+      await as(owner)
+        .post(`/v1/markers/${otherMarker}/comments`)
+        .send({ body: 'x', parentId: main.id })
+        .expect(404);
+
+      await as(owner).delete(`/v1/comments/${main.id}`).expect(204);
+      expect(await prisma.comment.count()).toBe(0);
+      expect(await prisma.commentMention.count()).toBe(0);
+      const marker = await as(owner).get(`/v1/markers/${markerId}`);
+      expect(marker.body.commentCount).toBe(0);
+      await as(owner).get(`/v1/comments/${main.id}/replies`).expect(404);
+    });
+
+    it('mentions only the trip’s people, never myself or across a block', async () => {
+      const { body } = await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: '@owner @Editor @stranger @nobody mail@owner.com' })
+        .expect(201);
+      expect(
+        (body as CommentBody).mentions.map((m) => m.username).sort(),
+      ).toEqual(['editor', 'owner']);
+      await as(editor).post(`/v1/users/${owner.userId}/block`).expect(204);
+      const { body: blocked } = await as(owner)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'hey @editor' })
+        .expect(201);
+      expect((blocked as CommentBody).mentions).toEqual([]);
     });
 
     it('validates the body', async () => {
