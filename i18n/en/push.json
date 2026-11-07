@@ -2,11 +2,23 @@
   "someone": "Someone",
   "comment_on_marker": {
     "title": "{actor} commented on {marker}",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} commented {count} times on {marker}",
+    "title_two": "{actor} and {actor2} commented on {marker}",
+    "title_many": {
+      "one": "{actor} and 1 other commented on {marker}",
+      "other": "{actor} and {count} others commented on {marker}"
+    }
   },
   "comment_reply": {
     "title": "{actor} replied on {marker}",
-    "body": "{excerpt}"
+    "body": "{excerpt}",
+    "title_times": "{actor} replied {count} times on {marker}",
+    "title_two": "{actor} and {actor2} replied on {marker}",
+    "title_many": {
+      "one": "{actor} and 1 other replied on {marker}",
+      "other": "{actor} and {count} others replied on {marker}"
+    }
   },
   "comment_mention": {
     "title": "{actor} mentioned you on {marker}",
@@ -79,7 +91,13 @@
   },
   "followed": {
     "title": "{actor} followed you",
-    "body": "Follow back to become friends."
+    "body": "Follow back to become friends.",
+    "title_times": "{actor} followed you",
+    "title_two": "{actor} and {actor2} followed you",
+    "title_many": {
+      "one": "{actor} and 1 other followed you",
+      "other": "{actor} and {count} others followed you"
+    }
   },
   "became_friends": {
     "title": "You and {actor} are now friends",
@@ -87,7 +105,13 @@
   },
   "trip_saved": {
     "title": "{actor} saved your trip",
-    "body": "{trip}"
+    "body": "{trip}",
+    "title_times": "{actor} saved your trip",
+    "title_two": "{actor} and {actor2} saved your trip",
+    "title_many": {
+      "one": "{actor} and 1 other saved your trip",
+      "other": "{actor} and {count} others saved your trip"
+    }
   },
   "place_hot": {
     "title": "{place} is getting hot",

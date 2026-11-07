@@ -16,7 +16,11 @@ import type {
 } from '../../generated/prisma/client';
 import { UserSummaryDto } from '../users/user-summary';
 import type { RenderContext, RenderedText } from './notification-renderer';
-import { isAboutComments, NOTIFICATION_TYPES } from './notification-types';
+import {
+  isAboutComments,
+  NOTIFICATION_TYPES,
+  shownActorIds,
+} from './notification-types';
 
 export class NotificationTripDto {
   @ApiProperty({ format: 'uuid' })
@@ -40,6 +44,13 @@ export class NotificationDto {
   })
   actor: UserSummaryDto | null;
 
+  @ApiProperty({
+    type: [UserSummaryDto],
+    description:
+      'Up to 3 people of a grouped row, latest first (actor is the first; added 2026-11-07)',
+  })
+  actors: UserSummaryDto[];
+
   @ApiProperty({ type: NotificationTripDto, nullable: true })
   trip: NotificationTripDto | null;
 
@@ -54,7 +65,7 @@ export class NotificationDto {
 
   @ApiProperty({
     description:
-      'trip_changed_by_collaborator: number of changes; likes_grouped: number of people; else 1',
+      'Comments, replies, trip changes, saves and follows: how many in the group; likes_grouped: people who liked the item; place_hot: flames on the spot; else 1',
   })
   count: number;
 
@@ -231,6 +242,9 @@ export function toNotificationDto(
     id: row.id,
     type: row.type,
     actor: (row.actorId && context.actors.get(row.actorId)) || null,
+    actors: shownActorIds(row)
+      .map((id) => context.actors.get(id))
+      .filter((user): user is UserSummaryDto => !!user),
     trip: trip ? { id: trip.id, title: trip.title } : null,
     markerId: row.markerId,
     aboutComments: isAboutComments(row),

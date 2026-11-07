@@ -37,13 +37,13 @@ Domain events that don't go to a room as such: `join_request.created` (actor = t
 
 ### User room
 
-| Event                          | Data                                                                                                                                                                                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `notification.created`         | notification (as in `GET /notifications`, in the user's saved language). Every push is its own entry now; entries from groups opened before 2026-11-01 may still come again with the same `id` and a higher `count`: replace by id |
-| `trips.changed`                | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted                                                                                                               |
-| `follows.changed`              | `{ followerId, followeeId, following }` — someone followed or unfollowed; sent to both people, so profile counts and Friends/Following/Followers lists can reload                                                                  |
-| `photo.ready` / `photo.failed` | Place photos only (they have no trip room): sent to their uploader, same data as in the trip room (`placeId` set, `markerId` null)                                                                                                 |
-| `account.suspended`            | `{}` — an admin suspended the account; the server disconnects every socket of the user right after, and HTTP calls answer 403 `ACCOUNT_SUSPENDED`. Account deletion disconnects the same way, without an event                     |
+| Event                          | Data                                                                                                                                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notification.created`         | notification (as in `GET /notifications`, in the user's saved language). A grouped entry comes again with the same `id`, a higher `count` and new `actors` when it grows (2026-11-07): replace by id and move it to the top |
+| `trips.changed`                | `{ tripId, change: added\|removed }` — trip created (owner and members), added as member, removed/left, trip deleted                                                                                                        |
+| `follows.changed`              | `{ followerId, followeeId, following }` — someone followed or unfollowed; sent to both people, so profile counts and Friends/Following/Followers lists can reload                                                           |
+| `photo.ready` / `photo.failed` | Place photos only (they have no trip room): sent to their uploader, same data as in the trip room (`placeId` set, `markerId` null)                                                                                          |
+| `account.suspended`            | `{}` — an admin suspended the account; the server disconnects every socket of the user right after, and HTTP calls answer 403 `ACCOUNT_SUSPENDED`. Account deletion disconnects the same way, without an event              |
 
 ## Push notifications (FCM)
 
@@ -70,6 +70,20 @@ Silent on purpose: unfollows, leaving a trip, a deleted trip, copies, deleted ph
 
 **Notification center (2026-11-07):** every entry above shows in the app's center (`GET /v1/notifications`, newest first). `unseenCount` counts entries new or moved back on top since the user last opened it (`POST /v1/notifications/seen`, stored in `users.notificationsSeenAt`); it drives the red indicator on the Profile tab and the center tab. Seen is not read: stop marks clear only by `POST /notifications/read`.
 
+**Grouping (2026-11-07, Shahin's choices):** the worker groups at write time, so the app gets ready-made rows and groups nothing itself. A new notification with a group key joins the **open** row of that key (one not read yet: a group stops growing when it is tapped; opening the center only clears the red indicator) and moves it back on top, unread, with `count` + 1 and the person at the front of `payload.actorIds` (latest first, unique). Without an open row it starts a new one. Keys, per recipient:
+
+| What                            | Key                                        | Row reads                                              |
+| ------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| Comments on a stop              | `comments:{markerId}:{me}`                 | Anna commented 3 times / Anna and Jonas commented on X |
+| Replies to a main comment       | `replies:{commentId}:{me}`                 | Anna and 2 others replied on X                         |
+| Collaborator changes            | `changes:{tripId}:{markerId or trip}:{me}` | Changes in Vienna / Anna made 3 changes                |
+| Likes, flames                   | per item, as before                        | Anna and 4 others liked your photo                     |
+| Saves                           | `saves:{tripId}:{me}`                      | Mia and 3 others saved your trip                       |
+| Follows                         | `follows:{me}`                             | Mia and Leo followed you                               |
+| Mentions, friends, trip notices | never grouped                              | one row each                                           |
+
+Changes group per stop so a stop's "new" dot still clears on its own. Pushes don't change: they follow the table above per event (milestones read from the key's latest row, so a new row never pushes a milestone twice). Deleting a comment takes it out of its group (count, people and excerpt recomputed; the row goes when it was the last). The API returns up to 3 people as `actors` (latest first). Migration `notification_groups` drops the one-open-row-per-key index.
+
 - The API turns domain events into `plan` jobs on the `notifications` queue; the worker picks recipients, writes rows and sends. Recipients never include the actor, anyone with a block either way with the actor, inactive accounts, or anyone who can't view the trip.
 - **Every notification pushes at once** (Shahin, 2026-11-01; replaces the 10-minute batch and the hourly likes summary). The same notification again (same recipient, same person, same kind, same item: a like, unlike and like again; the same stop moved twice) within `NOTIFICATION_REPEAT_COOLDOWN_SECONDS` (worker, default 5) is dropped, row and push.
 - Collaborator changes are: trip updated, day added/deleted, marker added/updated/deleted, markers reordered, photo uploaded.
@@ -78,7 +92,7 @@ Silent on purpose: unfollows, leaving a trip, a deleted trip, copies, deleted ph
 - Respect `notification-settings`: each switch turns off its whole group (column Switch above; `SETTING_FOR_TYPE`). The in-app notification is still created when the push is off, so pin marks still show.
 - **New-activity marks:** `GET /v1/trips/{id}/new-activity` returns the stops of the trip with unread notifications for me (same visibility as the list: no blocked actors). The app shows them as "new" dots on pins and day tabs; `commentMarkerIds` says which of them have unread news about their comments (a new comment or a like on one; `aboutComments` on each notification). Opening a stop sends `POST /v1/notifications/read` with `{ markerId, kind: "other" }`, clearing the rest; opening its comments sends `kind: "comments"`. A mark goes once both are read (`{ markerId }` alone still reads everything). A `notification.created` with a `markerId` adds a mark live (2026-11-05).
 - Localize using the recipient's device `locale` (fallback user locale, then `en`). Templates live in the i18n files, keyed `push.<type>.title` / `.body` with ICU plural support.
-- Payload: a `notification` (title, body) plus `data: { type, notificationId, deepLink }`. Deep links: `tripinly://markers/{id}` (anything about one stop; older apps open its trip), `tripinly://trips/{id}/members` (join requests), `tripinly://users/{username}` (follows), `tripinly://trips/{id}` (everything else about one trip), `tripinly://notifications` (nothing to open, e.g. an old grouped summary or a hot spot with no stop of the creator's).
+- Payload: a `notification` (title, body) plus `data: { type, notificationId, deepLink }`. Deep links: `tripinly://markers/{id}/comments` (comments, replies, mentions and comment likes: the stop's comments sheet; added 2026-11-07), `tripinly://markers/{id}` (anything else about one stop; older apps open its trip), `tripinly://me/followers` (a group of several followers; added 2026-11-07), `tripinly://trips/{id}/members` (join requests), `tripinly://users/{username}` (follows), `tripinly://trips/{id}` (everything else about one trip), `tripinly://notifications` (nothing to open, e.g. an old grouped summary or a hot spot with no stop of the creator's).
 - Pushes are skipped while `FIREBASE_SERVICE_ACCOUNT_JSON` is unset; in-app notifications and realtime still work.
 - Remove device tokens that FCM reports as unregistered.
 - Never include private trip content in a push to someone who isn't a member.

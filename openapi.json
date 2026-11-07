@@ -7281,6 +7281,13 @@
               }
             ]
           },
+          "actors": {
+            "description": "Up to 3 people of a grouped row, latest first (actor is the first; added 2026-11-07)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummaryDto"
+            }
+          },
           "trip": {
             "nullable": true,
             "type": "object",
@@ -7301,7 +7308,7 @@
           },
           "count": {
             "type": "number",
-            "description": "trip_changed_by_collaborator: number of changes; likes_grouped: number of people; else 1"
+            "description": "Comments, replies, trip changes, saves and follows: how many in the group; likes_grouped: people who liked the item; place_hot: flames on the spot; else 1"
           },
           "title": {
             "type": "string",
@@ -7329,6 +7336,7 @@
           "id",
           "type",
           "actor",
+          "actors",
           "trip",
           "markerId",
           "aboutComments",

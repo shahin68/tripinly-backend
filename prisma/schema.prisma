@@ -749,9 +749,8 @@ enum NotificationType {
 }
 
 /// In-app notifications (docs/knowledge/05-realtime-and-notifications.md).
-/// Batched and grouped types collect into one open row per groupKey until
-/// their summary push goes out (pushedAt set); a partial unique index in the
-/// migration keeps one open row per key.
+/// Grouped types collect into the unread row of their groupKey; once it is
+/// read, the next one starts a new row under the same key.
 model Notification {
   id          String           @id @default(uuid()) @db.Uuid
   recipientId String           @db.Uuid
@@ -773,7 +772,6 @@ model Notification {
   trip      Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
   marker    Marker? @relation(fields: [markerId], references: [id], onDelete: Cascade)
 
-  @@unique([groupKey], map: "notifications_open_group_key", where: raw("((\"groupKey\" IS NOT NULL) AND (\"pushedAt\" IS NULL))"))
   @@index([recipientId, createdAt, id])
   @@index([actorId])
   @@index([tripId])
