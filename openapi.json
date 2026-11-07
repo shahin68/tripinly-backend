@@ -18,7 +18,9 @@
           }
         },
         "summary": "Liveness: the process is up",
-        "tags": ["ops"]
+        "tags": [
+          "ops"
+        ]
       }
     },
     "/v1/health/ready": {
@@ -48,7 +50,9 @@
           }
         },
         "summary": "Readiness: Postgres and Redis are reachable and all migrations are applied",
-        "tags": ["ops"]
+        "tags": [
+          "ops"
+        ]
       }
     },
     "/v1/app-config": {
@@ -69,7 +73,9 @@
           }
         },
         "summary": "Settings for the apps",
-        "tags": ["app-config"]
+        "tags": [
+          "app-config"
+        ]
       }
     },
     "/v1/billing/revenuecat/webhook": {
@@ -96,7 +102,9 @@
           }
         },
         "summary": "RevenueCat purchase events (called by RevenueCat, not the apps)",
-        "tags": ["billing"]
+        "tags": [
+          "billing"
+        ]
       }
     },
     "/v1/auth/google": {
@@ -126,7 +134,9 @@
           }
         },
         "summary": "Sign in with Google; creates the account on first use",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/auth/apple": {
@@ -156,7 +166,9 @@
           }
         },
         "summary": "Sign in with Apple; creates the account on first use",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/auth/dev": {
@@ -204,7 +216,9 @@
           }
         },
         "summary": "Development sign-in without a provider",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/auth/refresh": {
@@ -235,7 +249,9 @@
           }
         },
         "summary": "Exchange a refresh token for new tokens",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/auth/logout": {
@@ -258,7 +274,9 @@
           }
         },
         "summary": "End this session and unregister the device from push",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/legal/documents": {
@@ -289,7 +307,9 @@
           }
         },
         "summary": "Current Terms, Privacy Policy and marketing documents",
-        "tags": ["legal"]
+        "tags": [
+          "legal"
+        ]
       }
     },
     "/v1/me": {
@@ -314,7 +334,9 @@
           }
         ],
         "summary": "Own profile, onboarding state and entitlements",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "patch": {
         "description": "Onboarding sets username, displayName and birthDate. Under-16 birth dates delete the account (AGE_REQUIREMENT_NOT_MET).",
@@ -348,7 +370,9 @@
           }
         ],
         "summary": "Update profile",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "delete": {
         "description": "Needs a Google/Apple sign-in in the last 10 minutes (403 REAUTH_REQUIRED otherwise; then confirm with POST /me/deletion). Signs out everywhere at once; everything is deleted in the background and a confirmation email follows.",
@@ -372,7 +396,9 @@
           }
         ],
         "summary": "Delete my account",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/me/consents": {
@@ -397,7 +423,9 @@
           }
         ],
         "summary": "Latest consent per document and what is still required",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "post": {
         "operationId": "Me_recordConsent",
@@ -430,7 +458,9 @@
           }
         ],
         "summary": "Grant or withdraw consent to a document version",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/me/devices/{fcmToken}": {
@@ -467,7 +497,9 @@
           }
         ],
         "summary": "Register or refresh a push device",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "delete": {
         "operationId": "Me_removeDevice",
@@ -492,7 +524,9 @@
           }
         ],
         "summary": "Unregister a push device",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/users/check-username": {
@@ -527,7 +561,9 @@
           }
         ],
         "summary": "Whether a username is valid and free",
-        "tags": ["users"]
+        "tags": [
+          "users"
+        ]
       }
     },
     "/v1/users/search": {
@@ -565,7 +601,9 @@
           }
         ],
         "summary": "Find people by username or display name prefix",
-        "tags": ["users"]
+        "tags": [
+          "users"
+        ]
       }
     },
     "/v1/users/{username}": {
@@ -621,7 +659,9 @@
           }
         ],
         "summary": "A public profile with public trips",
-        "tags": ["users"]
+        "tags": [
+          "users"
+        ]
       }
     },
     "/v1/users/{id}/follow": {
@@ -650,7 +690,9 @@
           }
         ],
         "summary": "Follow a user",
-        "tags": ["follows"]
+        "tags": [
+          "follows"
+        ]
       },
       "delete": {
         "description": "Idempotent, also when there was no follow. Yourself → 400 VALIDATION_FAILED.",
@@ -677,7 +719,9 @@
           }
         ],
         "summary": "Unfollow a user",
-        "tags": ["follows"]
+        "tags": [
+          "follows"
+        ]
       }
     },
     "/v1/me/friends": {
@@ -724,7 +768,9 @@
           }
         ],
         "summary": "My friends (people I follow who follow me back)",
-        "tags": ["follows"]
+        "tags": [
+          "follows"
+        ]
       }
     },
     "/v1/me/following": {
@@ -771,7 +817,9 @@
           }
         ],
         "summary": "People I follow",
-        "tags": ["follows"]
+        "tags": [
+          "follows"
+        ]
       }
     },
     "/v1/me/followers": {
@@ -818,7 +866,9 @@
           }
         ],
         "summary": "People who follow me",
-        "tags": ["follows"]
+        "tags": [
+          "follows"
+        ]
       }
     },
     "/v1/users/{id}/block": {
@@ -847,7 +897,9 @@
           }
         ],
         "summary": "Block a user",
-        "tags": ["blocks"]
+        "tags": [
+          "blocks"
+        ]
       },
       "delete": {
         "operationId": "Blocks_unblock",
@@ -873,7 +925,9 @@
           }
         ],
         "summary": "Unblock a user. Idempotent.",
-        "tags": ["blocks"]
+        "tags": [
+          "blocks"
+        ]
       }
     },
     "/v1/me/blocks": {
@@ -919,7 +973,9 @@
           }
         ],
         "summary": "Users I have blocked",
-        "tags": ["blocks"]
+        "tags": [
+          "blocks"
+        ]
       }
     },
     "/v1/trips": {
@@ -967,7 +1023,9 @@
           }
         ],
         "summary": "Create a trip",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}": {
@@ -1002,7 +1060,9 @@
           }
         ],
         "summary": "Trip with members, days and markers",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       },
       "patch": {
         "operationId": "Trips_update",
@@ -1045,7 +1105,9 @@
           }
         ],
         "summary": "Owner: title, dates, visibility",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       },
       "delete": {
         "operationId": "Trips_delete",
@@ -1071,7 +1133,9 @@
           }
         ],
         "summary": "Owner: delete the trip with everything in it",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/days": {
@@ -1118,7 +1182,9 @@
           }
         ],
         "summary": "Append a day",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/days/{id}": {
@@ -1160,7 +1226,9 @@
           }
         ],
         "summary": "Delete a day and its markers",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/members": {
@@ -1205,7 +1273,9 @@
           }
         ],
         "summary": "Owner adds an editor by username. Idempotent.",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/members/batch": {
@@ -1251,7 +1321,9 @@
           }
         ],
         "summary": "Owner adds several editors at once, e.g. friends picked in a row",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/members/{userId}": {
@@ -1288,7 +1360,9 @@
           }
         ],
         "summary": "Owner removes an editor, or an editor leaves (own userId)",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/save": {
@@ -1317,7 +1391,9 @@
           }
         ],
         "summary": "Save someone else's public trip to my trips",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       },
       "delete": {
         "description": "Idempotent, also when it was never saved.",
@@ -1344,7 +1420,9 @@
           }
         ],
         "summary": "Remove a saved trip from my trips",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/join-request": {
@@ -1383,7 +1461,9 @@
           }
         ],
         "summary": "Ask the owner to join a public trip as an editor",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       },
       "delete": {
         "description": "Idempotent. A declined request stays declined.",
@@ -1410,7 +1490,9 @@
           }
         ],
         "summary": "Withdraw my pending request to join",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/trips/{id}/join-requests": {
@@ -1466,7 +1548,9 @@
           }
         ],
         "summary": "Owner: pending requests to join, newest first",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/join-requests/{id}/accept": {
@@ -1502,7 +1586,9 @@
           }
         ],
         "summary": "Owner: accept a request; the person becomes an editor",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/join-requests/{id}/decline": {
@@ -1531,7 +1617,9 @@
           }
         ],
         "summary": "Owner: decline a request",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/me/trips": {
@@ -1578,7 +1666,9 @@
           }
         ],
         "summary": "Trips I own, collaborate on or saved, most recently changed first",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/me/stats": {
@@ -1603,7 +1693,9 @@
           }
         ],
         "summary": "My trip, marker and photo counts",
-        "tags": ["trips"]
+        "tags": [
+          "trips"
+        ]
       }
     },
     "/v1/places/in-view": {
@@ -1673,7 +1765,9 @@
           }
         ],
         "summary": "Places for the visible map area",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/places/tiles": {
@@ -1743,7 +1837,9 @@
           }
         ],
         "summary": "Places for several map squares at once",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/places/search": {
@@ -1771,7 +1867,10 @@
             "schema": {
               "default": "all",
               "type": "string",
-              "enum": ["all", "destination"]
+              "enum": [
+                "all",
+                "destination"
+              ]
             }
           },
           {
@@ -1812,7 +1911,9 @@
           }
         ],
         "summary": "Search places, addresses and cities",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/places/nearby": {
@@ -1888,7 +1989,9 @@
           }
         ],
         "summary": "Popular places around a point",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/places/popular": {
@@ -1946,7 +2049,9 @@
           }
         ],
         "summary": "Popular spots in the visible area",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/places/{id}": {
@@ -1981,7 +2086,9 @@
           }
         ],
         "summary": "A place",
-        "tags": ["places"]
+        "tags": [
+          "places"
+        ]
       }
     },
     "/v1/days/{id}/markers": {
@@ -2038,7 +2145,9 @@
           }
         ],
         "summary": "Add a marker to a day",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       },
       "delete": {
         "description": "Clears the day in one request; the day itself stays. 204 also when it was already empty. All or nothing: the trip owner, or an editor when every stop on it is theirs (else 403 FORBIDDEN). Other people's photos, comments or likes on the stops: 409 STOP_HAS_OTHERS_CONTENT unless confirm=true.",
@@ -2078,7 +2187,9 @@
           }
         ],
         "summary": "Delete all of a day's markers",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/places/{id}/add-to-trip": {
@@ -2135,7 +2246,10 @@
           }
         ],
         "summary": "Add a place to a trip day",
-        "tags": ["markers", "places"]
+        "tags": [
+          "markers",
+          "places"
+        ]
       }
     },
     "/v1/markers/{id}/copy": {
@@ -2192,7 +2306,9 @@
           }
         ],
         "summary": "Copy a marker to one of my trips",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/markers/{id}": {
@@ -2227,7 +2343,9 @@
           }
         ],
         "summary": "A marker",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       },
       "patch": {
         "description": "Name, time, place or location, or move it to another day of the same trip / another position.",
@@ -2271,7 +2389,9 @@
           }
         ],
         "summary": "Edit a marker",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       },
       "delete": {
         "description": "Whoever added the stop, or the trip owner (403 FORBIDDEN for other editors: they use DELETE /markers/{id}/mine). Photos, comments and likes go with it. When other people's photos, comments or likes are on it: 409 STOP_HAS_OTHERS_CONTENT (details.photos, details.comments, details.likes) unless confirm=true. A user-made place goes with its last stop, with its place photos.",
@@ -2311,7 +2431,9 @@
           }
         ],
         "summary": "Delete a marker with everything on it",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/markers/{id}/mine": {
@@ -2340,7 +2462,9 @@
           }
         ],
         "summary": "Remove my photos, comments and likes from a marker",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/days/{id}/marker-order": {
@@ -2385,7 +2509,9 @@
           }
         ],
         "summary": "Set the order of a day's markers",
-        "tags": ["markers"]
+        "tags": [
+          "markers"
+        ]
       }
     },
     "/v1/trips/{id}/invites": {
@@ -2431,7 +2557,9 @@
           }
         ],
         "summary": "Owner creates an invite link (valid 7 days, reusable)",
-        "tags": ["invites"]
+        "tags": [
+          "invites"
+        ]
       },
       "get": {
         "operationId": "Invites_list",
@@ -2464,7 +2592,9 @@
           }
         ],
         "summary": "Owner lists the trip's active invite links",
-        "tags": ["invites"]
+        "tags": [
+          "invites"
+        ]
       }
     },
     "/v1/trips/{id}/invites/{inviteId}": {
@@ -2501,7 +2631,9 @@
           }
         ],
         "summary": "Owner revokes an invite link. Idempotent.",
-        "tags": ["invites"]
+        "tags": [
+          "invites"
+        ]
       }
     },
     "/v1/invites/{token}": {
@@ -2536,7 +2668,9 @@
           }
         ],
         "summary": "Preview an invite (trip title, owner)",
-        "tags": ["invites"]
+        "tags": [
+          "invites"
+        ]
       }
     },
     "/v1/invites/{token}/accept": {
@@ -2570,7 +2704,9 @@
           }
         ],
         "summary": "Join the trip as an editor. Idempotent for members.",
-        "tags": ["invites"]
+        "tags": [
+          "invites"
+        ]
       }
     },
     "/v1/markers/{id}/photos/upload-url": {
@@ -2616,7 +2752,9 @@
           }
         ],
         "summary": "Start a photo upload",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/places/{id}/photos/upload-url": {
@@ -2662,7 +2800,9 @@
           }
         ],
         "summary": "Start a place photo upload",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/me/avatar/upload-url": {
@@ -2698,7 +2838,10 @@
           }
         ],
         "summary": "Start a profile photo upload",
-        "tags": ["photos", "me"]
+        "tags": [
+          "photos",
+          "me"
+        ]
       }
     },
     "/v1/me/avatar": {
@@ -2717,7 +2860,10 @@
           }
         ],
         "summary": "Remove the profile photo",
-        "tags": ["photos", "me"]
+        "tags": [
+          "photos",
+          "me"
+        ]
       }
     },
     "/v1/places/{id}/photos": {
@@ -2756,7 +2902,9 @@
           }
         ],
         "summary": "A place's photos",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/photos/{id}/complete": {
@@ -2792,7 +2940,9 @@
           }
         ],
         "summary": "Confirm an upload",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/markers/{id}/photos": {
@@ -2830,7 +2980,9 @@
           }
         ],
         "summary": "A stop's photo grid: members' uploads still processing or failed first, then its photos, the place's popular photos and its Commons images ranked by likes (on a tie the stop's own first, then newest)",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/markers/{id}/cover": {
@@ -2875,7 +3027,9 @@
           }
         ],
         "summary": "Pick the stop's cover (its map pin thumbnail): any ready photo or Commons image in its photo grid",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/photos/{id}": {
@@ -2904,7 +3058,9 @@
           }
         ],
         "summary": "Delete a photo",
-        "tags": ["photos"]
+        "tags": [
+          "photos"
+        ]
       }
     },
     "/v1/markers/{id}/comments": {
@@ -2960,7 +3116,9 @@
           }
         ],
         "summary": "A marker's main comments, most liked first, then newest first",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       },
       "post": {
         "description": "Plain text, 1–1000 characters. Members, or anyone for a public trip. Not on markers of someone I have a block with (403). 30 per minute. With parentId it's a reply (to a reply: under the same main comment; 404 when that comment is gone or hidden from me). @username mentions of the trip's owner and members are kept in mentions; other handles stay plain text. Deleting a main comment deletes its replies.",
@@ -3015,7 +3173,9 @@
           }
         ],
         "summary": "Comment on a marker",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       }
     },
     "/v1/comments/{id}/replies": {
@@ -3070,7 +3230,9 @@
           }
         ],
         "summary": "A main comment's replies, oldest first",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       }
     },
     "/v1/comments/{id}": {
@@ -3099,7 +3261,9 @@
           }
         ],
         "summary": "Delete a comment",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       }
     },
     "/v1/likes/{targetType}/{targetId}": {
@@ -3113,7 +3277,12 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "enum": ["trip", "photo", "comment", "place_image"]
+              "enum": [
+                "trip",
+                "photo",
+                "comment",
+                "place_image"
+              ]
             }
           },
           {
@@ -3144,7 +3313,9 @@
           }
         ],
         "summary": "Like a trip, photo, comment or a place's Commons image",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       },
       "delete": {
         "description": "Idempotent.",
@@ -3156,7 +3327,12 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "enum": ["trip", "photo", "comment", "place_image"]
+              "enum": [
+                "trip",
+                "photo",
+                "comment",
+                "place_image"
+              ]
             }
           },
           {
@@ -3187,7 +3363,9 @@
           }
         ],
         "summary": "Remove my like",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       }
     },
     "/v1/places/{id}/hot": {
@@ -3223,7 +3401,9 @@
           }
         ],
         "summary": "Mark a place hot",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       },
       "delete": {
         "description": "Idempotent.",
@@ -3257,7 +3437,9 @@
           }
         ],
         "summary": "Remove my hot mark",
-        "tags": ["social"]
+        "tags": [
+          "social"
+        ]
       }
     },
     "/v1/explore/trips": {
@@ -3303,7 +3485,13 @@
             "schema": {
               "default": "all",
               "type": "string",
-              "enum": ["week", "month", "year", "season", "all"]
+              "enum": [
+                "week",
+                "month",
+                "year",
+                "season",
+                "all"
+              ]
             }
           },
           {
@@ -3345,7 +3533,9 @@
           }
         ],
         "summary": "Public trips, mine included, ranked by likes",
-        "tags": ["discovery"]
+        "tags": [
+          "discovery"
+        ]
       }
     },
     "/v1/routes": {
@@ -3360,7 +3550,11 @@
             "schema": {
               "default": "walking",
               "type": "string",
-              "enum": ["walking", "cycling", "driving"]
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
             }
           },
           {
@@ -3422,7 +3616,9 @@
           }
         ],
         "summary": "Route from A to B with places along the way",
-        "tags": ["routing"]
+        "tags": [
+          "routing"
+        ]
       }
     },
     "/v1/days/{id}/route": {
@@ -3446,7 +3642,11 @@
             "schema": {
               "default": "walking",
               "type": "string",
-              "enum": ["walking", "cycling", "driving"]
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
             }
           },
           {
@@ -3478,7 +3678,9 @@
           }
         ],
         "summary": "Route through a day's markers in order",
-        "tags": ["routing"]
+        "tags": [
+          "routing"
+        ]
       }
     },
     "/v1/days/{id}/optimize": {
@@ -3503,7 +3705,11 @@
             "schema": {
               "default": "walking",
               "type": "string",
-              "enum": ["walking", "cycling", "driving"]
+              "enum": [
+                "walking",
+                "cycling",
+                "driving"
+              ]
             }
           },
           {
@@ -3535,7 +3741,9 @@
           }
         ],
         "summary": "Best order for a day",
-        "tags": ["routing"]
+        "tags": [
+          "routing"
+        ]
       }
     },
     "/v1/notifications": {
@@ -3582,7 +3790,9 @@
           }
         ],
         "summary": "My in-app notifications, newest first",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/notifications/read": {
@@ -3611,7 +3821,9 @@
           }
         ],
         "summary": "Mark notifications as read",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/notifications/seen": {
@@ -3630,7 +3842,9 @@
           }
         ],
         "summary": "I opened the notification center",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/trips/{id}/new-activity": {
@@ -3666,7 +3880,9 @@
           }
         ],
         "summary": "Stops of a trip with unread notifications for me",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/me/notification-settings": {
@@ -3692,7 +3908,9 @@
           }
         ],
         "summary": "My push switches per notification type",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       },
       "patch": {
         "operationId": "Notifications_updateSettings",
@@ -3725,7 +3943,9 @@
           }
         ],
         "summary": "Change push switches (send only what changes)",
-        "tags": ["notifications"]
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/me/deletion": {
@@ -3761,7 +3981,9 @@
           }
         ],
         "summary": "Delete my account after confirming it is me",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/me/export": {
@@ -3787,7 +4009,9 @@
           }
         ],
         "summary": "Export my data",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       },
       "get": {
         "description": "With a download link while ready. 404 when there is none.",
@@ -3811,7 +4035,9 @@
           }
         ],
         "summary": "My latest export",
-        "tags": ["me"]
+        "tags": [
+          "me"
+        ]
       }
     },
     "/v1/auth/dev/accounts": {
@@ -3869,7 +4095,9 @@
           }
         },
         "summary": "Delete a test account at once (development only)",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/v1/reports": {
@@ -3915,7 +4143,9 @@
           }
         ],
         "summary": "Report a user, trip, marker, photo or comment",
-        "tags": ["moderation"]
+        "tags": [
+          "moderation"
+        ]
       }
     },
     "/v1/admin/reports": {
@@ -3950,7 +4180,11 @@
             "schema": {
               "default": "open",
               "type": "string",
-              "enum": ["open", "actioned", "dismissed"]
+              "enum": [
+                "open",
+                "actioned",
+                "dismissed"
+              ]
             }
           }
         ],
@@ -3975,7 +4209,9 @@
           }
         ],
         "summary": "Reports to review (admins)",
-        "tags": ["moderation"]
+        "tags": [
+          "moderation"
+        ]
       }
     },
     "/v1/admin/reports/{id}": {
@@ -4024,7 +4260,9 @@
           }
         ],
         "summary": "Act on a report (admins)",
-        "tags": ["moderation"]
+        "tags": [
+          "moderation"
+        ]
       }
     }
   },
@@ -4053,26 +4291,41 @@
             "example": "ok"
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "ReadinessChecksDto": {
         "type": "object",
         "properties": {
           "database": {
             "type": "string",
-            "enum": ["up", "down"]
+            "enum": [
+              "up",
+              "down"
+            ]
           },
           "redis": {
             "type": "string",
-            "enum": ["up", "down"]
+            "enum": [
+              "up",
+              "down"
+            ]
           },
           "migrations": {
             "type": "string",
-            "enum": ["up", "down"],
+            "enum": [
+              "up",
+              "down"
+            ],
             "description": "down while a migration this build ships with is not applied, or one failed"
           }
         },
-        "required": ["database", "redis", "migrations"]
+        "required": [
+          "database",
+          "redis",
+          "migrations"
+        ]
       },
       "ReadinessDto": {
         "type": "object",
@@ -4085,7 +4338,10 @@
             "$ref": "#/components/schemas/ReadinessChecksDto"
           }
         },
-        "required": ["status", "checks"]
+        "required": [
+          "status",
+          "checks"
+        ]
       },
       "ErrorBodyDto": {
         "type": "object",
@@ -4140,7 +4396,11 @@
             "description": "Extra data for the code. VALIDATION_FAILED carries `fields`: { \"<path>\": [\"<constraint>\"] }."
           }
         },
-        "required": ["code", "message", "details"]
+        "required": [
+          "code",
+          "message",
+          "details"
+        ]
       },
       "ErrorResponseDto": {
         "type": "object",
@@ -4149,7 +4409,9 @@
             "$ref": "#/components/schemas/ErrorBodyDto"
           }
         },
-        "required": ["error"]
+        "required": [
+          "error"
+        ]
       },
       "AppConfigDto": {
         "type": "object",
@@ -4236,7 +4498,9 @@
             "type": "string"
           }
         },
-        "required": ["event"]
+        "required": [
+          "event"
+        ]
       },
       "GoogleSignInDto": {
         "type": "object",
@@ -4246,7 +4510,9 @@
             "description": "Google ID token from the Credential Manager / Google Sign-In SDK"
           }
         },
-        "required": ["idToken"]
+        "required": [
+          "idToken"
+        ]
       },
       "AuthTokensDto": {
         "type": "object",
@@ -4299,7 +4565,10 @@
             "type": "string"
           }
         },
-        "required": ["identityToken", "authorizationCode"]
+        "required": [
+          "identityToken",
+          "authorizationCode"
+        ]
       },
       "DevSignInDto": {
         "type": "object",
@@ -4314,7 +4583,9 @@
             "example": "Alice"
           }
         },
-        "required": ["subject"]
+        "required": [
+          "subject"
+        ]
       },
       "RefreshDto": {
         "type": "object",
@@ -4323,7 +4594,9 @@
             "type": "string"
           }
         },
-        "required": ["refreshToken"]
+        "required": [
+          "refreshToken"
+        ]
       },
       "LogoutDto": {
         "type": "object",
@@ -4336,14 +4609,20 @@
             "description": "This device's FCM token, unregistered from push"
           }
         },
-        "required": ["refreshToken"]
+        "required": [
+          "refreshToken"
+        ]
       },
       "LegalDocumentDto": {
         "type": "object",
         "properties": {
           "documentType": {
             "type": "string",
-            "enum": ["terms", "privacy", "marketing"]
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
           },
           "version": {
             "type": "string",
@@ -4384,7 +4663,9 @@
             }
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "OnboardingStateDto": {
         "type": "object",
@@ -4397,18 +4678,30 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["username", "displayName", "birthDate"]
+              "enum": [
+                "username",
+                "displayName",
+                "birthDate"
+              ]
             }
           },
           "missingConsents": {
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["terms", "privacy", "marketing"]
+              "enum": [
+                "terms",
+                "privacy",
+                "marketing"
+              ]
             }
           }
         },
-        "required": ["completed", "missingProfileFields", "missingConsents"]
+        "required": [
+          "completed",
+          "missingProfileFields",
+          "missingConsents"
+        ]
       },
       "MeDto": {
         "type": "object",
@@ -4450,17 +4743,25 @@
           },
           "defaultTripVisibility": {
             "type": "string",
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "role": {
             "type": "string",
-            "enum": ["user", "admin"]
+            "enum": [
+              "user",
+              "admin"
+            ]
           },
           "onboarding": {
             "$ref": "#/components/schemas/OnboardingStateDto"
           },
           "entitlements": {
-            "example": ["routes"],
+            "example": [
+              "routes"
+            ],
             "description": "Active premium features. Show paid UI from this, never from a local flag.",
             "type": "array",
             "items": {
@@ -4506,7 +4807,10 @@
           },
           "defaultTripVisibility": {
             "type": "string",
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           }
         }
       },
@@ -4515,7 +4819,11 @@
         "properties": {
           "documentType": {
             "type": "string",
-            "enum": ["terms", "privacy", "marketing"]
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
           },
           "version": {
             "type": "string"
@@ -4559,18 +4867,29 @@
             "description": "Required documents still to accept (current versions)",
             "items": {
               "type": "string",
-              "enum": ["terms", "privacy", "marketing"]
+              "enum": [
+                "terms",
+                "privacy",
+                "marketing"
+              ]
             }
           }
         },
-        "required": ["items", "missingRequired"]
+        "required": [
+          "items",
+          "missingRequired"
+        ]
       },
       "RecordConsentDto": {
         "type": "object",
         "properties": {
           "documentType": {
             "type": "string",
-            "enum": ["terms", "privacy", "marketing"]
+            "enum": [
+              "terms",
+              "privacy",
+              "marketing"
+            ]
           },
           "version": {
             "type": "string",
@@ -4586,14 +4905,22 @@
             "description": "true to grant, false to withdraw"
           }
         },
-        "required": ["documentType", "version", "locale", "granted"]
+        "required": [
+          "documentType",
+          "version",
+          "locale",
+          "granted"
+        ]
       },
       "RegisterDeviceDto": {
         "type": "object",
         "properties": {
           "platform": {
             "type": "string",
-            "enum": ["ios", "android"]
+            "enum": [
+              "ios",
+              "android"
+            ]
           },
           "locale": {
             "type": "string",
@@ -4601,7 +4928,10 @@
             "description": "Device language, used to localize push"
           }
         },
-        "required": ["platform", "locale"]
+        "required": [
+          "platform",
+          "locale"
+        ]
       },
       "UsernameAvailabilityDto": {
         "type": "object",
@@ -4615,10 +4945,16 @@
           },
           "reason": {
             "type": "string",
-            "enum": ["invalid", "taken"]
+            "enum": [
+              "invalid",
+              "taken"
+            ]
           }
         },
-        "required": ["username", "available"]
+        "required": [
+          "username",
+          "available"
+        ]
       },
       "UserSummaryDto": {
         "type": "object",
@@ -4666,7 +5002,9 @@
             }
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "TripSummaryDto": {
         "type": "object",
@@ -4688,14 +5026,21 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "owner": {
             "$ref": "#/components/schemas/UserSummaryDto"
           },
           "role": {
             "type": "string",
-            "enum": ["owner", "editor", "viewer"]
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
           },
           "coverPhotoId": {
             "type": "string",
@@ -4831,7 +5176,10 @@
             "description": "Pass as cursor for the next page"
           }
         },
-        "required": ["items", "nextCursor"]
+        "required": [
+          "items",
+          "nextCursor"
+        ]
       },
       "BlockedUsersDto": {
         "type": "object",
@@ -4847,7 +5195,9 @@
             "nullable": true
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "LocationDto": {
         "type": "object",
@@ -4865,7 +5215,10 @@
             "maximum": 180
           }
         },
-        "required": ["lat", "lng"]
+        "required": [
+          "lat",
+          "lng"
+        ]
       },
       "DestinationDto": {
         "type": "object",
@@ -4880,7 +5233,10 @@
             "$ref": "#/components/schemas/LocationDto"
           }
         },
-        "required": ["name", "location"]
+        "required": [
+          "name",
+          "location"
+        ]
       },
       "CreateTripDto": {
         "type": "object",
@@ -4903,7 +5259,10 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["public", "private"],
+            "enum": [
+              "public",
+              "private"
+            ],
             "description": "Defaults to the user's defaultTripVisibility"
           },
           "destination": {
@@ -4923,7 +5282,9 @@
             }
           }
         },
-        "required": ["title"]
+        "required": [
+          "title"
+        ]
       },
       "TripMemberDto": {
         "type": "object",
@@ -4933,10 +5294,16 @@
           },
           "role": {
             "type": "string",
-            "enum": ["owner", "editor"]
+            "enum": [
+              "owner",
+              "editor"
+            ]
           }
         },
-        "required": ["user", "role"]
+        "required": [
+          "user",
+          "role"
+        ]
       },
       "MarkerDto": {
         "type": "object",
@@ -5062,7 +5429,12 @@
             }
           }
         },
-        "required": ["id", "position", "date", "markers"]
+        "required": [
+          "id",
+          "position",
+          "date",
+          "markers"
+        ]
       },
       "TripDto": {
         "type": "object",
@@ -5095,14 +5467,21 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "owner": {
             "$ref": "#/components/schemas/UserSummaryDto"
           },
           "myRole": {
             "type": "string",
-            "enum": ["owner", "editor", "viewer"]
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
           },
           "members": {
             "type": "array",
@@ -5136,7 +5515,10 @@
           },
           "myJoinRequest": {
             "type": "string",
-            "enum": ["pending", "declined"],
+            "enum": [
+              "pending",
+              "declined"
+            ],
             "nullable": true,
             "description": "My request to join: pending until the owner decides; declined stays declined. Null when I have none (also once accepted: I am a member then)."
           },
@@ -5201,7 +5583,10 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["public", "private"]
+            "enum": [
+              "public",
+              "private"
+            ]
           },
           "destination": {
             "nullable": true,
@@ -5223,7 +5608,9 @@
             "example": "anna.n"
           }
         },
-        "required": ["username"]
+        "required": [
+          "username"
+        ]
       },
       "AddMembersDto": {
         "type": "object",
@@ -5231,14 +5618,19 @@
           "usernames": {
             "minItems": 1,
             "maxItems": 200,
-            "example": ["anna.n", "jonas.k"],
+            "example": [
+              "anna.n",
+              "jonas.k"
+            ],
             "type": "array",
             "items": {
               "type": "string"
             }
           }
         },
-        "required": ["usernames"]
+        "required": [
+          "usernames"
+        ]
       },
       "TripMembersDto": {
         "type": "object",
@@ -5250,7 +5642,9 @@
             }
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "JoinRequestDto": {
         "type": "object",
@@ -5273,13 +5667,22 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "declined"]
+            "enum": [
+              "pending",
+              "declined"
+            ]
           },
           "createdAt": {
             "type": "string"
           }
         },
-        "required": ["id", "tripId", "user", "status", "createdAt"]
+        "required": [
+          "id",
+          "tripId",
+          "user",
+          "status",
+          "createdAt"
+        ]
       },
       "JoinRequestPageDto": {
         "type": "object",
@@ -5295,7 +5698,10 @@
             "nullable": true
           }
         },
-        "required": ["items", "nextCursor"]
+        "required": [
+          "items",
+          "nextCursor"
+        ]
       },
       "TripSummaryPageDto": {
         "type": "object",
@@ -5311,7 +5717,10 @@
             "nullable": true
           }
         },
-        "required": ["items", "nextCursor"]
+        "required": [
+          "items",
+          "nextCursor"
+        ]
       },
       "MeStatsDto": {
         "type": "object",
@@ -5329,7 +5738,11 @@
             "description": "Photos I uploaded (from stage 5)"
           }
         },
-        "required": ["tripCount", "markerCount", "photoCount"]
+        "required": [
+          "tripCount",
+          "markerCount",
+          "photoCount"
+        ]
       },
       "PlaceItemDto": {
         "type": "object",
@@ -5388,7 +5801,10 @@
           },
           "coverSource": {
             "type": "string",
-            "enum": ["trip", "commons"],
+            "enum": [
+              "trip",
+              "commons"
+            ],
             "nullable": true,
             "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
@@ -5433,7 +5849,10 @@
             ]
           }
         },
-        "required": ["count", "location"]
+        "required": [
+          "count",
+          "location"
+        ]
       },
       "InViewResponseDto": {
         "type": "object",
@@ -5457,7 +5876,11 @@
             "example": "© OpenStreetMap contributors"
           }
         },
-        "required": ["places", "clusters", "attribution"]
+        "required": [
+          "places",
+          "clusters",
+          "attribution"
+        ]
       },
       "PlaceTileDto": {
         "type": "object",
@@ -5481,7 +5904,11 @@
             }
           }
         },
-        "required": ["tile", "places", "clusters"]
+        "required": [
+          "tile",
+          "places",
+          "clusters"
+        ]
       },
       "TilesResponseDto": {
         "type": "object",
@@ -5497,14 +5924,20 @@
             "example": "© OpenStreetMap contributors"
           }
         },
-        "required": ["tiles", "attribution"]
+        "required": [
+          "tiles",
+          "attribution"
+        ]
       },
       "SearchResultDto": {
         "type": "object",
         "properties": {
           "source": {
             "type": "string",
-            "enum": ["place", "photon"],
+            "enum": [
+              "place",
+              "photon"
+            ],
             "description": "place: one of our places (send placeId). photon: an address, street or city (send name + location + osmType/osmId)."
           },
           "id": {
@@ -5556,7 +5989,11 @@
           },
           "osmType": {
             "type": "string",
-            "enum": ["node", "way", "relation"],
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
             "nullable": true
           },
           "osmId": {
@@ -5594,7 +6031,10 @@
             "example": "© OpenStreetMap contributors"
           }
         },
-        "required": ["items", "attribution"]
+        "required": [
+          "items",
+          "attribution"
+        ]
       },
       "NearbyPlaceDto": {
         "type": "object",
@@ -5653,7 +6093,10 @@
           },
           "coverSource": {
             "type": "string",
-            "enum": ["trip", "commons"],
+            "enum": [
+              "trip",
+              "commons"
+            ],
             "nullable": true,
             "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
@@ -5706,7 +6149,11 @@
             "example": "© OpenStreetMap contributors"
           }
         },
-        "required": ["items", "nextCursor", "attribution"]
+        "required": [
+          "items",
+          "nextCursor",
+          "attribution"
+        ]
       },
       "PopularResponseDto": {
         "type": "object",
@@ -5722,7 +6169,10 @@
             "example": "© OpenStreetMap contributors"
           }
         },
-        "required": ["items", "attribution"]
+        "required": [
+          "items",
+          "attribution"
+        ]
       },
       "PlaceTagsDto": {
         "type": "object",
@@ -5748,7 +6198,12 @@
             "example": "Q167679"
           }
         },
-        "required": ["website", "openingHours", "cuisine", "wikidata"]
+        "required": [
+          "website",
+          "openingHours",
+          "cuisine",
+          "wikidata"
+        ]
       },
       "ImageCreditDto": {
         "type": "object",
@@ -5778,7 +6233,13 @@
             "description": "The file page on Wikimedia Commons; link the author here"
           }
         },
-        "required": ["author", "title", "license", "licenseUrl", "sourceUrl"]
+        "required": [
+          "author",
+          "title",
+          "license",
+          "licenseUrl",
+          "sourceUrl"
+        ]
       },
       "PlaceImageDto": {
         "type": "object",
@@ -5790,7 +6251,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["trip", "commons"]
+            "enum": [
+              "trip",
+              "commons"
+            ]
           },
           "thumbUrl": {
             "type": "string",
@@ -5888,7 +6352,10 @@
           },
           "coverSource": {
             "type": "string",
-            "enum": ["trip", "commons"],
+            "enum": [
+              "trip",
+              "commons"
+            ],
             "nullable": true,
             "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
           },
@@ -5903,7 +6370,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["osm", "user"]
+            "enum": [
+              "osm",
+              "user"
+            ]
           },
           "isActive": {
             "type": "boolean",
@@ -5911,7 +6381,11 @@
           },
           "osmType": {
             "type": "string",
-            "enum": ["node", "way", "relation"],
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
             "nullable": true
           },
           "osmId": {
@@ -6006,7 +6480,11 @@
           },
           "osmType": {
             "type": "string",
-            "enum": ["node", "way", "relation"],
+            "enum": [
+              "node",
+              "way",
+              "relation"
+            ],
             "description": "From a Photon result, with osmId"
           },
           "osmId": {
@@ -6060,7 +6538,9 @@
             "description": "Insert position; appended when omitted"
           }
         },
-        "required": ["dayId"]
+        "required": [
+          "dayId"
+        ]
       },
       "CopyMarkerDto": {
         "type": "object",
@@ -6076,7 +6556,9 @@
             "description": "Insert position in the day; appended when omitted"
           }
         },
-        "required": ["dayId"]
+        "required": [
+          "dayId"
+        ]
       },
       "UpdateMarkerDto": {
         "type": "object",
@@ -6128,7 +6610,9 @@
             }
           }
         },
-        "required": ["markerIds"]
+        "required": [
+          "markerIds"
+        ]
       },
       "MarkerOrderResultDto": {
         "type": "object",
@@ -6145,7 +6629,10 @@
             }
           }
         },
-        "required": ["dayId", "markerIds"]
+        "required": [
+          "dayId",
+          "markerIds"
+        ]
       },
       "InviteDto": {
         "type": "object",
@@ -6170,7 +6657,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "url", "expiresAt", "createdAt"]
+        "required": [
+          "id",
+          "url",
+          "expiresAt",
+          "createdAt"
+        ]
       },
       "InvitesDto": {
         "type": "object",
@@ -6183,7 +6675,9 @@
             }
           }
         },
-        "required": ["items"]
+        "required": [
+          "items"
+        ]
       },
       "InvitePreviewDto": {
         "type": "object",
@@ -6229,7 +6723,11 @@
         "properties": {
           "mimeType": {
             "type": "string",
-            "enum": ["image/jpeg", "image/png", "image/webp"],
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
             "description": "Other types → 415 UNSUPPORTED_MEDIA_TYPE"
           },
           "bytes": {
@@ -6238,7 +6736,10 @@
             "description": "Size of the file to upload. Over 15728640 bytes → 413 UPLOAD_TOO_LARGE"
           }
         },
-        "required": ["mimeType", "bytes"]
+        "required": [
+          "mimeType",
+          "bytes"
+        ]
       },
       "PhotoDto": {
         "type": "object",
@@ -6261,7 +6762,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending_upload", "processing", "ready", "failed"],
+            "enum": [
+              "pending_upload",
+              "processing",
+              "ready",
+              "failed"
+            ],
             "description": "Only ready photos are shown to viewers; editors also see processing and failed ones"
           },
           "thumbUrl": {
@@ -6306,7 +6812,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["user", "commons"],
+            "enum": [
+              "user",
+              "commons"
+            ],
             "description": "`user`: uploaded by someone in the app. `commons`: one of a place's Wikimedia Commons images, only in a place's Photos list; like it with targetType place_image, and show its credit"
           },
           "credit": {
@@ -6369,7 +6878,12 @@
             "description": "The upload URL stops working after this (10 minutes)"
           }
         },
-        "required": ["photo", "uploadUrl", "uploadHeaders", "expiresAt"]
+        "required": [
+          "photo",
+          "uploadUrl",
+          "uploadHeaders",
+          "expiresAt"
+        ]
       },
       "CoverDto": {
         "type": "object",
@@ -6380,7 +6894,9 @@
             "description": "A ready photo or Commons image in the stop's photo grid (GET /markers/{id}/photos)"
           }
         },
-        "required": ["photoId"]
+        "required": [
+          "photoId"
+        ]
       },
       "MentionDto": {
         "type": "object",
@@ -6395,7 +6911,10 @@
             "description": "Their username now"
           }
         },
-        "required": ["userId", "username"]
+        "required": [
+          "userId",
+          "username"
+        ]
       },
       "CommentDto": {
         "type": "object",
@@ -6473,7 +6992,10 @@
             "nullable": true
           }
         },
-        "required": ["items", "nextCursor"]
+        "required": [
+          "items",
+          "nextCursor"
+        ]
       },
       "CreateCommentDto": {
         "type": "object",
@@ -6489,14 +7011,21 @@
             "description": "Reply to this comment. A reply to a reply goes under the same main comment."
           }
         },
-        "required": ["body"]
+        "required": [
+          "body"
+        ]
       },
       "LikeStateDto": {
         "type": "object",
         "properties": {
           "targetType": {
             "type": "string",
-            "enum": ["trip", "photo", "comment", "place_image"]
+            "enum": [
+              "trip",
+              "photo",
+              "comment",
+              "place_image"
+            ]
           },
           "targetId": {
             "type": "string",
@@ -6510,7 +7039,12 @@
             "description": "The target's like count after the change"
           }
         },
-        "required": ["targetType", "targetId", "liked", "likeCount"]
+        "required": [
+          "targetType",
+          "targetId",
+          "liked",
+          "likeCount"
+        ]
       },
       "HotStateDto": {
         "type": "object",
@@ -6528,7 +7062,11 @@
             "description": "The place's hotCount after the change"
           }
         },
-        "required": ["placeId", "hot", "hotCount"]
+        "required": [
+          "placeId",
+          "hot",
+          "hotCount"
+        ]
       },
       "RouteLegDto": {
         "type": "object",
@@ -6578,7 +7116,12 @@
             }
           }
         },
-        "required": ["polyline", "distanceMeters", "durationSeconds", "legs"]
+        "required": [
+          "polyline",
+          "distanceMeters",
+          "durationSeconds",
+          "legs"
+        ]
       },
       "AlongTheWayDto": {
         "type": "object",
@@ -6633,7 +7176,12 @@
             "example": "© openrouteservice.org | © OpenStreetMap contributors"
           }
         },
-        "required": ["route", "alongTheWay", "degraded", "attribution"]
+        "required": [
+          "route",
+          "alongTheWay",
+          "degraded",
+          "attribution"
+        ]
       },
       "OptimizeResultDto": {
         "type": "object",
@@ -6652,7 +7200,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["straight_line", "travel_time"],
+            "enum": [
+              "straight_line",
+              "travel_time"
+            ],
             "description": "travel_time, or straight_line when travel times are unavailable"
           },
           "savedMinutes": {
@@ -6689,7 +7240,10 @@
             "type": "string"
           }
         },
-        "required": ["id", "title"]
+        "required": [
+          "id",
+          "title"
+        ]
       },
       "NotificationDto": {
         "type": "object",
@@ -6809,7 +7363,12 @@
             "description": "Entries new or updated since I last opened the notification center (POST /notifications/seen): its red indicator (added 2026-11-07)"
           }
         },
-        "required": ["items", "nextCursor", "unreadCount", "unseenCount"]
+        "required": [
+          "items",
+          "nextCursor",
+          "unreadCount",
+          "unseenCount"
+        ]
       },
       "MarkReadDto": {
         "type": "object",
@@ -6830,12 +7389,17 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["comments", "other"],
+            "enum": [
+              "comments",
+              "other"
+            ],
             "description": "With markerId: only what is about its comments (comments, sent when they are seen) or only the rest (other, sent when the stop opens); without it, everything about the stop (added 2026-11-05)"
           },
           "all": {
             "type": "boolean",
-            "enum": [true],
+            "enum": [
+              true
+            ],
             "description": "Mark everything as read"
           }
         }
@@ -6860,7 +7424,10 @@
             }
           }
         },
-        "required": ["markerIds", "commentMarkerIds"]
+        "required": [
+          "markerIds",
+          "commentMarkerIds"
+        ]
       },
       "NotificationSettingsDto": {
         "type": "object",
@@ -6927,25 +7494,35 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["deleting"],
+            "enum": [
+              "deleting"
+            ],
             "example": "deleting"
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "ConfirmedDeletionDto": {
         "type": "object",
         "properties": {
           "provider": {
             "type": "string",
-            "enum": ["google", "apple"]
+            "enum": [
+              "google",
+              "apple"
+            ]
           },
           "token": {
             "type": "string",
             "description": "Google ID token or Apple identity token, as for POST /auth/google or /auth/apple"
           }
         },
-        "required": ["provider", "token"]
+        "required": [
+          "provider",
+          "token"
+        ]
       },
       "DataExportDto": {
         "type": "object",
@@ -6956,7 +7533,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "ready", "failed", "expired"]
+            "enum": [
+              "pending",
+              "ready",
+              "failed",
+              "expired"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -7029,7 +7611,11 @@
             "maxLength": 1000
           }
         },
-        "required": ["targetType", "targetId", "reason"]
+        "required": [
+          "targetType",
+          "targetId",
+          "reason"
+        ]
       },
       "ReportDto": {
         "type": "object",
@@ -7067,7 +7653,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open", "actioned", "dismissed"]
+            "enum": [
+              "open",
+              "actioned",
+              "dismissed"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -7095,7 +7685,10 @@
             "nullable": true
           }
         },
-        "required": ["id", "username"]
+        "required": [
+          "id",
+          "username"
+        ]
       },
       "ReportTargetDto": {
         "type": "object",
@@ -7134,7 +7727,14 @@
             "description": "Hidden by moderation, or the user is suspended."
           }
         },
-        "required": ["exists", "owner", "text", "thumbUrl", "tripId", "hidden"]
+        "required": [
+          "exists",
+          "owner",
+          "text",
+          "thumbUrl",
+          "tripId",
+          "hidden"
+        ]
       },
       "AdminReportDto": {
         "type": "object",
@@ -7172,7 +7772,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open", "actioned", "dismissed"]
+            "enum": [
+              "open",
+              "actioned",
+              "dismissed"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -7245,7 +7849,10 @@
             "nullable": true
           }
         },
-        "required": ["items", "nextCursor"]
+        "required": [
+          "items",
+          "nextCursor"
+        ]
       },
       "ReviewReportDto": {
         "type": "object",
@@ -7266,7 +7873,9 @@
             "description": "Kept in the audit log."
           }
         },
-        "required": ["action"]
+        "required": [
+          "action"
+        ]
       }
     }
   }
