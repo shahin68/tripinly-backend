@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { I18nContext } from 'nestjs-i18n';
 import {
   decodeCursor,
   DEFAULT_PAGE_SIZE,
   toPage,
 } from '../../common/pagination/pagination';
+import { domainEvent, DomainEvents } from '../../common/events/domain-events';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
@@ -16,6 +18,7 @@ import {
   type NewActivityDto,
   type NotificationPageDto,
   type NotificationSettingsDto,
+  type NotificationsChange,
   toNotificationDto,
   type UpdateNotificationSettingsDto,
 } from './notifications.dto';
@@ -26,6 +29,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly renderer: NotificationRenderer,
     private readonly access: TripAccessService,
+    private readonly events: EventEmitter2,
   ) {}
 
   /**
@@ -87,16 +91,10 @@ export class NotificationsService {
         select: { locale: true, notificationsSeenAt: true },
       }),
     ]);
-    const unseenCount = await this.prisma.notification.count({
-      where: {
-        AND: [
-          visible,
-          user?.notificationsSeenAt
-            ? { createdAt: { gt: user.notificationsSeenAt } }
-            : {},
-        ],
-      },
-    });
+    const unseenCount = await this.unseenCount(
+      userId,
+      user?.notificationsSeenAt,
+    );
     const context = await this.renderer.context(rows);
     const lang = resolveLanguage(I18nContext.current()?.lang, user?.locale);
     const page = toPage(
@@ -120,27 +118,11 @@ export class NotificationsService {
       where: { id: userId },
       data: { notificationsSeenAt: new Date() },
     });
+    await this.changed(userId, 'seen', []);
   }
 
   async markRead(userId: string, input: MarkReadDto): Promise<void> {
-    if (input.markerId && input.kind) {
-      // Picked in code: old likes rows have no targetType in their payload.
-      const rows = await this.prisma.notification.findMany({
-        where: { recipientId: userId, readAt: null, markerId: input.markerId },
-        select: { id: true, type: true, payload: true },
-      });
-      const comments = input.kind === 'comments';
-      const ids = rows
-        .filter((row) => isAboutComments(row) === comments)
-        .map((row) => row.id);
-      if (ids.length === 0) return;
-      await this.prisma.notification.updateMany({
-        where: { id: { in: ids }, readAt: null },
-        data: { readAt: new Date() },
-      });
-      return;
-    }
-    await this.prisma.notification.updateMany({
+    const rows = await this.prisma.notification.findMany({
       where: {
         recipientId: userId,
         readAt: null,
@@ -150,8 +132,93 @@ export class NotificationsService {
             ? { markerId: input.markerId }
             : { id: { in: input.ids ?? [] } }),
       },
+      select: { id: true, type: true, payload: true, tripId: true },
+    });
+    // Picked in code: old likes rows have no targetType in their payload.
+    const read = input.kind
+      ? rows.filter(
+          (row) => isAboutComments(row) === (input.kind === 'comments'),
+        )
+      : rows;
+    if (read.length === 0) return;
+    await this.prisma.notification.updateMany({
+      where: { id: { in: read.map((row) => row.id) }, readAt: null },
       data: { readAt: new Date() },
     });
+    await this.changed(userId, 'read', read);
+  }
+
+  /**
+   * Takes one of my notifications out of the center (only the notification:
+   * the comment, like or follow stays). Unknown or someone else's: nothing.
+   */
+  async remove(userId: string, id: string): Promise<void> {
+    const rows = await this.prisma.notification.findMany({
+      where: { id, recipientId: userId },
+      select: { id: true, tripId: true },
+    });
+    if (rows.length === 0) return;
+    await this.prisma.notification.deleteMany({ where: { id } });
+    await this.changed(userId, 'removed', rows);
+  }
+
+  /** Empties my notification center. */
+  async clear(userId: string): Promise<void> {
+    const rows = await this.prisma.notification.findMany({
+      where: { recipientId: userId },
+      distinct: ['tripId'],
+      select: { tripId: true },
+    });
+    if (rows.length === 0) return;
+    await this.prisma.notification.deleteMany({
+      where: { recipientId: userId },
+    });
+    await this.changed(userId, 'cleared', rows);
+  }
+
+  /**
+   * Entries new or back on top since I last opened the center and not read
+   * yet: read somewhere else, an entry stops counting (2026-11-07).
+   */
+  private async unseenCount(
+    userId: string,
+    seenAt?: Date | null,
+  ): Promise<number> {
+    return this.prisma.notification.count({
+      where: {
+        AND: [
+          visibleTo(userId),
+          { readAt: null },
+          seenAt ? { createdAt: { gt: seenAt } } : {},
+        ],
+      },
+    });
+  }
+
+  /** Every screen and device of mine drops the same dots (notifications.changed). */
+  private async changed(
+    userId: string,
+    change: NotificationsChange['change'],
+    rows: { id?: string; tripId: string | null }[],
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationsSeenAt: true },
+    });
+    const data: NotificationsChange = {
+      change,
+      ids: change === 'cleared' ? [] : rows.map((row) => row.id!),
+      tripIds: [
+        ...new Set(
+          rows.map((row) => row.tripId).filter((id): id is string => !!id),
+        ),
+      ],
+      unseenCount: await this.unseenCount(userId, user?.notificationsSeenAt),
+    };
+    this.events.emit(
+      DomainEvents.NOTIFICATIONS_CHANGED,
+      domainEvent(DomainEvents.NOTIFICATIONS_CHANGED, userId, data),
+    );
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {

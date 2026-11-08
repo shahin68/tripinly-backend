@@ -40,6 +40,12 @@ export const DomainEvents = {
   USER_FOLLOWED: 'user.followed',
   /** Someone stopped following a user; data `{ followeeId }`. Not a trip event. */
   USER_UNFOLLOWED: 'user.unfollowed',
+  /**
+   * My notifications were read, removed or seen somewhere; data
+   * NotificationsChange. Sent to my own room so every screen and device drops
+   * the same dots (2026-11-07).
+   */
+  NOTIFICATIONS_CHANGED: 'notifications.changed',
   /** A user was suspended or started account deletion; data `{ userId, reason }`. Not a trip event. */
   ACCOUNT_CLOSED: 'account.closed',
 } as const;

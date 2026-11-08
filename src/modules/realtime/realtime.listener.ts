@@ -214,6 +214,21 @@ export class RealtimeListener {
     });
   }
 
+  /** Mine alone, on every device: the app clears the same dots everywhere. */
+  @OnEvent(DomainEvents.NOTIFICATIONS_CHANGED)
+  onNotificationsChanged(event: DomainEvent): Promise<void> {
+    return this.safely(event, () => {
+      this.publisher.toUser(event.actorId, {
+        event: UserEvents.NOTIFICATIONS_CHANGED,
+        tripId: null,
+        actorId: null,
+        at: event.at,
+        data: event.data,
+      });
+      return Promise.resolve();
+    });
+  }
+
   /**
    * Suspension or deletion: their live sockets close at once. A suspended
    * user is told first so the app can explain why.

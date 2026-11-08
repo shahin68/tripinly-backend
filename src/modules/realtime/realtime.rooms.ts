@@ -9,6 +9,7 @@ export const UserEvents = {
   TRIPS_CHANGED: 'trips.changed',
   FOLLOWS_CHANGED: 'follows.changed',
   NOTIFICATION_CREATED: 'notification.created',
+  NOTIFICATIONS_CHANGED: 'notifications.changed',
   ACCOUNT_SUSPENDED: 'account.suspended',
 } as const;
 

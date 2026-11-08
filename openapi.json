@@ -724,6 +724,37 @@
         ]
       }
     },
+    "/v1/me/followers/{id}": {
+      "delete": {
+        "description": "They stop following me (and we stop being friends); they are not told. Idempotent, also when they did not follow me. Yourself → 400 VALIDATION_FAILED.",
+        "operationId": "Follows_removeFollower",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a follower",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
     "/v1/me/friends": {
       "get": {
         "description": "By display name, then id. Leaves out suspended users and anyone with a block either way. Used by the trip member picker.",
@@ -3793,11 +3824,61 @@
         "tags": [
           "notifications"
         ]
+      },
+      "delete": {
+        "description": "Removes all my notifications (not what they are about). Every device hears notifications.changed with change cleared.",
+        "operationId": "Notifications_clear",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clear my notification center",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/notifications/{id}": {
+      "delete": {
+        "description": "Only the notification goes: the comment, like or follow it is about stays. Unknown or someone else's ids are ignored (204). Every device hears notifications.changed.",
+        "operationId": "Notifications_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove one of my notifications",
+        "tags": [
+          "notifications"
+        ]
       }
     },
     "/v1/notifications/read": {
       "post": {
-        "description": "Body `{ \"ids\": [...] }` (up to 100) or `{ \"all\": true }`. Unknown or foreign ids are ignored.",
+        "description": "Body `{ \"ids\": [...] }` (up to 100), `{ \"markerId\", \"kind\"? }` or `{ \"all\": true }`. Unknown or foreign ids are ignored. Every device hears notifications.changed, so the same dots go everywhere.",
         "operationId": "Notifications_markRead",
         "parameters": [],
         "requestBody": {

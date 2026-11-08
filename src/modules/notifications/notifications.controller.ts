@@ -2,6 +2,7 @@ import { IdParamDto } from '../../common/dto/id-param.dto';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -48,12 +49,39 @@ export class NotificationsController {
     return this.notifications.list(user.id, query.cursor, query.limit);
   }
 
+  @Delete('notifications/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove one of my notifications',
+    description:
+      "Only the notification goes: the comment, like or follow it is about stays. Unknown or someone else's ids are ignored (204). Every device hears notifications.changed.",
+  })
+  @ApiNoContentResponse()
+  async remove(
+    @CurrentUser() user: AuthUser,
+    @Param() { id }: IdParamDto,
+  ): Promise<void> {
+    await this.notifications.remove(user.id, id);
+  }
+
+  @Delete('notifications')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Clear my notification center',
+    description:
+      'Removes all my notifications (not what they are about). Every device hears notifications.changed with change cleared.',
+  })
+  @ApiNoContentResponse()
+  async clear(@CurrentUser() user: AuthUser): Promise<void> {
+    await this.notifications.clear(user.id);
+  }
+
   @Post('notifications/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Mark notifications as read',
     description:
-      'Body `{ "ids": [...] }` (up to 100) or `{ "all": true }`. Unknown or foreign ids are ignored.',
+      'Body `{ "ids": [...] }` (up to 100), `{ "markerId", "kind"? }` or `{ "all": true }`. Unknown or foreign ids are ignored. Every device hears notifications.changed, so the same dots go everywhere.',
   })
   @ApiNoContentResponse()
   async markRead(

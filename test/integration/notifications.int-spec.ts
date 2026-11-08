@@ -1073,7 +1073,7 @@ describe('Notifications (integration)', () => {
       expect(after.items.every((item) => item.read)).toBe(true);
     });
 
-    it('counts entries new since I last opened the center, read or not', async () => {
+    it('counts entries new since I last opened the center and not read yet', async () => {
       await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
       await eventually(async () => (await list(owner)).unseenCount === 1);
       await as(owner).post('/v1/notifications/seen').expect(204);
@@ -1090,6 +1090,88 @@ describe('Notifications (integration)', () => {
       await as(stranger).delete(`/v1/likes/trip/${trip.id}`).expect(200);
       await as(stranger).put(`/v1/likes/trip/${trip.id}`).expect(200);
       await eventually(async () => (await list(owner)).unseenCount === 1);
+      // Read somewhere else (the trip's stop, another device): not unseen any more.
+      await as(owner)
+        .post('/v1/notifications/read')
+        .send({ all: true })
+        .expect(204);
+      expect((await list(owner)).unseenCount).toBe(0);
+    });
+
+    it('tells every device when notifications are read, removed or seen', async () => {
+      const socket = await connect(await realtimeUrl(app), owner);
+      try {
+        const markerId = await addMarker(owner);
+        await as(stranger)
+          .post(`/v1/markers/${markerId}/comments`)
+          .send({ body: 'Seen anywhere' })
+          .expect(201);
+        const [entry] = await eventually(async () => {
+          const { items } = await list(owner);
+          return items.length === 1 && items;
+        });
+        // Seen in the stop's comments: its dots go on every screen.
+        await as(owner)
+          .post('/v1/notifications/read')
+          .send({ markerId, kind: 'comments' })
+          .expect(204);
+        const read = await socket.waitFor<{
+          change: string;
+          ids: string[];
+          tripIds: string[];
+          unseenCount: number;
+        }>('notifications.changed', (e) => e.data.change === 'read', 5000);
+        expect(read.data).toEqual({
+          change: 'read',
+          ids: [entry.id],
+          tripIds: [trip.id],
+          unseenCount: 0,
+        });
+        await as(owner)
+          .get(`/v1/trips/${trip.id}/new-activity`)
+          .expect(200, { markerIds: [], commentMarkerIds: [] });
+
+        await as(owner).post('/v1/notifications/seen').expect(204);
+        await socket.waitFor('notifications.changed', (e) => {
+          const data = e.data as { change: string };
+          return data.change === 'seen';
+        });
+      } finally {
+        socket.close();
+      }
+    });
+
+    it('removes my notifications, never what they are about', async () => {
+      const markerId = await addMarker(owner);
+      await as(stranger)
+        .post(`/v1/markers/${markerId}/comments`)
+        .send({ body: 'Keep me' })
+        .expect(201);
+      await as(stranger).put(`/v1/trips/${trip.id}/save`).expect(204);
+      const items = await eventually(async () => {
+        const page = await list(owner);
+        return page.items.length === 2 && page.items;
+      });
+      // Not mine: nothing happens.
+      await as(stranger).delete(`/v1/notifications/${items[0].id}`).expect(204);
+      expect((await list(owner)).items).toHaveLength(2);
+      await as(owner).delete(`/v1/notifications/${items[0].id}`).expect(204);
+      await as(owner).delete(`/v1/notifications/${items[0].id}`).expect(204);
+      expect((await list(owner)).items.map((item) => item.id)).toEqual([
+        items[1].id,
+      ]);
+      await as(owner).delete('/v1/notifications').expect(204);
+      expect(await list(owner)).toMatchObject({
+        items: [],
+        unreadCount: 0,
+        unseenCount: 0,
+      });
+      // The comment and the save stay.
+      expect(await prisma.comment.count({ where: { markerId } })).toBe(1);
+      expect(await prisma.tripSave.count({ where: { tripId: trip.id } })).toBe(
+        1,
+      );
+      await as(owner).delete('/v1/notifications/nope').expect(400);
     });
 
     it('hides entries caused by someone I have a block with', async () => {

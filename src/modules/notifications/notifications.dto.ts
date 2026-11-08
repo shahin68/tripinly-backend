@@ -257,3 +257,16 @@ export function toNotificationDto(
     updatedAt: row.updatedAt.toISOString(),
   };
 }
+
+/**
+ * What notifications.changed carries to my own room: notifications read,
+ * removed, all removed (cleared, `ids` empty) or the center seen, on any
+ * device. `tripIds`: trips whose stop marks may have changed (reload
+ * GET /trips/{id}/new-activity); `unseenCount` as in GET /notifications.
+ */
+export interface NotificationsChange {
+  change: 'read' | 'removed' | 'cleared' | 'seen';
+  ids: string[];
+  tripIds: string[];
+  unseenCount: number;
+}
