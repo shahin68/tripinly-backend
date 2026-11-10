@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
+import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -43,9 +45,8 @@ const ALONG = {
   cycling: { bufferMeters: 500, simplifyMeters: 20 },
   driving: { bufferMeters: 1500, simplifyMeters: 100 },
 } as const satisfies Record<RoutingMode, unknown>;
+/** Stretches of the route the places along the way are spread over; each takes its share of APP_ALONG_THE_WAY_MAX_PLACES. */
 const ALONG_SEGMENTS = 10;
-const ALONG_PER_SEGMENT = 4;
-const ALONG_MAX = 40;
 
 /** Speeds for straight-line estimates when routing is unavailable (m/s). */
 const STRAIGHT_LINE_SPEED: Record<RoutingMode, number> = {
@@ -75,6 +76,7 @@ export class RoutingService {
     private readonly entitlements: EntitlementService,
     private readonly markers: MarkersService,
     @Inject(REDIS) private readonly redis: Redis,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async pointToPoint(
@@ -312,6 +314,10 @@ export class RoutingService {
     if (line.length < 2) return [];
     const wkt = `LINESTRING(${line.map((p) => `${p.lng} ${p.lat}`).join(',')})`;
     const { bufferMeters, simplifyMeters } = ALONG[mode];
+    const max = this.config.get('APP_ALONG_THE_WAY_MAX_PLACES', {
+      infer: true,
+    });
+    const perSegment = Math.ceil(max / ALONG_SEGMENTS);
 
     const rows = await this.prisma.$queryRaw<
       (PlaceRow & { distance: number; frac: number })[]
@@ -343,9 +349,9 @@ export class RoutingService {
         ) AS rank_in_segment
         FROM near
       ) spread
-      WHERE rank_in_segment <= ${ALONG_PER_SEGMENT}
+      WHERE rank_in_segment <= ${perSegment}
       ORDER BY frac, id
-      LIMIT ${ALONG_MAX}`;
+      LIMIT ${max}`;
 
     const items = await this.places.personalize(
       userId,

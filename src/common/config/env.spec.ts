@@ -25,8 +25,21 @@ describe('validateEnv', () => {
       APP_PLACE_PHOTO_DAILY_LIMIT: 20,
       APP_EXPLORE_NEARBY_RADIUS_KM: 50,
       APP_TRIP_MAX_MEMBERS: 50,
+      APP_ALONG_THE_WAY_MAX_PLACES: 40,
       APP_NOTIFICATION_MILESTONES: [5, 25, 100, 500, 1000, 5000],
     });
+  });
+
+  it('takes 10 to 200 places along the way', () => {
+    expect(
+      validateEnv({ ...valid, APP_ALONG_THE_WAY_MAX_PLACES: '200' })
+        .APP_ALONG_THE_WAY_MAX_PLACES,
+    ).toBe(200);
+    for (const wrong of ['9', '201', '2.5']) {
+      expect(() =>
+        validateEnv({ ...valid, APP_ALONG_THE_WAY_MAX_PLACES: wrong }),
+      ).toThrow(/APP_ALONG_THE_WAY_MAX_PLACES/);
+    }
   });
 
   it('reads the push milestones as ascending whole numbers', () => {

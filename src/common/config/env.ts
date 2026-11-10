@@ -75,6 +75,13 @@ export const envSchema = z
       .min(0)
       .max(100)
       .default(60),
+    /** Most places along the way a route returns, spread over ten stretches of it (each takes a tenth, rounded up). */
+    APP_ALONG_THE_WAY_MAX_PLACES: z.coerce
+      .number()
+      .int()
+      .min(10)
+      .max(200)
+      .default(40),
     /** Most place pins the app draws on the map at once, the best known and most liked first. */
     APP_MAP_MAX_PINS: z.coerce.number().int().min(20).max(1000).default(150),
     /** A pin shows its place's photo when the place's prominence is at least this... */
