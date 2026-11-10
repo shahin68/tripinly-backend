@@ -152,6 +152,7 @@ Each one is optional and has a default. A value outside its range stops the api 
 | `APP_PIN_LARGE_MIN_PROMINENCE`  | 95      | 0–100     | Prominence from which a place pin is largest                                          |
 | `APP_PIN_MEDIUM_MIN_PROMINENCE` | 60      | 0–100     | Prominence from which a place pin is middle-sized                                     |
 | `APP_MAP_MAX_PINS`              | 150     | 20–1000   | Most place pins on the map at once                                                    |
+| `APP_ALONG_THE_WAY_MAX_PLACES`  | 40      | 10–200    | Most places along the way a route returns, spread over ten stretches of it            |
 | `APP_PHOTO_PIN_MIN_PROMINENCE`  | 90      | 0–100     | Prominence from which a pin shows its place's photo…                                  |
 | `APP_PHOTO_PIN_MIN_HOT_COUNT`   | 3       | ≥ 1       | …or the hot count from which it does                                                  |
 | `APP_MAP_MAX_PHOTO_PINS`        | 100     | 0–500     | Most photo pins at once                                                               |

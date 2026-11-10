@@ -118,7 +118,7 @@ Returns:
 - Buffer by mode: walking 250 m, cycling 500 m, driving 1500 m (configurable).
 - Simplify the route line first for long routes (`ST_Simplify` in a metric projection, tolerance ~20 m walking / 100 m driving).
 - `ST_DWithin(place.location, routeLine, buffer)`, active places only, requested categories.
-- Spread results: split the route into N segments by `ST_LineLocatePoint` fraction (e.g. 10) and take the top K per segment (Tripinly places by popularity first, then OSM by category priority). Default total ≤ 40.
+- Spread results: split the route into N segments by `ST_LineLocatePoint` fraction (e.g. 10) and take the top K per segment (Tripinly places by popularity first, then OSM by category priority). At most `APP_ALONG_THE_WAY_MAX_PLACES` in total (api, default 40, 10–200), each of the 10 stretches taking a tenth of it, rounded up (2026-11-10).
 - Exclude places already in the day/trip.
 - Order by `positionAlongRoute`.
 
