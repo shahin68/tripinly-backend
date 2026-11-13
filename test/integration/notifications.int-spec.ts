@@ -1226,7 +1226,7 @@ describe('Notifications (integration)', () => {
         .post('/v1/notifications/read')
         .send({
           markerId: '00000000-0000-4000-8000-000000000000',
-          kind: 'photos',
+          kind: 'likes',
         })
         .expect(400);
       await as(owner)
