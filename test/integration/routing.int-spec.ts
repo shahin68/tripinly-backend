@@ -155,16 +155,28 @@ describe('Routing (integration)', () => {
       ]);
     });
 
-    it("leaves out the places at the route's start and end", async () => {
-      await insertPlace(app, { name: 'Start', ...FROM, category: 'cafe' });
-      await insertPlace(app, {
+    it("leaves out the places at the route's ends by their ids", async () => {
+      const start = await insertPlace(app, {
+        name: 'Start',
+        ...FROM,
+        category: 'cafe',
+      });
+      const end = await insertPlace(app, {
         name: 'End',
-        lat: 48.2001,
-        lng: 16.38,
+        ...TO,
         category: 'museum',
       });
-      const { body } = await as(stranger)
+      const all = await as(stranger)
         .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}`)
+        .expect(200);
+      expect(
+        all.body.alongTheWay.map((a: AlongBody) => a.place.id).sort(),
+      ).toEqual([start, near, end].sort());
+
+      const { body } = await as(stranger)
+        .get(
+          `/v1/routes?from=${point(FROM)}&to=${point(TO)}&fromPlaceId=${start}&toPlaceId=${end}`,
+        )
         .expect(200);
       expect(body.alongTheWay.map((a: AlongBody) => a.place.id)).toEqual([
         near,
@@ -237,6 +249,9 @@ describe('Routing (integration)', () => {
       expect(bad.body.error.details.fields.from).toBeDefined();
       await as(stranger)
         .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}&mode=flying`)
+        .expect(400);
+      await as(stranger)
+        .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}&toPlaceId=nope`)
         .expect(400);
 
       const secret = (

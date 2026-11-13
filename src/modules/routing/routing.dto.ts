@@ -54,6 +54,24 @@ export class RouteQueryDto extends ModeAndCategoriesDto {
   @IsOptional()
   @IsUUID()
   excludeTripId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'The place at the start, if the route starts at one: left out of alongTheWay',
+  })
+  @IsOptional()
+  @IsUUID()
+  fromPlaceId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'The place at the end, if the route goes to one: left out of alongTheWay',
+  })
+  @IsOptional()
+  @IsUUID()
+  toPlaceId?: string;
 }
 
 export class DayRouteQueryDto extends ModeAndCategoriesDto {}

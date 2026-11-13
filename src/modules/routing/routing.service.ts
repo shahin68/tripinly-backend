@@ -47,11 +47,6 @@ const ALONG = {
 } as const satisfies Record<RoutingMode, unknown>;
 /** Stretches of the route the places along the way are spread over; each takes its share of APP_ALONG_THE_WAY_MAX_PLACES. */
 const ALONG_SEGMENTS = 10;
-/**
- * A place this close to one of the route's points (its start, its end, a day's
- * marker) is that point, not a place along the way (Shahin, 2026-11-13).
- */
-const ALONG_POINT_RADIUS_METERS = 20;
 
 /** Speeds for straight-line estimates when routing is unavailable (m/s). */
 const STRAIGHT_LINE_SPEED: Record<RoutingMode, number> = {
@@ -92,6 +87,8 @@ export class RoutingService {
       mode: RoutingMode;
       categories?: PlaceCategory[];
       excludeTripId?: string;
+      /** The places at the route's ends: they are its ends, not places along it. */
+      excludePlaceIds?: string[];
     },
     lang: string,
   ): Promise<RouteResponseDto> {
@@ -109,6 +106,7 @@ export class RoutingService {
       input.categories,
       input.excludeTripId,
       lang,
+      input.excludePlaceIds,
     );
   }
 
@@ -222,6 +220,7 @@ export class RoutingService {
     categories: PlaceCategory[] | undefined,
     excludeTripId: string | undefined,
     lang: string,
+    excludePlaceIds: string[] = [],
   ): Promise<RouteResponseDto> {
     let route: ProviderRoute;
     let degraded = false;
@@ -242,7 +241,7 @@ export class RoutingService {
     const alongTheWay = await this.alongTheWay(
       userId,
       route,
-      waypoints,
+      excludePlaceIds,
       mode,
       categories,
       excludeTripId,
@@ -301,13 +300,13 @@ export class RoutingService {
 
   /**
    * Listed places near the line, spread over ten stretches of the route
-   * (Tripinly places first, then sights), in route order. The route's own
-   * points are left out: a place at its start or end is that end.
+   * (Tripinly places first, then sights), in route order. The places at the
+   * route's ends ([excludePlaceIds]) are left out: they are its ends.
    */
   private async alongTheWay(
     userId: string,
     route: ProviderRoute,
-    waypoints: LatLng[],
+    excludePlaceIds: string[],
     mode: RoutingMode,
     categories: PlaceCategory[] | undefined,
     excludeTripId: string | undefined,
@@ -321,7 +320,6 @@ export class RoutingService {
     );
     if (line.length < 2) return [];
     const wkt = `LINESTRING(${line.map((p) => `${p.lng} ${p.lat}`).join(',')})`;
-    const pointsWkt = `MULTIPOINT(${waypoints.map((p) => `${p.lng} ${p.lat}`).join(',')})`;
     const { bufferMeters, simplifyMeters } = ALONG[mode];
     const max = this.config.get('APP_ALONG_THE_WAY_MAX_PLACES', {
       infer: true,
@@ -343,8 +341,8 @@ export class RoutingService {
         FROM places p, line
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
           AND ST_DWithin(p.location, line.geog, ${bufferMeters})
-          AND NOT ST_DWithin(p.location, ST_GeomFromText(${pointsWkt}, 4326)::geography, ${ALONG_POINT_RADIUS_METERS})
           ${categories?.length ? Prisma.sql`AND p.category = ANY(${categories}::"PlaceCategory"[])` : Prisma.empty}
+          ${excludePlaceIds.length ? Prisma.sql`AND p.id <> ALL(${excludePlaceIds}::uuid[])` : Prisma.empty}
           ${
             excludeTripId
               ? Prisma.sql`AND NOT EXISTS (
