@@ -155,6 +155,22 @@ describe('Routing (integration)', () => {
       ]);
     });
 
+    it("leaves out the places at the route's start and end", async () => {
+      await insertPlace(app, { name: 'Start', ...FROM, category: 'cafe' });
+      await insertPlace(app, {
+        name: 'End',
+        lat: 48.2001,
+        lng: 16.38,
+        category: 'museum',
+      });
+      const { body } = await as(stranger)
+        .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}`)
+        .expect(200);
+      expect(body.alongTheWay.map((a: AlongBody) => a.place.id)).toEqual([
+        near,
+      ]);
+    });
+
     it('widens the search when driving and filters by category', async () => {
       const driving = await as(stranger)
         .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}&mode=driving`)

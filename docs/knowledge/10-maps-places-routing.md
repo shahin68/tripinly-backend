@@ -120,6 +120,7 @@ Returns:
 - `ST_DWithin(place.location, routeLine, buffer)`, active places only, requested categories.
 - Spread results: split the route into N segments by `ST_LineLocatePoint` fraction (e.g. 10) and take the top K per segment (Tripinly places by popularity first, then OSM by category priority). At most `APP_ALONG_THE_WAY_MAX_PLACES` in total (api, default 40, 10–200), each of the 10 stretches taking a tenth of it, rounded up (2026-11-10).
 - Exclude places already in the day/trip.
+- Exclude places within 20 m of one of the route's own points (its start, its end, a day's markers): a place there is that end, not a place along the way (2026-11-13).
 - Order by `positionAlongRoute`.
 
 **Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
