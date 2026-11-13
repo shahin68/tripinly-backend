@@ -87,6 +87,8 @@ export class RoutingService {
       mode: RoutingMode;
       categories?: PlaceCategory[];
       excludeTripId?: string;
+      /** The places at the route's ends: they are its ends, not places along it. */
+      excludePlaceIds?: string[];
     },
     lang: string,
   ): Promise<RouteResponseDto> {
@@ -104,6 +106,7 @@ export class RoutingService {
       input.categories,
       input.excludeTripId,
       lang,
+      input.excludePlaceIds,
     );
   }
 
@@ -217,6 +220,7 @@ export class RoutingService {
     categories: PlaceCategory[] | undefined,
     excludeTripId: string | undefined,
     lang: string,
+    excludePlaceIds: string[] = [],
   ): Promise<RouteResponseDto> {
     let route: ProviderRoute;
     let degraded = false;
@@ -237,6 +241,7 @@ export class RoutingService {
     const alongTheWay = await this.alongTheWay(
       userId,
       route,
+      excludePlaceIds,
       mode,
       categories,
       excludeTripId,
@@ -295,11 +300,13 @@ export class RoutingService {
 
   /**
    * Listed places near the line, spread over ten stretches of the route
-   * (Tripinly places first, then sights), in route order.
+   * (Tripinly places first, then sights), in route order. The places at the
+   * route's ends ([excludePlaceIds]) are left out: they are its ends.
    */
   private async alongTheWay(
     userId: string,
     route: ProviderRoute,
+    excludePlaceIds: string[],
     mode: RoutingMode,
     categories: PlaceCategory[] | undefined,
     excludeTripId: string | undefined,
@@ -335,6 +342,7 @@ export class RoutingService {
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
           AND ST_DWithin(p.location, line.geog, ${bufferMeters})
           ${categories?.length ? Prisma.sql`AND p.category = ANY(${categories}::"PlaceCategory"[])` : Prisma.empty}
+          ${excludePlaceIds.length ? Prisma.sql`AND p.id <> ALL(${excludePlaceIds}::uuid[])` : Prisma.empty}
           ${
             excludeTripId
               ? Prisma.sql`AND NOT EXISTS (

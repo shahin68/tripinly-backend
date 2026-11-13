@@ -3627,6 +3627,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "fromPlaceId",
+            "required": false,
+            "in": "query",
+            "description": "The place at the start, if the route starts at one: left out of alongTheWay",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toPlaceId",
+            "required": false,
+            "in": "query",
+            "description": "The place at the end, if the route goes to one: left out of alongTheWay",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
           }
         ],
         "responses": {

@@ -172,10 +172,10 @@ Sign-in and refresh return **AuthTokens**: `accessToken`, `accessTokenExpiresAt`
 
 ### Routing
 
-| Method | Path                                                                                        | Notes                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/routes?from=lat,lng&to=lat,lng&mode=walking\|cycling\|driving&categories=&excludeTripId=` | Route line + places along the way (leaving out `excludeTripId`'s places; I must be able to see that trip)                                 |
-| GET    | `/days/{id}/route?mode=&categories=`                                                        | Route through the day's visible markers in order + places along the way (not the trip's own). `route` is null with fewer than two markers |
+| Method | Path                                                                                                                | Notes                                                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/routes?from=lat,lng&to=lat,lng&mode=walking\|cycling\|driving&categories=&excludeTripId=&fromPlaceId=&toPlaceId=` | Route line + places along the way (leaving out `excludeTripId`'s places, I must be able to see that trip, and the places at the ends, `fromPlaceId`/`toPlaceId`, 2026-11-13) |
+| GET    | `/days/{id}/route?mode=&categories=`                                                                                | Route through the day's visible markers in order + places along the way (not the trip's own). `route` is null with fewer than two markers                                    |
 
 Both return `{ route: { polyline, distanceMeters, durationSeconds, legs[] → { fromMarkerId, toMarkerId, distanceMeters, durationSeconds } }, alongTheWay[] → { place, distanceFromRouteMeters, positionAlongRoute (0–1), etaFromStartSeconds }, degraded, attribution }`. `degraded: true` means routing isn't available right now (daily quota used up, or not configured): the route is straight lines with times estimated from typical speeds. An openrouteservice failure (timeout, 429, 5xx) answers 503 `ROUTING_UNAVAILABLE`. Routes are Tripinly Pro: without the `routes` entitlement both answer 403 `PREMIUM_REQUIRED`.
 

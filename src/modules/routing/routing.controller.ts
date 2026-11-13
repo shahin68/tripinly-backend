@@ -52,6 +52,9 @@ export class RoutingController {
         mode: query.mode ?? 'walking',
         categories: query.categories,
         excludeTripId: query.excludeTripId,
+        excludePlaceIds: [query.fromPlaceId, query.toPlaceId].filter(
+          (id): id is string => id !== undefined,
+        ),
       },
       lang,
     );
