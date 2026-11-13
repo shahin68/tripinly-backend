@@ -179,3 +179,27 @@ export function isAboutComments(row: {
       (row.payload as Partial<LikesPayload> | null)?.targetType === 'comment')
   );
 }
+
+/**
+ * Where a stop's news is seen, so its "new" mark clears there (Shahin,
+ * 2026-11-13): comments in its comments, photos (a photo added or liked) in
+ * its photos, flames (no mark, a one-off flicker of the flame) when the stop
+ * opens, the rest when the stop opens.
+ */
+export const NEWS_KINDS = ['comments', 'photos', 'hot', 'other'] as const;
+export type NewsKind = (typeof NEWS_KINDS)[number];
+
+export function newsKind(row: { type: string; payload: unknown }): NewsKind {
+  if (isAboutComments(row)) return 'comments';
+  if (row.type === 'place_hot') return 'hot';
+  const payload = row.payload as
+    (Partial<LikesPayload> & Partial<TripChangesPayload>) | null;
+  if (row.type === 'likes_grouped' && payload?.targetType === 'photo')
+    return 'photos';
+  if (
+    row.type === 'trip_changed_by_collaborator' &&
+    payload?.kinds?.photo_added
+  )
+    return 'photos';
+  return 'other';
+}

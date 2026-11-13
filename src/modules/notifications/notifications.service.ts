@@ -12,7 +12,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { BlocksService } from '../moderation/blocks.service';
 import { TripAccessService } from '../trips/trip-access.service';
 import { NotificationRenderer, resolveLanguage } from './notification-renderer';
-import { isAboutComments } from './notification-types';
+import { newsKind, type NewsKind } from './notification-types';
 import {
   type MarkReadDto,
   type NewActivityDto,
@@ -50,9 +50,15 @@ export class NotificationsService {
     const unique = (list: typeof rows) => [
       ...new Set(list.map((row) => row.markerId!)),
     ];
+    const of = (kind: NewsKind) =>
+      unique(rows.filter((row) => newsKind(row) === kind));
     return {
-      markerIds: unique(rows),
-      commentMarkerIds: unique(rows.filter(isAboutComments)),
+      // Flames put no mark on the pin (Shahin, 2026-11-13).
+      markerIds: unique(rows.filter((row) => newsKind(row) !== 'hot')),
+      commentMarkerIds: of('comments'),
+      photoMarkerIds: of('photos'),
+      hotMarkerIds: of('hot'),
+      otherMarkerIds: of('other'),
     };
   }
 
@@ -136,9 +142,7 @@ export class NotificationsService {
     });
     // Picked in code: old likes rows have no targetType in their payload.
     const read = input.kind
-      ? rows.filter(
-          (row) => isAboutComments(row) === (input.kind === 'comments'),
-        )
+      ? rows.filter((row) => newsKind(row) === input.kind)
       : rows;
     if (read.length === 0) return;
     await this.prisma.notification.updateMany({

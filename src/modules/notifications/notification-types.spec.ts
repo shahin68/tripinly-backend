@@ -1,4 +1,35 @@
-import { isAboutComments, milestoneReached } from './notification-types';
+import {
+  isAboutComments,
+  milestoneReached,
+  newsKind,
+} from './notification-types';
+
+describe('newsKind', () => {
+  it("sorts a stop's news by where it is seen", () => {
+    expect(newsKind({ type: 'comment_reply', payload: {} })).toBe('comments');
+    expect(
+      newsKind({ type: 'likes_grouped', payload: { targetType: 'comment' } }),
+    ).toBe('comments');
+    expect(
+      newsKind({ type: 'likes_grouped', payload: { targetType: 'photo' } }),
+    ).toBe('photos');
+    expect(
+      newsKind({
+        type: 'trip_changed_by_collaborator',
+        payload: { kinds: { photo_added: 2, place_updated: 1 } },
+      }),
+    ).toBe('photos');
+    expect(
+      newsKind({
+        type: 'trip_changed_by_collaborator',
+        payload: { kinds: { place_updated: 1 } },
+      }),
+    ).toBe('other');
+    expect(newsKind({ type: 'place_hot', payload: {} })).toBe('hot');
+    // Likes rows from before 2026-11-01 say nothing about what was liked.
+    expect(newsKind({ type: 'likes_grouped', payload: {} })).toBe('other');
+  });
+});
 
 describe('isAboutComments', () => {
   it('is true for new comments and likes on comments only', () => {

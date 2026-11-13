@@ -3950,7 +3950,7 @@
     },
     "/v1/trips/{id}/new-activity": {
       "get": {
-        "description": "The pins with a \"new\" mark, and which of them have news about their comments. Opening a stop sends POST /notifications/read with its markerId and kind other; seeing its comments sends kind comments. Trips I can't see: 404.",
+        "description": "The pins with a \"new\" mark (not for flames), and which stops have news per kind. Opening a stop sends POST /notifications/read with its markerId and kind other (and hot when it has flames); seeing its comments sends kind comments, its photos kind photos. Trips I can't see: 404.",
         "operationId": "Notifications_newActivity",
         "parameters": [
           {
@@ -7407,6 +7407,16 @@
             "type": "boolean",
             "description": "About the stop's comments (a new comment or a like on one): its \"new\" mark clears when the comments are seen (added 2026-11-05)"
           },
+          "newsKind": {
+            "type": "string",
+            "enum": [
+              "comments",
+              "photos",
+              "hot",
+              "other"
+            ],
+            "description": "Where the stop's news is seen (added 2026-11-13): comments in its comments, photos in its photos (their buttons carry a red dot until then), hot (flames: no mark, the flame flickers once) and other when the stop opens"
+          },
           "count": {
             "type": "number",
             "description": "Comments, replies, trip changes, saves and follows: how many in the group; likes_grouped: people who liked the item; place_hot: flames on the spot; else 1"
@@ -7441,6 +7451,7 @@
           "trip",
           "markerId",
           "aboutComments",
+          "newsKind",
           "count",
           "title",
           "body",
@@ -7500,9 +7511,11 @@
             "type": "string",
             "enum": [
               "comments",
+              "photos",
+              "hot",
               "other"
             ],
-            "description": "With markerId: only what is about its comments (comments, sent when they are seen) or only the rest (other, sent when the stop opens); without it, everything about the stop (added 2026-11-05)"
+            "description": "With markerId: only that kind of news (newsKind): comments when its comments are seen, photos when its photos are, hot and other when the stop opens (added 2026-11-05; photos and hot 2026-11-13, other no longer includes them); without it, everything about the stop"
           },
           "all": {
             "type": "boolean",
@@ -7517,7 +7530,7 @@
         "type": "object",
         "properties": {
           "markerIds": {
-            "description": "Stops of this trip with unread notifications for me (the pins' \"new\" marks)",
+            "description": "Stops of this trip with unread notifications for me other than flames (the pins' \"new\" marks)",
             "type": "array",
             "items": {
               "type": "string",
@@ -7531,11 +7544,38 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "photoMarkerIds": {
+            "description": "Stops with unread news about their photos (added or liked): the photos button's red dot, until the photos are seen (added 2026-11-13)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "hotMarkerIds": {
+            "description": "Stops whose spot got flames I haven't seen: no mark, the flame flickers once when the stop opens (added 2026-11-13)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "otherMarkerIds": {
+            "description": "Stops with the rest of the news (changes by others), seen when the stop opens (added 2026-11-13)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
           "markerIds",
-          "commentMarkerIds"
+          "commentMarkerIds",
+          "photoMarkerIds",
+          "hotMarkerIds",
+          "otherMarkerIds"
         ]
       },
       "NotificationSettingsDto": {
