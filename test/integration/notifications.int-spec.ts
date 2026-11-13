@@ -36,6 +36,15 @@ interface NotificationBody {
   read: boolean;
 }
 
+/** new-activity with nothing unread. */
+const NO_NEWS = {
+  markerIds: [],
+  commentMarkerIds: [],
+  photoMarkerIds: [],
+  hotMarkerIds: [],
+  otherMarkerIds: [],
+};
+
 describe('Notifications (integration)', () => {
   let app: INestApplication;
   let worker: INestApplicationContext;
@@ -432,7 +441,11 @@ describe('Notifications (integration)', () => {
       expect(push.to(OWNER_TABLET)).toEqual([]);
       await as(owner)
         .get(`/v1/trips/${trip.id}/new-activity`)
-        .expect(200, { markerIds: [markerId], commentMarkerIds: [markerId] });
+        .expect(200, {
+          ...NO_NEWS,
+          markerIds: [markerId],
+          commentMarkerIds: [markerId],
+        });
     });
 
     it('pushes a comment with a mention to the mentioned people only', async () => {
@@ -963,7 +976,11 @@ describe('Notifications (integration)', () => {
       });
       await as(owner)
         .get(`/v1/trips/${trip.id}/new-activity`)
-        .expect(200, { markerIds: [markerId], commentMarkerIds: [markerId] });
+        .expect(200, {
+          ...NO_NEWS,
+          markerIds: [markerId],
+          commentMarkerIds: [markerId],
+        });
       // Opening the stop leaves the comment's mark; seeing the comments clears it.
       await as(owner)
         .post('/v1/notifications/read')
@@ -971,14 +988,18 @@ describe('Notifications (integration)', () => {
         .expect(204);
       await as(owner)
         .get(`/v1/trips/${trip.id}/new-activity`)
-        .expect(200, { markerIds: [markerId], commentMarkerIds: [markerId] });
+        .expect(200, {
+          ...NO_NEWS,
+          markerIds: [markerId],
+          commentMarkerIds: [markerId],
+        });
       await as(owner)
         .post('/v1/notifications/read')
         .send({ markerId, kind: 'comments' })
         .expect(204);
       await as(owner)
         .get(`/v1/trips/${trip.id}/new-activity`)
-        .expect(200, { markerIds: [], commentMarkerIds: [] });
+        .expect(200, NO_NEWS);
     });
 
     it('leaves out blocked people and refuses trips I cannot see', async () => {
@@ -991,7 +1012,7 @@ describe('Notifications (integration)', () => {
       await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
       await as(owner)
         .get(`/v1/trips/${trip.id}/new-activity`)
-        .expect(200, { markerIds: [], commentMarkerIds: [] });
+        .expect(200, NO_NEWS);
       const { body: secret } = await as(owner)
         .post('/v1/trips')
         .send({ title: 'Secret', visibility: 'private' })
@@ -1129,7 +1150,7 @@ describe('Notifications (integration)', () => {
         });
         await as(owner)
           .get(`/v1/trips/${trip.id}/new-activity`)
-          .expect(200, { markerIds: [], commentMarkerIds: [] });
+          .expect(200, NO_NEWS);
 
         await as(owner).post('/v1/notifications/seen').expect(204);
         await socket.waitFor('notifications.changed', (e) => {

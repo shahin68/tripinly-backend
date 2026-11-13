@@ -18,6 +18,9 @@ import { UserSummaryDto } from '../users/user-summary';
 import type { RenderContext, RenderedText } from './notification-renderer';
 import {
   isAboutComments,
+  NEWS_KINDS,
+  newsKind,
+  type NewsKind,
   NOTIFICATION_TYPES,
   shownActorIds,
 } from './notification-types';
@@ -64,6 +67,13 @@ export class NotificationDto {
   aboutComments: boolean;
 
   @ApiProperty({
+    enum: NEWS_KINDS,
+    description:
+      "Where the stop's news is seen (added 2026-11-13): comments in its comments, photos in its photos (their buttons carry a red dot until then), hot (flames: no mark, the flame flickers once) and other when the stop opens",
+  })
+  newsKind: NewsKind;
+
+  @ApiProperty({
     description:
       'Comments, replies, trip changes, saves and follows: how many in the group; likes_grouped: people who liked the item; place_hot: flames on the spot; else 1',
   })
@@ -108,7 +118,7 @@ export class NotificationPageDto {
   unseenCount: number;
 }
 
-export const READ_KINDS = ['comments', 'other'] as const;
+export const READ_KINDS = NEWS_KINDS;
 export type ReadKind = (typeof READ_KINDS)[number];
 
 export class MarkReadDto {
@@ -142,7 +152,7 @@ export class MarkReadDto {
   @ApiPropertyOptional({
     enum: READ_KINDS,
     description:
-      'With markerId: only what is about its comments (comments, sent when they are seen) or only the rest (other, sent when the stop opens); without it, everything about the stop (added 2026-11-05)',
+      'With markerId: only that kind of news (newsKind): comments when its comments are seen, photos when its photos are, hot and other when the stop opens (added 2026-11-05; photos and hot 2026-11-13, other no longer includes them); without it, everything about the stop',
   })
   @ValidateIf((o: MarkReadDto) => o.kind !== undefined)
   @IsIn(READ_KINDS)
@@ -187,7 +197,7 @@ export class NewActivityDto {
     type: [String],
     format: 'uuid',
     description:
-      'Stops of this trip with unread notifications for me (the pins\' "new" marks)',
+      'Stops of this trip with unread notifications for me other than flames (the pins\' "new" marks)',
   })
   markerIds: string[];
 
@@ -198,6 +208,30 @@ export class NewActivityDto {
       'Those of markerIds with unread notifications about their comments, which clear when the comments are seen (added 2026-11-05)',
   })
   commentMarkerIds: string[];
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      "Stops with unread news about their photos (added or liked): the photos button's red dot, until the photos are seen (added 2026-11-13)",
+  })
+  photoMarkerIds: string[];
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      "Stops whose spot got flames I haven't seen: no mark, the flame flickers once when the stop opens (added 2026-11-13)",
+  })
+  hotMarkerIds: string[];
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Stops with the rest of the news (changes by others), seen when the stop opens (added 2026-11-13)',
+  })
+  otherMarkerIds: string[];
 }
 
 export class UpdateNotificationSettingsDto {
@@ -248,6 +282,7 @@ export function toNotificationDto(
     trip: trip ? { id: trip.id, title: trip.title } : null,
     markerId: row.markerId,
     aboutComments: isAboutComments(row),
+    newsKind: newsKind(row),
     count: row.count,
     title: text.title,
     body: text.body,
