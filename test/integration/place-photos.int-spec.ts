@@ -283,10 +283,13 @@ describe('Place photos and stop deletion (integration)', () => {
       const trip_ = await as(owner).get(`/v1/trips/${trip.id}`).expect(200);
       expect(trip_.body.days[0].markers[0].coverPhotoId).toBe(popular);
 
+      // A Commons image with more likes than my photo still comes after it:
+      // people's photos always go first.
+      await as(fan).put(`/v1/likes/place_image/${commons.id}`).expect(200);
       const grid = (
         await as(owner).get(`/v1/markers/${stop.id}/photos`).expect(200)
       ).body as PhotoBody[];
-      // Most liked first; on a tie the stop's own photo goes before Commons.
+      // People's photos most liked first, then Commons.
       expect(grid.map((p) => p.id)).toEqual([popular, mine, commons.id]);
       expect(grid[0]).toMatchObject({
         markerId: theirStop.id,
