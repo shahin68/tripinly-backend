@@ -269,10 +269,12 @@ export class PhotosService {
 
   /**
    * A stop's photo grid. First the members' uploads still processing or
-   * failed, newest first. Then one ranking by likes of the stop's photos, the
-   * place's popular photos (see `placeItems`) and its Commons images; on a
-   * tie the stop's own photos go first, then the newest. A private trip's
-   * photos stay in it: other trips only get public trips' photos.
+   * failed, newest first. Then the stop's photos and the place's popular
+   * photos (see `placeItems`) ranked by likes, on a tie the stop's own photos
+   * first, then the newest; then the place's Commons images, ranked the same
+   * way: people's photos always come first, as in a place's gallery (Shahin,
+   * 2026-11-14). A private trip's photos stay in it: other trips only get
+   * public trips' photos.
    */
   async gallery(userId: string, markerId: string): Promise<PhotoDto[]> {
     const { role } = await this.access.assertForMarker(
@@ -318,6 +320,8 @@ export class PhotosService {
     const ranked = [...stop, ...others, ...commons]
       .sort(
         (a, b) =>
+          Number(a.dto.source === 'commons') -
+            Number(b.dto.source === 'commons') ||
           b.dto.likeCount - a.dto.likeCount ||
           Number(b.ofStop) - Number(a.ofStop) ||
           b.dto.createdAt.localeCompare(a.dto.createdAt) ||
