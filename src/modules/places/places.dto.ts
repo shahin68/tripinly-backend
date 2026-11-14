@@ -504,6 +504,14 @@ export class PlaceImageDto {
       'For Commons images: show "© author · licence · Wikimedia Commons" under the image (with the title first when set, and "· cropped" where the app crops it). Null for trip photos',
   })
   credit: ImageCreditDto | null;
+
+  @ApiProperty({
+    type: UserSummaryDto,
+    nullable: true,
+    description:
+      'Who uploaded a trip photo, credited as "Photo by @username" under it; null for Commons images and for someone with a block either way',
+  })
+  uploader: UserSummaryDto | null;
 }
 
 export class PlaceTagsDto {

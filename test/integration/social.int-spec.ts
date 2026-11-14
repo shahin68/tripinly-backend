@@ -865,7 +865,12 @@ describe('Social (integration)', () => {
         coverPhotoId: string | null;
         coverThumbUrl: string | null;
         photoThumbUrls: string[];
-        images: { id: string; source: string; credit: unknown }[];
+        images: {
+          id: string;
+          source: string;
+          credit: unknown;
+          uploader: { id: string } | null;
+        }[];
       };
 
     const likePhoto = (session: Session, photoId: string) =>
@@ -992,6 +997,7 @@ describe('Social (integration)', () => {
             sourceUrl:
               'https://commons.wikimedia.org/wiki/File:Albertina_Wien.jpg',
           },
+          uploader: null,
         },
       ]);
 
@@ -1009,6 +1015,9 @@ describe('Social (integration)', () => {
         [commons.id, 'commons'],
       ]);
       expect(after.images[0].credit).toBeNull();
+      // The trip photo credits its uploader; a Commons image has none.
+      expect(after.images[0].uploader).toMatchObject({ id: owner.userId });
+      expect(after.images[1].uploader).toBeNull();
     });
 
     it("picks the most liked photo, the place's own photos too, the newer on a tie", async () => {
@@ -1027,6 +1036,13 @@ describe('Social (integration)', () => {
         [newer, 'trip'],
         [tripPhoto, 'trip'],
       ]);
+      expect(place.images[0].uploader).toMatchObject({ id: stranger.userId });
+      // A place photo stays after a block, without its uploader.
+      await as(owner).post(`/v1/users/${stranger.userId}/block`).expect(204);
+      const blocked = await detail(owner);
+      expect(
+        blocked.images.find((image) => image.id === best)?.uploader,
+      ).toBeNull();
     });
 
     it('leaves out photos of suspended people', async () => {

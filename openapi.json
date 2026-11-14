@@ -6384,6 +6384,16 @@
                 "$ref": "#/components/schemas/ImageCreditDto"
               }
             ]
+          },
+          "uploader": {
+            "nullable": true,
+            "description": "Who uploaded a trip photo, credited as \"Photo by @username\" under it; null for Commons images and for someone with a block either way",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserSummaryDto"
+              }
+            ]
           }
         },
         "required": [
@@ -6393,7 +6403,8 @@
           "displayUrl",
           "width",
           "height",
-          "credit"
+          "credit",
+          "uploader"
         ]
       },
       "PlaceDetailDto": {

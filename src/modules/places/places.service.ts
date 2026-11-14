@@ -484,12 +484,31 @@ export class PlacesService {
     placeId: string,
   ): Promise<PlaceImageDto[]> {
     const rows = await this.prisma.$queryRaw<
-      { id: string; width: number | null; height: number | null }[]
+      {
+        id: string;
+        width: number | null;
+        height: number | null;
+        uploaderId: string;
+      }[]
     >`
-      SELECT q.id, p.width, p.height FROM (${this.covers.representativePhotos(userId, [placeId])}) q
+      SELECT q.id, p.width, p.height, p."uploaderId" FROM (${this.covers.representativePhotos(userId, [placeId])}) q
       JOIN photos p ON p.id = q.id
       ORDER BY ${BEST_PHOTO_FIRST}
       LIMIT ${PLACE_PHOTO_LIMIT}`;
+    // Uploaders are credited, except someone with a block either way.
+    const uploaderIds = [...new Set(rows.map((row) => row.uploaderId))];
+    const [uploaders, blocked] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: uploaderIds } },
+        select: USER_SUMMARY_SELECT,
+      }),
+      BlocksService.blockedAmong(this.prisma, userId, uploaderIds),
+    ]);
+    const uploaderById = new Map(uploaders.map((user) => [user.id, user]));
+    const credited = (id: string) => {
+      const user = blocked.has(id) ? undefined : uploaderById.get(id);
+      return user ? toUserSummary(user, this.storage) : null;
+    };
     return rows.map((row) => ({
       id: row.id,
       source: 'trip',
@@ -498,6 +517,7 @@ export class PlacesService {
       width: row.width,
       height: row.height,
       credit: null,
+      uploader: credited(row.uploaderId),
     }));
   }
 
@@ -517,6 +537,7 @@ export class PlacesService {
         width: row.width,
         height: row.height,
         credit: placeImageCredit(row),
+        uploader: null,
       };
     });
   }
