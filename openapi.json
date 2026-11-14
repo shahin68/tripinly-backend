@@ -1760,7 +1760,7 @@
             "name": "categories",
             "required": false,
             "in": "query",
-            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other",
+            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other, bakery, fast_food, viewpoint, beach, entertainment, shopping, stay, transport",
             "schema": {
               "example": "cafe,attraction",
               "type": "string"
@@ -1822,7 +1822,7 @@
             "name": "categories",
             "required": false,
             "in": "query",
-            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other",
+            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other, bakery, fast_food, viewpoint, beach, entertainment, shopping, stay, transport",
             "schema": {
               "example": "cafe,attraction",
               "type": "string"
@@ -3592,7 +3592,7 @@
             "name": "categories",
             "required": false,
             "in": "query",
-            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other. All when omitted",
+            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other, bakery, fast_food, viewpoint, beach, entertainment, shopping, stay, transport. All when omitted",
             "schema": {
               "example": "cafe,attraction",
               "type": "string"
@@ -3704,7 +3704,7 @@
             "name": "categories",
             "required": false,
             "in": "query",
-            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other. All when omitted",
+            "description": "Places along the way, comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other, bakery, fast_food, viewpoint, beach, entertainment, shopping, stay, transport. All when omitted",
             "schema": {
               "example": "cafe,attraction",
               "type": "string"
@@ -5868,7 +5868,15 @@
               "park",
               "nature",
               "landmark",
-              "other"
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport"
             ]
           },
           "location": {
@@ -6062,7 +6070,15 @@
               "park",
               "nature",
               "landmark",
-              "other"
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport"
             ],
             "nullable": true,
             "description": "null for photon"
@@ -6160,7 +6176,15 @@
               "park",
               "nature",
               "landmark",
-              "other"
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport"
             ]
           },
           "location": {
@@ -6430,7 +6454,15 @@
               "park",
               "nature",
               "landmark",
-              "other"
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport"
             ]
           },
           "location": {
@@ -6616,7 +6648,15 @@
               "park",
               "nature",
               "landmark",
-              "other"
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport"
             ],
             "description": "Category for a new place; defaults to other"
           },

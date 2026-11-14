@@ -336,6 +336,7 @@ model TripInvite {
 
 // ─── Places and markers ──────────────────────────────────────────────────────
 
+/// One category per place (10-maps-places-routing.md). `other` is shown as "Spot": everything that fits nowhere else.
 enum PlaceCategory {
   cafe
   restaurant
@@ -347,6 +348,14 @@ enum PlaceCategory {
   nature
   landmark
   other
+  bakery
+  fast_food
+  viewpoint
+  beach
+  entertainment
+  shopping
+  stay
+  transport
 }
 
 enum PlaceSource {

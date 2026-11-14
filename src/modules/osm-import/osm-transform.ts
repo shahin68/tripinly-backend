@@ -8,11 +8,14 @@ import { representativePoint, type Geometry } from './geometry';
  * and docs/knowledge/10-maps-places-routing.md.
  */
 export const OSMIUM_TAG_FILTERS = [
-  'nwr/amenity=cafe,restaurant,fast_food,food_court,bar,pub,biergarten,ice_cream,place_of_worship',
-  'nwr/tourism=attraction,artwork,viewpoint,zoo,theme_park,aquarium,museum,gallery',
+  'nwr/amenity=cafe,ice_cream,restaurant,food_court,fast_food,bar,pub,biergarten,nightclub,theatre,cinema,arts_centre,marketplace,ferry_terminal,bus_station,place_of_worship',
+  'nwr/shop=coffee,bakery,pastry,confectionery,mall,department_store',
+  'nwr/tourism=viewpoint,attraction,zoo,theme_park,aquarium,museum,gallery,artwork,hotel,hostel,guest_house,camp_site',
   'nwr/historic',
   'nwr/leisure=park,garden,nature_reserve',
-  'nwr/natural=peak,beach,waterfall',
+  'nwr/natural=beach,peak,waterfall',
+  'nwr/railway=station',
+  'nwr/aeroway=aerodrome',
 ];
 
 type Tags = Record<string, string>;
@@ -28,35 +31,64 @@ interface CategoryRule {
 /** First match wins, in the order of the mapping table in 10-maps-places-routing.md. */
 export const CATEGORY_RULES: readonly CategoryRule[] = [
   { key: 'amenity', values: ['cafe', 'ice_cream'], category: 'cafe' },
+  { key: 'shop', values: ['coffee'], category: 'cafe' },
+  {
+    key: 'shop',
+    values: ['bakery', 'pastry', 'confectionery'],
+    category: 'bakery',
+  },
   {
     key: 'amenity',
-    values: ['restaurant', 'fast_food', 'food_court'],
+    values: ['restaurant', 'food_court'],
     category: 'restaurant',
   },
-  { key: 'amenity', values: ['bar', 'pub', 'biergarten'], category: 'bar' },
+  { key: 'amenity', values: ['fast_food'], category: 'fast_food' },
+  {
+    key: 'amenity',
+    values: ['bar', 'pub', 'biergarten', 'nightclub'],
+    category: 'bar',
+  },
+  { key: 'tourism', values: ['viewpoint'], category: 'viewpoint' },
   {
     key: 'tourism',
-    values: [
-      'attraction',
-      'artwork',
-      'viewpoint',
-      'zoo',
-      'theme_park',
-      'aquarium',
-    ],
+    values: ['attraction', 'zoo', 'theme_park', 'aquarium'],
     category: 'attraction',
   },
   { key: 'tourism', values: ['museum', 'gallery'], category: 'museum' },
   { key: 'historic', values: null, category: 'historic' },
+  { key: 'leisure', values: ['park', 'garden'], category: 'park' },
+  { key: 'natural', values: ['beach'], category: 'beach' },
+  { key: 'natural', values: ['peak', 'waterfall'], category: 'nature' },
+  { key: 'leisure', values: ['nature_reserve'], category: 'nature' },
   {
-    key: 'leisure',
-    values: ['park', 'garden', 'nature_reserve'],
-    category: 'park',
+    key: 'amenity',
+    values: ['theatre', 'cinema', 'arts_centre'],
+    category: 'entertainment',
+  },
+  { key: 'tourism', values: ['artwork'], category: 'entertainment' },
+  {
+    key: 'shop',
+    values: ['mall', 'department_store'],
+    category: 'shopping',
+  },
+  { key: 'amenity', values: ['marketplace'], category: 'shopping' },
+  {
+    key: 'tourism',
+    values: ['hotel', 'hostel', 'guest_house', 'camp_site'],
+    category: 'stay',
+  },
+  { key: 'railway', values: ['station'], category: 'transport' },
+  {
+    key: 'aeroway',
+    values: ['aerodrome'],
+    category: 'transport',
+    // Airports people fly from, not every airfield.
+    when: (tags) => Boolean(tags.iata),
   },
   {
-    key: 'natural',
-    values: ['peak', 'beach', 'waterfall'],
-    category: 'nature',
+    key: 'amenity',
+    values: ['ferry_terminal', 'bus_station'],
+    category: 'transport',
   },
   {
     key: 'amenity',

@@ -17,7 +17,7 @@ Category mapping and legal rules are in `docs/knowledge/10-maps-places-routing.m
 
 1. **Download** the `.pbf` to a temp volume.
 2. **Filter** with osmium-tool to the tags we import, e.g.
-   `osmium tags-filter in.pbf nwr/amenity=cafe,restaurant,fast_food,food_court,bar,pub,biergarten,ice_cream,place_of_worship nwr/tourism=attraction,artwork,viewpoint,zoo,theme_park,aquarium,museum,gallery nwr/historic nwr/leisure=park,garden,nature_reserve nwr/natural=peak,beach,waterfall -o poi.pbf`
+   `osmium tags-filter in.pbf <OSMIUM_TAG_FILTERS from src/modules/osm-import/osm-transform.ts> -o poi.pbf` (amenity, shop, tourism, historic, leisure, natural, railway=station, aeroway=aerodrome)
 3. **Export** to GeoJSON sequence: `osmium export poi.pbf -f geojsonseq --add-unique-id=type_id` (areas become polygons).
 4. **Transform** in a streaming Node script: keep only features with `name`; compute a point (node → itself; area → `ST_PointOnSurface` later or centroid in script); map tags → `category` (first match wins in the priority order of the mapping table); collect `name:*` into `names`; keep a small `tags` subset (website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image); compute the tag part of prominence, the Wikidata Q-ids and the image tags hash; drop `place_of_worship` unless it has `tourism`, `historic` or `wikidata`.
 5. **Load** with `COPY` into `places_import_staging` (unlogged table).

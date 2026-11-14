@@ -45,6 +45,14 @@ export const PLACE_CATEGORIES = [
   'nature',
   'landmark',
   'other',
+  'bakery',
+  'fast_food',
+  'viewpoint',
+  'beach',
+  'entertainment',
+  'shopping',
+  'stay',
+  'transport',
 ] as const;
 
 export class LocationDto {

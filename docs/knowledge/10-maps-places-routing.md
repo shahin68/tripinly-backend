@@ -27,12 +27,18 @@ This file records the map architecture decided with the product owner. It overri
 
 Two sources in one table (`places.source`):
 
-- `osm` — imported POIs. Categories we import (OSM tag → our `category`):
-  - `amenity=cafe` → `cafe`; `amenity=restaurant|fast_food|food_court` → `restaurant`; `amenity=bar|pub|biergarten` → `bar`; `amenity=ice_cream` → `cafe`
-  - `tourism=attraction|artwork|viewpoint|zoo|theme_park|aquarium` → `attraction`; `tourism=museum|gallery` → `museum`
+- `osm` — imported POIs. Categories we import (OSM tag → our `category`; first match wins, in this order; 18 categories since 2026-11-14):
+  - `amenity=cafe|ice_cream`, `shop=coffee` → `cafe`; `shop=bakery|pastry|confectionery` → `bakery`; `amenity=restaurant|food_court` → `restaurant`; `amenity=fast_food` → `fast_food`; `amenity=bar|pub|biergarten|nightclub` → `bar`
+  - `tourism=viewpoint` → `viewpoint`; `tourism=attraction|zoo|theme_park|aquarium` → `attraction`; `tourism=museum|gallery` → `museum`
   - `historic=*` (castle, monument, memorial, ruins, archaeological_site…) → `historic`
-  - `leisure=park|garden|nature_reserve` → `park`; `natural=peak|beach|waterfall` → `nature`
+  - `leisure=park|garden` → `park`; `natural=beach` → `beach`; `natural=peak|waterfall`, `leisure=nature_reserve` → `nature`
+  - `amenity=theatre|cinema|arts_centre`, `tourism=artwork` → `entertainment` (app label "Culture & fun")
+  - `shop=mall|department_store`, `amenity=marketplace` → `shopping`
+  - `tourism=hotel|hostel|guest_house|camp_site` → `stay`
+  - `railway=station`, `aeroway=aerodrome` with an `iata` code, `amenity=ferry_terminal|bus_station` → `transport`
   - `amenity=place_of_worship` with `tourism`/`historic` or `wikidata` → `landmark`
+  - `other` is the catch-all, shown in the apps as **Spot**: never imported, it is what people pick (or keep, as the default) for a spot that fits nowhere else. The wire value stays `other`.
+  - Google's Places type names for each category are kept in the client canvas only as a naming reference so later filters mean what people know from Maps; no Google data is used.
   - Only named features (`name` present). Nodes, ways and relations (use the centroid / point-on-surface for areas).
 - `user` — created when a user adds a marker that isn't an existing place (custom pin, address or city from Photon). Custom places are matched later by name + proximity (see `geo-discovery` skill).
 - **A tap on the map** (`POST /days/{id}/markers` with `location` only) is named on the server: one of our public places (OSM, or liked on a public trip) within 25 m is linked; else Photon `/reverse` (100 m) gives the address and its OSM ids; else the stop is named by its coordinates. One request from the app, no Google data, the point isn't logged.
