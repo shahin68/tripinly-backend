@@ -3571,21 +3571,34 @@
     },
     "/v1/routes": {
       "get": {
-        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).",
+        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up). mode=transit: public transport leaving at departAt (default now) or arriving by arriveBy, with steps per leg; 422 TRANSIT_NO_COVERAGE outside app-config `transitAreas`, 422 TRANSIT_NO_CONNECTION when nothing runs and it is too far to walk, 503 ROUTING_UNAVAILABLE when the transit service fails or its daily quota is used up.",
         "operationId": "Routing_route",
         "parameters": [
           {
             "name": "mode",
             "required": false,
             "in": "query",
+            "description": "transit: public transport (tram, U-Bahn, train, bus) where app-config `transitAreas` covers both ends; 422 TRANSIT_NO_COVERAGE elsewhere",
             "schema": {
               "default": "walking",
               "type": "string",
               "enum": [
                 "walking",
                 "cycling",
-                "driving"
+                "driving",
+                "transit"
               ]
+            }
+          },
+          {
+            "name": "departAt",
+            "required": false,
+            "in": "query",
+            "description": "transit only: leave at this time (default now). The app sends the open trip day at the current clock time",
+            "schema": {
+              "format": "date-time",
+              "example": "2026-11-17T09:42:00Z",
+              "type": "string"
             }
           },
           {
@@ -3647,6 +3660,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "arriveBy",
+            "required": false,
+            "in": "query",
+            "description": "transit only: arrive by this time instead (not with departAt)",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3674,7 +3697,7 @@
     },
     "/v1/days/{id}/route": {
       "get": {
-        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers.",
+        "description": "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers. mode=transit: the first leg leaves at departAt (default now), each next leg when the one before arrives; a leg with no connection is a straight walk estimate with degraded=true; 422 TRANSIT_NO_COVERAGE when a stop is outside app-config `transitAreas`.",
         "operationId": "Routing_dayRoute",
         "parameters": [
           {
@@ -3690,14 +3713,27 @@
             "name": "mode",
             "required": false,
             "in": "query",
+            "description": "transit: public transport (tram, U-Bahn, train, bus) where app-config `transitAreas` covers both ends; 422 TRANSIT_NO_COVERAGE elsewhere",
             "schema": {
               "default": "walking",
               "type": "string",
               "enum": [
                 "walking",
                 "cycling",
-                "driving"
+                "driving",
+                "transit"
               ]
+            }
+          },
+          {
+            "name": "departAt",
+            "required": false,
+            "in": "query",
+            "description": "transit only: leave at this time (default now). The app sends the open trip day at the current clock time",
+            "schema": {
+              "format": "date-time",
+              "example": "2026-11-17T09:42:00Z",
+              "type": "string"
             }
           },
           {
@@ -4478,6 +4514,8 @@
               "REAUTH_REQUIRED",
               "REAUTH_FAILED",
               "ROUTING_UNAVAILABLE",
+              "TRANSIT_NO_COVERAGE",
+              "TRANSIT_NO_CONNECTION",
               "BBOX_TOO_LARGE",
               "IDEMPOTENCY_KEY_REUSED",
               "IDEMPOTENCY_KEY_IN_PROGRESS",
@@ -4512,6 +4550,43 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "TransitAreaDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "vienna"
+          },
+          "name": {
+            "type": "string",
+            "example": "Vienna"
+          },
+          "south": {
+            "type": "number",
+            "example": 48.11
+          },
+          "west": {
+            "type": "number",
+            "example": 16.18
+          },
+          "north": {
+            "type": "number",
+            "example": 48.33
+          },
+          "east": {
+            "type": "number",
+            "example": 16.58
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "south",
+          "west",
+          "north",
+          "east"
         ]
       },
       "AppConfigDto": {
@@ -4571,6 +4646,13 @@
             "type": "number",
             "example": 14,
             "description": "Below this camera zoom (0–22), the app draws place pins as small dots, growing back to pins when zoomed in; the tapped place stays a pin."
+          },
+          "transitAreas": {
+            "description": "Where public transport routes (mode=transit) work. The tram button is dimmed where a route would start or end outside every area, and everywhere when this is empty (switched off). Grows as cities are added on the server, without an app update.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransitAreaDto"
+            }
           }
         },
         "required": [
@@ -4584,7 +4666,8 @@
           "photoPinMinProminence",
           "photoPinMinHotCount",
           "mapMaxPhotoPins",
-          "pinDotBelowZoom"
+          "pinDotBelowZoom",
+          "transitAreas"
         ]
       },
       "RevenueCatWebhookDto": {
@@ -7320,6 +7403,130 @@
           "hotCount"
         ]
       },
+      "TransitLineDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "U2"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#A862A4",
+            "description": "The line's own colour, #RRGGBB; null when the feed has none"
+          },
+          "textColor": {
+            "type": "string",
+            "nullable": true,
+            "example": "#FFFFFF"
+          }
+        },
+        "required": [
+          "name",
+          "color",
+          "textColor"
+        ]
+      },
+      "TransitPlaceDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "example": "Museumsquartier",
+            "description": "The stop's name; null at the route's own start and end"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "lat",
+          "lng",
+          "time"
+        ]
+      },
+      "TransitStepDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "ride"
+            ]
+          },
+          "vehicle": {
+            "type": "string",
+            "enum": [
+              "tram",
+              "subway",
+              "bus",
+              "train",
+              "ferry",
+              "cable_car",
+              "other"
+            ],
+            "nullable": true
+          },
+          "line": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransitLineDto"
+              }
+            ]
+          },
+          "headsign": {
+            "type": "string",
+            "nullable": true,
+            "example": "Karlsplatz",
+            "description": "Where the ride is heading"
+          },
+          "from": {
+            "$ref": "#/components/schemas/TransitPlaceDto"
+          },
+          "to": {
+            "$ref": "#/components/schemas/TransitPlaceDto"
+          },
+          "stops": {
+            "type": "number",
+            "description": "Stops passed between getting on and off"
+          },
+          "distanceMeters": {
+            "type": "number"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "polyline": {
+            "type": "string",
+            "description": "Encoded polyline, precision 5"
+          }
+        },
+        "required": [
+          "kind",
+          "vehicle",
+          "line",
+          "headsign",
+          "from",
+          "to",
+          "stops",
+          "distanceMeters",
+          "durationSeconds",
+          "polyline"
+        ]
+      },
       "RouteLegDto": {
         "type": "object",
         "properties": {
@@ -7339,6 +7546,27 @@
           },
           "durationSeconds": {
             "type": "number"
+          },
+          "departure": {
+            "type": "string",
+            "format": "date-time",
+            "description": "transit only: when this leg sets off"
+          },
+          "arrival": {
+            "type": "string",
+            "format": "date-time",
+            "description": "transit only"
+          },
+          "transfers": {
+            "type": "number",
+            "description": "transit only: changes on this leg"
+          },
+          "steps": {
+            "description": "transit only: walks and rides in order. A leg without a connection is one straight walk step, with degraded=true",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransitStepDto"
+            }
           }
         },
         "required": [
@@ -7366,6 +7594,24 @@
             "items": {
               "$ref": "#/components/schemas/RouteLegDto"
             }
+          },
+          "departure": {
+            "type": "string",
+            "format": "date-time",
+            "description": "transit only: when the route sets off"
+          },
+          "arrival": {
+            "type": "string",
+            "format": "date-time",
+            "description": "transit only"
+          },
+          "transfers": {
+            "type": "number",
+            "description": "transit only: changes in all"
+          },
+          "typicalTimes": {
+            "type": "boolean",
+            "description": "transit only: the date is beyond (or before) the published timetable, so the times are the same weekday's in the current one"
           }
         },
         "required": [

@@ -1,0 +1,48 @@
+{
+  "direct": [
+    {
+      "duration": 818,
+      "startTime": "2026-11-17T09:42:00Z",
+      "endTime": "2026-11-17T09:55:00Z",
+      "transfers": 0,
+      "id": "",
+      "legs": [
+        {
+          "mode": "WALK",
+          "from": {
+            "name": "START",
+            "lat": 48.2027,
+            "lon": 16.3594,
+            "level": 0.0,
+            "departure": "2026-11-17T09:42:00Z",
+            "scheduledDeparture": "2026-11-17T09:42:00Z",
+            "vertexType": "NORMAL"
+          },
+          "to": {
+            "name": "END",
+            "lat": 48.2038,
+            "lon": 16.3697,
+            "level": 0.0,
+            "arrival": "2026-11-17T09:55:00Z",
+            "scheduledArrival": "2026-11-17T09:55:00Z",
+            "vertexType": "NORMAL"
+          },
+          "duration": 818,
+          "startTime": "2026-11-17T09:42:00Z",
+          "endTime": "2026-11-17T09:55:00Z",
+          "scheduledStartTime": "2026-11-17T09:42:00Z",
+          "scheduledEndTime": "2026-11-17T09:55:00Z",
+          "realTime": false,
+          "scheduled": false,
+          "distance": 977.0,
+          "legGeometry": {
+            "points": "c~`}zAkboe^zBgC??xBgDb@kC??cAqCu@r@??]aA??iDsI??u@yB??wAbB??aMa\\??s@{A??tUo\\hAcB??]k@??zEgH??gAkB??yC_G??{@_B??e@y@??nA{B??u@yAuBcEwCuB??kKeT??oAiC??gJ_R??}_@qv@??gB{A??e@aC??Ou@??e@aA??g@_A??h@u@??dA{A??j@_A??v@mA??_@u@GQCSAU@WDUJY??dA}A??Q[??iAuB??}AwC??Q[??d@}@??MS??KS??|BeD??fAuC??lBuC??dCsD??cAyA??sAoB??`B{L??bCiQ??~AqL??`BsL??bBaM??`BsL??z@iG??Fa@??Jy@??kCeA??kAk@??{@{AkG_R??aW}p@??_Pib@??oCiH??j@}@??zBqD|D{F??fM}QZgB??n@kI??bAoI??|C}\\??bDwU",
+            "precision": 6,
+            "length": 150
+          }
+        }
+      ]
+    }
+  ],
+  "itineraries": []
+}

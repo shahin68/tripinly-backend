@@ -102,7 +102,7 @@ The old `/places/popular` endpoint becomes a thin variant of this (Tripinly plac
 
 ## Routing — openrouteservice
 
-Host: `https://api.heigit.org/openrouteservice` (`ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. Transit isn't available in ORS (open question if ever needed).
+Host: `https://api.heigit.org/openrouteservice` (`ORS_BASE_URL`; api.openrouteservice.org was shut down on 2026-08-24, and the same keys work on the new host). Profiles: `foot-walking` (default), `driving-car`, `cycling-regular`. ORS has no public transport: `mode=transit` goes to our MOTIS service instead (see "Public transport" below).
 
 ### `GET /routes?from=lat,lng&to=lat,lng&mode=walking&categories=…`
 
@@ -145,6 +145,35 @@ Returns:
 **Resilience:** ORS timeouts (5 s), 429s and 5xx (retried once) → `ROUTING_UNAVAILABLE` (503) for route requests; the optimize endpoint falls back to straight-line with `mode: "straight_line"` and `degraded: true`.
 
 **Quota:** ORS calls are counted per UTC day in Redis (`ORS_DIRECTIONS_DAILY_QUOTA`, default 2000; `ORS_MATRIX_DAILY_QUOTA`, default 500, the free plan). A warning is logged at 80%; past 100% (or with no `ORS_API_KEY`) route requests return straight segments between the points with `degraded: true` and times from typical speeds (5, 15, 40 km/h), and optimize falls back to straight line. Report quota exhaustion to the product owner.
+
+## Public transport — our MOTIS service (2026-11-15)
+
+`mode=transit` on `GET /routes` and `GET /days/{id}/route` routes by tram, U-Bahn, train and bus. Decided with Shahin on 2026-11-15 (decision log #122, canvas https://claude.ai/artifact/N8XVYsaTJ7U4ZdcrnNYgXL).
+
+**Engine:** [MOTIS](https://github.com/motis-project/motis) 2.11.4, self-hosted (not Google: its terms forbid storing or mixing results, so along the way and Pro gating would break, and it costs per request; not public MOTIS instances: no uptime promise). Measured for Vienna: build 18 s, 1.5 GB RAM while building, a 263 MB package (65 MB compressed), ~270 MB RAM serving, answers in 20–45 ms (`/mnt/project-files/reviews/2026-11-15-transit-spike.md`).
+
+**Two Railway services** from `docker/transit.Dockerfile`, no volume, no GitHub Actions (setup: `docs/deploy/transit.md`):
+
+- **transit** (private network only): downloads the newest package from R2 (`transit/current.json` → `transit/packages/<time>.tar.gz`), starts MOTIS on it and answers on `$PORT` (8080). Health `/api/v1/health` is 503 until MOTIS is ready, so a redeploy switches over without downtime. It never builds.
+- **transit-builder** (Railway cron, daily, any hour): downloads each city's GTFS feeds (conditional GET, then sha256). Builds only when a feed changed, the cities changed, or the streets are 30 days old; then cuts each city's streets from its Geofabrik extract (`osmium extract --strategy complete_ways`: a clipped extract has ways pointing outside it, which MOTIS refuses), runs `motis import` (street routing and footpaths on, map tiles and geocoding off), uploads the package, keeps the previous one for a rollback, and redeploys **transit** through Railway's API (`RAILWAY_API_TOKEN`). Rebuilds never touch the live service, so a city with a midday "night" elsewhere in the world doesn't matter.
+
+**Cities:** one recipe per city in `src/modules/routing/transit/transit-regions.ts` (id, name, covered box, time zone, feeds with licence and credit, Geofabrik extract). Vienna first: Wiener Linien GTFS (Wiener Linien and Wiener Lokalbahnen), CC BY 4.0, credit "Wiener Linien, Datenquelle: Stadt Wien – data.wien.gv.at" (to check once more before launch). A new city = a recipe in the repo, then its id in `TRANSIT_REGIONS` on api and transit-builder (builder first, so its package is live before the apps see the area). Transitous' feed list is the source for new cities' feeds.
+
+**Switches:** `TRANSIT_ENABLED` (api, default false) and `TRANSIT_REGIONS` (default `vienna`). `GET /app-config` sends `transitAreas[]` `{ id, name, south, west, north, east }`, empty while switched off. The app dims the tram button where either end is outside every area; a tap shows a short note in the card ("Public transport isn't available here yet"), never an error banner. The server answers 422 `TRANSIT_NO_COVERAGE` there anyway (no call to MOTIS).
+
+**Times** (Shahin, 2026-11-15): no start or stay times, never asking people when they go. `departAt` (ISO) leaves then, default now; the app sends the open trip day (when it is ahead) at the current clock time and its "Leave at HH:mm" picker changes only the time on that day. `arriveBy` (A→B only, not with `departAt`) arrives by that time instead. A day route's first leg leaves at `departAt`, each next leg when the one before arrives.
+
+**Picking a trip:** leaving at a time, the earliest arrival wins (fewer changes on a tie); arriving by a time, the latest departure. Walking the whole way wins when it arrives no later (it is one walk step). A date more than six days away (past the published timetable) uses the same weekday and local clock time this week and says `typicalTimes: true`.
+
+**Answer:** the same `RouteResponseDto`, with `route.departure`, `route.arrival`, `route.transfers`, `route.typicalTimes`, and per leg `departure`, `arrival`, `transfers`, `steps[]`. A step is `{ kind: walk|ride, vehicle (tram, subway, bus, train, ferry, cable_car, other; null on foot), line { name, color, textColor } (the feed's own colours as #RRGGBB, e.g. U2 #A862A4; null on foot), headsign, from, to ({ name (null at the route's own ends), lat, lng, time }), stops (passed between getting on and off), distanceMeters, durationSeconds, polyline }`. Polylines are precision 5 like every route (MOTIS's precision 6 is converted). The app draws rides in their line colour as plain solid lines and walks dotted, and lists the steps in their own sheet. `attribution`: "Timetables: <credits> | © OpenStreetMap contributors".
+
+**Along the way:** only near the walks (riders can't stop), walking buffer, walks of 100 m or more; positions and times along the whole route; at most `APP_ALONG_THE_WAY_MAX_PLACES`.
+
+**Pro:** like street routes (entitlement `routes`, 403 `PREMIUM_REQUIRED`).
+
+**Failures:** no connection (nothing runs and too far to walk) → A→B 422 `TRANSIT_NO_CONNECTION`; on a day route that leg is a straight walk estimate (5 km/h) and `degraded: true`. Transit service timeout (`TRANSIT_TIMEOUT_MS`), 5xx (retried once) or its daily quota (`TRANSIT_DAILY_QUOTA`, counted in Redis, warning at 80%) → 503 `ROUTING_UNAVAILABLE`.
+
+**Caching:** each MOTIS answer (mapped, not the raw 200 KB) is cached by rounded points, the minute and arrive-by for `TRANSIT_CACHE_SECONDS` (default 600). Timetables change, so not for 7 days like street routes.
 
 ## Nearby (unchanged idea, new data)
 

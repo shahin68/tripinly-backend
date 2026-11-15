@@ -37,6 +37,10 @@ export const ErrorCode = {
   /** The Google/Apple proof sent to confirm account deletion is invalid or belongs to another account (403). */
   REAUTH_FAILED: 'REAUTH_FAILED',
   ROUTING_UNAVAILABLE: 'ROUTING_UNAVAILABLE',
+  /** Public transport routes aren't available between these points (switched off, or outside TRANSIT_REGIONS) (422). */
+  TRANSIT_NO_COVERAGE: 'TRANSIT_NO_COVERAGE',
+  /** No public transport connection and too far to walk at that time (422). */
+  TRANSIT_NO_CONNECTION: 'TRANSIT_NO_CONNECTION',
   BBOX_TOO_LARGE: 'BBOX_TOO_LARGE',
   /** The Idempotency-Key was already used for a different request (422). */
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',

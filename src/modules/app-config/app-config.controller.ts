@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/auth/auth.decorators';
 import type { Env } from '../../common/config/env';
+import { TRANSIT_REGIONS } from '../routing/transit/transit-regions';
 import { AppConfigDto } from './app-config.dto';
 
 @ApiTags('app-config')
@@ -49,6 +50,13 @@ export class AppConfigController {
       pinDotBelowZoom: this.config.get('APP_PIN_DOT_BELOW_ZOOM', {
         infer: true,
       }),
+      transitAreas: this.config.get('TRANSIT_ENABLED', { infer: true })
+        ? this.config.get('TRANSIT_REGIONS', { infer: true }).map((id) => ({
+            id,
+            name: TRANSIT_REGIONS[id].name,
+            ...TRANSIT_REGIONS[id].bbox,
+          }))
+        : [],
     };
   }
 }

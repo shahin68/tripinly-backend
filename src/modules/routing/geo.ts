@@ -41,7 +41,9 @@ function encodeSigned(value: number): string {
   return out + String.fromCharCode(v + 63);
 }
 
-export function decodePolyline(encoded: string): LatLng[] {
+/** Decodes an encoded polyline; MOTIS (public transport) uses precision 6. */
+export function decodePolyline(encoded: string, precision = 5): LatLng[] {
+  const factor = 10 ** precision;
   const points: LatLng[] = [];
   let index = 0;
   let lat = 0;
@@ -60,7 +62,7 @@ export function decodePolyline(encoded: string): LatLng[] {
   while (index < encoded.length) {
     lat += next();
     lng += next();
-    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    points.push({ lat: lat / factor, lng: lng / factor });
   }
   return points;
 }
