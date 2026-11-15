@@ -8,11 +8,15 @@ import { representativePoint, type Geometry } from './geometry';
  * and docs/knowledge/10-maps-places-routing.md.
  */
 export const OSMIUM_TAG_FILTERS = [
-  'nwr/amenity=cafe,restaurant,fast_food,food_court,bar,pub,biergarten,ice_cream,place_of_worship',
-  'nwr/tourism=attraction,artwork,viewpoint,zoo,theme_park,aquarium,museum,gallery',
+  'nwr/amenity=cafe,ice_cream,restaurant,food_court,fast_food,bar,pub,biergarten,nightclub,theatre,cinema,arts_centre,marketplace,ferry_terminal,bus_station,place_of_worship,doctors,clinic,dentist,hospital,pharmacy,public_bath,library',
+  'nwr/shop=coffee,bakery,pastry,confectionery,mall,department_store,supermarket,convenience,greengrocer',
+  'nwr/tourism=viewpoint,attraction,zoo,theme_park,aquarium,museum,gallery,artwork,hotel,hostel,guest_house,camp_site,caravan_site',
   'nwr/historic',
-  'nwr/leisure=park,garden,nature_reserve',
-  'nwr/natural=peak,beach,waterfall',
+  'nwr/leisure=park,garden,nature_reserve,sports_centre,stadium,fitness_centre,swimming_pool,golf_course,sauna,playground,water_park',
+  'nwr/natural=beach,peak,waterfall',
+  'nwr/railway=station',
+  'nwr/aeroway=aerodrome',
+  'nwr/craft=winery',
 ];
 
 type Tags = Record<string, string>;
@@ -28,35 +32,102 @@ interface CategoryRule {
 /** First match wins, in the order of the mapping table in 10-maps-places-routing.md. */
 export const CATEGORY_RULES: readonly CategoryRule[] = [
   { key: 'amenity', values: ['cafe', 'ice_cream'], category: 'cafe' },
+  { key: 'shop', values: ['coffee'], category: 'cafe' },
+  {
+    key: 'shop',
+    values: ['bakery', 'pastry', 'confectionery'],
+    category: 'bakery',
+  },
   {
     key: 'amenity',
-    values: ['restaurant', 'fast_food', 'food_court'],
+    values: ['restaurant', 'food_court'],
     category: 'restaurant',
   },
+  { key: 'amenity', values: ['fast_food'], category: 'fast_food' },
+  { key: 'amenity', values: ['nightclub'], category: 'nightlife' },
   { key: 'amenity', values: ['bar', 'pub', 'biergarten'], category: 'bar' },
+  { key: 'craft', values: ['winery'], category: 'winery' },
+  { key: 'tourism', values: ['viewpoint'], category: 'viewpoint' },
+  { key: 'tourism', values: ['zoo', 'aquarium'], category: 'zoo' },
   {
     key: 'tourism',
-    values: [
-      'attraction',
-      'artwork',
-      'viewpoint',
-      'zoo',
-      'theme_park',
-      'aquarium',
-    ],
+    values: ['attraction', 'theme_park'],
     category: 'attraction',
   },
   { key: 'tourism', values: ['museum', 'gallery'], category: 'museum' },
   { key: 'historic', values: null, category: 'historic' },
+  { key: 'leisure', values: ['park', 'garden'], category: 'park' },
+  { key: 'natural', values: ['beach'], category: 'beach' },
+  { key: 'natural', values: ['peak', 'waterfall'], category: 'nature' },
+  { key: 'leisure', values: ['nature_reserve'], category: 'nature' },
+  { key: 'amenity', values: ['cinema'], category: 'cinema' },
   {
-    key: 'leisure',
-    values: ['park', 'garden', 'nature_reserve'],
-    category: 'park',
+    key: 'amenity',
+    values: ['theatre', 'arts_centre'],
+    category: 'entertainment',
+  },
+  { key: 'tourism', values: ['artwork'], category: 'entertainment' },
+  {
+    key: 'shop',
+    values: ['mall', 'department_store'],
+    category: 'shopping',
+  },
+  { key: 'amenity', values: ['marketplace'], category: 'market' },
+  {
+    key: 'shop',
+    values: ['supermarket', 'convenience', 'greengrocer'],
+    category: 'groceries',
   },
   {
-    key: 'natural',
-    values: ['peak', 'beach', 'waterfall'],
-    category: 'nature',
+    key: 'tourism',
+    values: ['hotel', 'hostel', 'guest_house'],
+    category: 'stay',
+  },
+  {
+    key: 'tourism',
+    values: ['camp_site', 'caravan_site'],
+    category: 'camping',
+  },
+  {
+    key: 'amenity',
+    values: ['doctors', 'clinic', 'dentist', 'hospital'],
+    category: 'health',
+  },
+  { key: 'amenity', values: ['pharmacy'], category: 'pharmacy' },
+  {
+    key: 'leisure',
+    values: [
+      'sports_centre',
+      'stadium',
+      'fitness_centre',
+      'swimming_pool',
+      'golf_course',
+    ],
+    category: 'sports',
+    // Not the pool in someone's garden or a members-only club.
+    when: (tags) => tags.access !== 'private' && tags.access !== 'members',
+  },
+  { key: 'amenity', values: ['public_bath'], category: 'spa' },
+  { key: 'leisure', values: ['sauna'], category: 'spa' },
+  {
+    key: 'leisure',
+    values: ['playground', 'water_park'],
+    category: 'kids',
+    when: (tags) => tags.access !== 'private',
+  },
+  { key: 'amenity', values: ['library'], category: 'library' },
+  { key: 'railway', values: ['station'], category: 'transport' },
+  {
+    key: 'aeroway',
+    values: ['aerodrome'],
+    category: 'transport',
+    // Airports people fly from, not every airfield.
+    when: (tags) => Boolean(tags.iata),
+  },
+  {
+    key: 'amenity',
+    values: ['ferry_terminal', 'bus_station'],
+    category: 'transport',
   },
   {
     key: 'amenity',

@@ -48,7 +48,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 
 **places**
 
-- `name`, `normalizedName`, `searchText` (normalized name plus every `name:<lang>` variant, for search), `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `restaurant` | `bar` | `attraction` | `museum` | `historic` | `park` | `nature` | `landmark` | `other`), `lat`, `lng`, `location geography(Point)` (generated)
+- `name`, `normalizedName`, `searchText` (normalized name plus every `name:<lang>` variant, for search), `names` (json, `name:<lang>` from OSM), `category` (`cafe` | `bakery` | `restaurant` | `fast_food` | `bar` | `attraction` | `museum` | `historic` | `landmark` | `viewpoint` | `park` | `nature` | `beach` | `entertainment` | `shopping` | `stay` | `transport` | `cinema` | `nightlife` | `health` | `pharmacy` | `groceries` | `market` | `sports` | `spa` | `zoo` | `kids` | `library` | `camping` | `winery` | `parking` | `fuel` | `money` | `toilets` | `rental` | `photo_spot` | `romantic` | `other`, shown as "Spot"; mapping in `10-maps-places-routing.md`), `lat`, `lng`, `location geography(Point)` (generated)
 - `source` (`osm` | `user`), `osmType` (`node` | `way` | `relation`), `osmId` (bigint). Unique (`osmType`, `osmId`) (nulls don't collide). A `user` place created from a Photon result carries the OSM ids, so the import later recognises it (and leaves it alone).
 - `osmRegion` (Geofabrik region of the last import that saw it; used to deactivate what a region no longer has)
 - `tags` (json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image), `isActive`, `importedAt` (last time an import inserted or changed the row's OSM data; rank changes don't move it)

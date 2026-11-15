@@ -101,6 +101,8 @@ const SIGHT_CATEGORIES: PlaceCategory[] = [
   'museum',
   'historic',
   'landmark',
+  'viewpoint',
+  'zoo',
 ];
 
 export interface PlaceRow {
@@ -793,8 +795,8 @@ function mapCell(size: number): Prisma.Sql {
 /** Sights before parks before food and drink. */
 export function categoryPriority(): Prisma.Sql {
   return Prisma.sql`CASE
-    WHEN p.category IN ('attraction', 'museum', 'historic', 'landmark') THEN 0
-    WHEN p.category IN ('park', 'nature') THEN 1
+    WHEN p.category IN ('attraction', 'museum', 'historic', 'landmark', 'viewpoint', 'zoo') THEN 0
+    WHEN p.category IN ('park', 'nature', 'beach') THEN 1
     ELSE 2 END`;
 }
 

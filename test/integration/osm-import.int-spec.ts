@@ -92,8 +92,8 @@ describe('OSM import (integration)', () => {
       expect.objectContaining({
         region: REGION,
         status: 'succeeded',
-        seen: 6,
-        inserted: 6,
+        seen: 7,
+        inserted: 7,
         updated: 0,
         deactivated: 0,
       }),
@@ -101,6 +101,7 @@ describe('OSM import (integration)', () => {
     const rows = await places();
     expect(rows.map((p) => [p.name, p.category, p.osmType, p.osmId])).toEqual([
       ['Augarten', 'park', 'relation', 30n],
+      ['Bakery', 'bakery', 'node', 3n],
       ['Café Central', 'cafe', 'node', 1n],
       ['Griechenbeisl', 'restaurant', 'node', 6n],
       ['Kunsthistorisches Museum', 'museum', 'way', 10n],
@@ -134,7 +135,7 @@ describe('OSM import (integration)', () => {
     expect(run).toEqual(
       expect.objectContaining({
         status: 'succeeded',
-        seen: 6,
+        seen: 7,
         finishedAt: expect.any(Date),
       }),
     );
@@ -274,7 +275,7 @@ describe('OSM import (integration)', () => {
     const result = await imports.runRegion(REGION, { sourceFile: FIXTURE });
 
     expect(result).toEqual(
-      expect.objectContaining({ seen: 6, inserted: 5, updated: 0 }),
+      expect.objectContaining({ seen: 7, inserted: 6, updated: 0 }),
     );
     expect(
       await prisma.place.findUniqueOrThrow({ where: { id: userPlace.id } }),
@@ -296,7 +297,7 @@ describe('OSM import (integration)', () => {
     });
 
     expect(result).toEqual(
-      expect.objectContaining({ status: 'succeeded', seen: 5, deactivated: 1 }),
+      expect.objectContaining({ status: 'succeeded', seen: 6, deactivated: 1 }),
     );
     const gone = await prisma.place.findFirstOrThrow({
       where: { osmId: 6n, osmType: 'node' },
@@ -322,7 +323,7 @@ describe('OSM import (integration)', () => {
     const result = await imports.runRegion(REGION, { sourceFile: truncated });
 
     expect(result).toEqual(
-      expect.objectContaining({ status: 'degraded', seen: 3, deactivated: 0 }),
+      expect.objectContaining({ status: 'degraded', seen: 4, deactivated: 0 }),
     );
     expect(await prisma.place.count({ where: { isActive: false } })).toBe(0);
   });
