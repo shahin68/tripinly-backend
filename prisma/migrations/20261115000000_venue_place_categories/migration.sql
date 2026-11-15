@@ -1,0 +1,21 @@
+-- Venues the list didn't cover (Shahin 2026-11-15). The last seven are ours only: the OSM import never maps to them.
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'cinema';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'nightlife';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'health';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'pharmacy';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'groceries';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'market';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'sports';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'spa';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'zoo';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'kids';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'library';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'camping';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'winery';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'parking';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'fuel';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'money';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'toilets';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'rental';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'photo_spot';
+ALTER TYPE "PlaceCategory" ADD VALUE IF NOT EXISTS 'romantic';

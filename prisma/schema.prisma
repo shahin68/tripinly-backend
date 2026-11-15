@@ -356,6 +356,26 @@ enum PlaceCategory {
   shopping
   stay
   transport
+  cinema
+  nightlife
+  health
+  pharmacy
+  groceries
+  market
+  sports
+  spa
+  zoo
+  kids
+  library
+  camping
+  winery
+  parking
+  fuel
+  money
+  toilets
+  rental
+  photo_spot
+  romantic
 }
 
 enum PlaceSource {

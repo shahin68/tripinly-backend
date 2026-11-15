@@ -27,17 +27,21 @@ This file records the map architecture decided with the product owner. It overri
 
 Two sources in one table (`places.source`):
 
-- `osm` — imported POIs. Categories we import (OSM tag → our `category`; first match wins, in this order; 18 categories since 2026-11-14):
-  - `amenity=cafe|ice_cream`, `shop=coffee` → `cafe`; `shop=bakery|pastry|confectionery` → `bakery`; `amenity=restaurant|food_court` → `restaurant`; `amenity=fast_food` → `fast_food`; `amenity=bar|pub|biergarten|nightclub` → `bar`
-  - `tourism=viewpoint` → `viewpoint`; `tourism=attraction|zoo|theme_park|aquarium` → `attraction`; `tourism=museum|gallery` → `museum`
+- `osm` — imported POIs. Categories we import (OSM tag → our `category`; first match wins, in this order; 38 categories since 2026-11-15, the list is ours and OSM only maps into it):
+  - `amenity=cafe|ice_cream`, `shop=coffee` → `cafe`; `shop=bakery|pastry|confectionery` → `bakery`; `amenity=restaurant|food_court` → `restaurant`; `amenity=fast_food` → `fast_food`; `amenity=nightclub` → `nightlife`; `amenity=bar|pub|biergarten` → `bar`; `craft=winery` → `winery`
+  - `tourism=viewpoint` → `viewpoint`; `tourism=zoo|aquarium` → `zoo`; `tourism=attraction|theme_park` → `attraction`; `tourism=museum|gallery` → `museum`
   - `historic=*` (castle, monument, memorial, ruins, archaeological_site…) → `historic`
   - `leisure=park|garden` → `park`; `natural=beach` → `beach`; `natural=peak|waterfall`, `leisure=nature_reserve` → `nature`
-  - `amenity=theatre|cinema|arts_centre`, `tourism=artwork` → `entertainment` (app label "Culture & fun")
-  - `shop=mall|department_store`, `amenity=marketplace` → `shopping`
-  - `tourism=hotel|hostel|guest_house|camp_site` → `stay`
+  - `amenity=cinema` → `cinema`; `amenity=theatre|arts_centre`, `tourism=artwork` → `entertainment` (app label "Culture & fun")
+  - `shop=mall|department_store` → `shopping`; `amenity=marketplace` → `market`; `shop=supermarket|convenience|greengrocer` → `groceries`
+  - `tourism=hotel|hostel|guest_house` → `stay`; `tourism=camp_site|caravan_site` → `camping`
+  - `amenity=doctors|clinic|dentist|hospital` → `health`; `amenity=pharmacy` → `pharmacy`
+  - `leisure=sports_centre|stadium|fitness_centre|swimming_pool|golf_course` (not `access=private|members`) → `sports`; `amenity=public_bath`, `leisure=sauna` → `spa`; `leisure=playground|water_park` (not private) → `kids`; `amenity=library` → `library`
   - `railway=station`, `aeroway=aerodrome` with an `iata` code, `amenity=ferry_terminal|bus_station` → `transport`
   - `amenity=place_of_worship` with `tourism`/`historic` or `wikidata` → `landmark`
   - `other` is the catch-all, shown in the apps as **Spot**: never imported, it is what people pick (or keep, as the default) for a spot that fits nowhere else. The wire value stays `other`.
+  - **Ours only, never imported** (OSM has millions of them and they would crowd the map; Shahin 2026-11-15): `parking`, `fuel` ("Fuel & charging"), `money` ("ATM & bank"), `toilets`, `rental` (cars, bikes), `photo_spot` ("Photo spot") and `romantic` ("Romantic spot", kiss and love places). People pick them for their own spots.
+  - No user-made categories and no label field: a spot is found by its name or its category.
   - Google's Places type names for each category are kept in the client canvas only as a naming reference so later filters mean what people know from Maps; no Google data is used.
   - Only named features (`name` present). Nodes, ways and relations (use the centroid / point-on-surface for areas).
 - `user` — created when a user adds a marker that isn't an existing place (custom pin, address or city from Photon). Custom places are matched later by name + proximity (see `geo-discovery` skill).
