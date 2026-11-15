@@ -16,5 +16,5 @@ None right now.
 6. **Moderation auto-hide threshold?** Default: no auto-hide.
 7. **Share links:** deep links only, or a public web preview page? Default: deep links with minimal preview JSON.
 8. **Supported languages at launch.** Default: English, German, Hungarian.
-9. **Transit routing.** ORS has no public transport. Default: walking, cycling, driving only.
+9. ~~**Transit routing.**~~ Decided 2026-11-15: public transport routes from our own MOTIS service, Vienna first, more cities by Railway config (`10-maps-places-routing.md`, "Public transport").
 10. **Place categories shown on the map** and their default filter. Default: all categories in `10-maps-places-routing.md`; attractions/museums/historic prioritized.

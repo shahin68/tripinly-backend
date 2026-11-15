@@ -27,6 +27,8 @@
   "REAUTH_REQUIRED": "Please sign in again to confirm it's you.",
   "REAUTH_FAILED": "That sign-in didn't confirm this account. Choose the account you use for Tripinly.",
   "ROUTING_UNAVAILABLE": "Routes are unavailable right now. Please try again later.",
+  "TRANSIT_NO_COVERAGE": "Public transport isn't available here yet.",
+  "TRANSIT_NO_CONNECTION": "There's no public transport connection at this time. Try another time.",
   "BBOX_TOO_LARGE": "Zoom in to see places in this area.",
   "IDEMPOTENCY_KEY_REUSED": "This request key was already used for a different request.",
   "IDEMPOTENCY_KEY_IN_PROGRESS": "This request is still being processed. Please try again in a moment.",

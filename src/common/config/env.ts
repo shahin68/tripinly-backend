@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { parseServiceAccount } from '../../modules/notifications/push.provider';
+import {
+  TRANSIT_REGION_IDS,
+  TRANSIT_REGIONS,
+} from '../../modules/routing/transit/transit-regions';
 
 const optionalString = z
   .string()
@@ -212,6 +216,61 @@ export const envSchema = z
       .positive()
       .default(2000),
     ORS_MATRIX_DAILY_QUOTA: z.coerce.number().int().positive().default(500),
+    // Public transport routes: our MOTIS service ("transit" on Railway). The
+    // tram button shows only where TRANSIT_ENABLED and TRANSIT_REGIONS say.
+    /** Switches public transport routes on; off, the apps show the tram button dimmed everywhere. */
+    TRANSIT_ENABLED: booleanFlag,
+    /** The transit service, on Railway's private network. */
+    TRANSIT_BASE_URL: z
+      .string()
+      .regex(/^https?:\/\/\S+$/, 'must be an http(s) URL')
+      .default('http://transit.railway.internal:8080'),
+    TRANSIT_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .max(30_000)
+      .default(8000),
+    /** How long one public transport answer is reused for the same trip and time. */
+    TRANSIT_CACHE_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(3600)
+      .default(600),
+    /** Calls to the transit service per UTC day; past it, 503 ROUTING_UNAVAILABLE. Guards RAM and cost, not a paid plan. */
+    TRANSIT_DAILY_QUOTA: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(1_000_000)
+      .default(20_000),
+    /**
+     * Comma-separated cities with public transport routes (recipes in
+     * src/modules/routing/transit/transit-regions.ts). The same value goes on
+     * transit-builder, which builds them (docs/deploy/transit.md).
+     */
+    TRANSIT_REGIONS: z
+      .string()
+      .default('vienna')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((region) => region.trim())
+          .filter(Boolean),
+      )
+      .pipe(
+        z
+          .array(
+            z
+              .string()
+              .refine(
+                (id) => Object.hasOwn(TRANSIT_REGIONS, id),
+                `must be cities with a recipe: ${TRANSIT_REGION_IDS.join(', ')}`,
+              ),
+          )
+          .min(1),
+      ),
     // Push: the Firebase service account JSON (raw or base64). Pushes are
     // skipped while unset; in-app notifications still work.
     FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,

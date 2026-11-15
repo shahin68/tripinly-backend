@@ -27,6 +27,8 @@
   "REAUTH_REQUIRED": "Bitte melde dich erneut an, um zu bestätigen, dass du es bist.",
   "REAUTH_FAILED": "Diese Anmeldung hat dieses Konto nicht bestätigt. Wähle das Konto, das du für Tripinly nutzt.",
   "ROUTING_UNAVAILABLE": "Routen sind gerade nicht verfügbar. Bitte versuche es später erneut.",
+  "TRANSIT_NO_COVERAGE": "Öffentliche Verkehrsmittel gibt es hier noch nicht.",
+  "TRANSIT_NO_CONNECTION": "Zu dieser Zeit gibt es keine Verbindung mit öffentlichen Verkehrsmitteln. Versuche eine andere Uhrzeit.",
   "BBOX_TOO_LARGE": "Zoome hinein, um Orte in diesem Bereich zu sehen.",
   "IDEMPOTENCY_KEY_REUSED": "Dieser Anfrageschlüssel wurde bereits für eine andere Anfrage verwendet.",
   "IDEMPOTENCY_KEY_IN_PROGRESS": "Diese Anfrage wird noch bearbeitet. Bitte versuche es gleich noch einmal.",

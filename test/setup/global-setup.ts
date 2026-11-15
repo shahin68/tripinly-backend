@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { GenericContainer } from 'testcontainers';
+import { MOTIS_STUB_URL } from '../utils/motis-stub';
 import { ORS_STUB_KEY, ORS_STUB_URL } from '../utils/ors-stub';
 import { PHOTON_STUB_URL } from '../utils/photon-stub';
 
@@ -97,6 +98,9 @@ export default async function globalSetup(): Promise<void> {
     // test/utils/ors-stub.ts listens here.
     ORS_BASE_URL: ORS_STUB_URL,
     ORS_API_KEY: ORS_STUB_KEY,
+    // test/utils/motis-stub.ts listens here; Vienna (the default region) is on.
+    TRANSIT_ENABLED: 'true',
+    TRANSIT_BASE_URL: MOTIS_STUB_URL,
     // The billing tests replace the RevenueCat client; no API key, so deletion skips it.
     REVENUECAT_WEBHOOK_AUTH: 'test-revenuecat-webhook-auth',
     R2_ENDPOINT: s3Endpoint,

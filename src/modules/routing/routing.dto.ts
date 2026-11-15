@@ -5,6 +5,7 @@ import {
   ArrayUnique,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsOptional,
   IsUUID,
   Matches,
@@ -13,17 +14,42 @@ import type { PlaceCategory } from '../../generated/prisma/client';
 import { PLACE_CATEGORIES } from '../markers/markers.dto';
 import { PlaceItemDto, toCategoryList } from '../places/places.dto';
 import { ROUTING_MODES, type RoutingMode } from './routing.provider';
+import { TRANSIT_VEHICLES } from './transit/transit.provider';
+
+/** Route lines also go by public transport; best order does not. */
+export const ROUTE_MODES = [...ROUTING_MODES, 'transit'] as const;
+export type RouteMode = (typeof ROUTE_MODES)[number];
 
 export const ROUTING_ATTRIBUTION =
   '© openrouteservice.org | © OpenStreetMap contributors';
 
+/** Public transport routes: MOTIS on our timetables and OSM streets. */
+export function transitAttribution(credit: string): string {
+  return `Timetables: ${credit} | © OpenStreetMap contributors`;
+}
+
 const POINT_PATTERN = /^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/;
 
 class ModeAndCategoriesDto {
-  @ApiPropertyOptional({ enum: ROUTING_MODES, default: 'walking' })
+  @ApiPropertyOptional({
+    enum: ROUTE_MODES,
+    default: 'walking',
+    description:
+      'transit: public transport (tram, U-Bahn, train, bus) where app-config `transitAreas` covers both ends; 422 TRANSIT_NO_COVERAGE elsewhere',
+  })
   @IsOptional()
-  @IsIn(ROUTING_MODES)
-  mode?: RoutingMode;
+  @IsIn(ROUTE_MODES)
+  mode?: RouteMode;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    example: '2026-11-17T09:42:00Z',
+    description:
+      'transit only: leave at this time (default now). The app sends the open trip day at the current clock time',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  departAt?: string;
 
   @ApiPropertyOptional({
     type: String,
@@ -72,6 +98,15 @@ export class RouteQueryDto extends ModeAndCategoriesDto {
   @IsOptional()
   @IsUUID()
   toPlaceId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'transit only: arrive by this time instead (not with departAt)',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  arriveBy?: string;
 }
 
 export class DayRouteQueryDto extends ModeAndCategoriesDto {}
@@ -115,6 +150,97 @@ export class RouteLegDto {
 
   @ApiProperty()
   durationSeconds: number;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'transit only: when this leg sets off',
+  })
+  departure?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'transit only' })
+  arrival?: string;
+
+  @ApiPropertyOptional({ description: 'transit only: changes on this leg' })
+  transfers?: number;
+
+  @ApiPropertyOptional({
+    type: () => [TransitStepDto],
+    description:
+      'transit only: walks and rides in order. A leg without a connection is one straight walk step, with degraded=true',
+  })
+  steps?: TransitStepDto[];
+}
+
+export class TransitLineDto {
+  @ApiProperty({ example: 'U2' })
+  name: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '#A862A4',
+    description: "The line's own colour, #RRGGBB; null when the feed has none",
+  })
+  color: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '#FFFFFF' })
+  textColor: string | null;
+}
+
+export class TransitPlaceDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Museumsquartier',
+    description: "The stop's name; null at the route's own start and end",
+  })
+  name: string | null;
+
+  @ApiProperty()
+  lat: number;
+
+  @ApiProperty()
+  lng: number;
+
+  @ApiProperty({ format: 'date-time' })
+  time: string;
+}
+
+export class TransitStepDto {
+  @ApiProperty({ enum: ['walk', 'ride'] })
+  kind: 'walk' | 'ride';
+
+  @ApiProperty({ enum: TRANSIT_VEHICLES, nullable: true, type: String })
+  vehicle: (typeof TRANSIT_VEHICLES)[number] | null;
+
+  @ApiProperty({ type: TransitLineDto, nullable: true })
+  line: TransitLineDto | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Karlsplatz',
+    description: 'Where the ride is heading',
+  })
+  headsign: string | null;
+
+  @ApiProperty({ type: TransitPlaceDto })
+  from: TransitPlaceDto;
+
+  @ApiProperty({ type: TransitPlaceDto })
+  to: TransitPlaceDto;
+
+  @ApiProperty({ description: 'Stops passed between getting on and off' })
+  stops: number;
+
+  @ApiProperty()
+  distanceMeters: number;
+
+  @ApiProperty()
+  durationSeconds: number;
+
+  @ApiProperty({ description: 'Encoded polyline, precision 5' })
+  polyline: string;
 }
 
 export class RouteDto {
@@ -129,6 +255,24 @@ export class RouteDto {
 
   @ApiProperty({ type: [RouteLegDto] })
   legs: RouteLegDto[];
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'transit only: when the route sets off',
+  })
+  departure?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'transit only' })
+  arrival?: string;
+
+  @ApiPropertyOptional({ description: 'transit only: changes in all' })
+  transfers?: number;
+
+  @ApiPropertyOptional({
+    description:
+      "transit only: the date is beyond (or before) the published timetable, so the times are the same weekday's in the current one",
+  })
+  typicalTimes?: boolean;
 }
 
 export class AlongTheWayDto {

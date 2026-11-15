@@ -58,4 +58,4 @@ Uploads, comments, likes and trip edits by collaborators appear live for everyon
 
 ## Out of scope for now
 
-Bookings, flights, hotels, Google Places / any Google data on the backend, public transit routing, direct messages, a web app.
+Bookings, flights, hotels, Google Places / any Google data on the backend, direct messages, a web app. (Public transport routes moved in on 2026-11-15, city by city: see `10-maps-places-routing.md`.)

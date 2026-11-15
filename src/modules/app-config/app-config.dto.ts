@@ -1,5 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+/** A city with public transport routes: both ends of a route must be inside it. */
+export class TransitAreaDto {
+  @ApiProperty({ example: 'vienna' })
+  id!: string;
+
+  @ApiProperty({ example: 'Vienna' })
+  name!: string;
+
+  @ApiProperty({ example: 48.11 })
+  south!: number;
+
+  @ApiProperty({ example: 16.18 })
+  west!: number;
+
+  @ApiProperty({ example: 48.33 })
+  north!: number;
+
+  @ApiProperty({ example: 16.58 })
+  east!: number;
+}
+
 /**
  * Values that steer the apps' behaviour, served so they change without an app
  * update. The app keeps a default for each, used until this answers.
@@ -80,4 +101,11 @@ export class AppConfigDto {
       'Below this camera zoom (0–22), the app draws place pins as small dots, growing back to pins when zoomed in; the tapped place stays a pin.',
   })
   pinDotBelowZoom!: number;
+
+  @ApiProperty({
+    type: [TransitAreaDto],
+    description:
+      'Where public transport routes (mode=transit) work. The tram button is dimmed where a route would start or end outside every area, and everywhere when this is empty (switched off). Grows as cities are added on the server, without an app update.',
+  })
+  transitAreas!: TransitAreaDto[];
 }

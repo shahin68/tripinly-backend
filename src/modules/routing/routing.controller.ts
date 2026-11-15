@@ -16,6 +16,7 @@ import {
 import { I18nLang } from 'nestjs-i18n';
 import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { IdParamDto } from '../../common/dto/id-param.dto';
+import { AppException } from '../../common/errors/app.exception';
 import type { LatLng } from './geo';
 import {
   DayRouteQueryDto,
@@ -24,7 +25,7 @@ import {
   RouteQueryDto,
   RouteResponseDto,
 } from './routing.dto';
-import { RoutingService } from './routing.service';
+import { RoutingService, type TransitTime } from './routing.service';
 
 @ApiTags('routing')
 @ApiBearerAuth()
@@ -36,7 +37,7 @@ export class RoutingController {
   @ApiOperation({
     summary: 'Route from A to B with places along the way',
     description:
-      'Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up).',
+      'Tripinly Pro (403 PREMIUM_REQUIRED otherwise). 503 ROUTING_UNAVAILABLE when openrouteservice fails; straight lines with degraded=true when it is not available (quota used up). mode=transit: public transport leaving at departAt (default now) or arriving by arriveBy, with steps per leg; 422 TRANSIT_NO_COVERAGE outside app-config `transitAreas`, 422 TRANSIT_NO_CONNECTION when nothing runs and it is too far to walk, 503 ROUTING_UNAVAILABLE when the transit service fails or its daily quota is used up.',
   })
   @ApiOkResponse({ type: RouteResponseDto })
   route(
@@ -50,6 +51,7 @@ export class RoutingController {
         from: parsePoint(query.from),
         to: parsePoint(query.to),
         mode: query.mode ?? 'walking',
+        time: transitTime(query.mode, query.departAt, query.arriveBy),
         categories: query.categories,
         excludeTripId: query.excludeTripId,
         excludePlaceIds: [query.fromPlaceId, query.toPlaceId].filter(
@@ -64,7 +66,7 @@ export class RoutingController {
   @ApiOperation({
     summary: "Route through a day's markers in order",
     description:
-      "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers.",
+      "Tripinly Pro (403 PREMIUM_REQUIRED otherwise). With places along the way (not the trip's own). route is null for fewer than two markers. mode=transit: the first leg leaves at departAt (default now), each next leg when the one before arrives; a leg with no connection is a straight walk estimate with degraded=true; 422 TRANSIT_NO_COVERAGE when a stop is outside app-config `transitAreas`.",
   })
   @ApiOkResponse({ type: RouteResponseDto })
   dayRoute(
@@ -79,6 +81,7 @@ export class RoutingController {
       query.mode ?? 'walking',
       query.categories,
       lang,
+      transitTime(query.mode, query.departAt)?.at,
     );
   }
 
@@ -107,4 +110,24 @@ export class RoutingController {
 function parsePoint(value: string): LatLng {
   const [lat, lng] = value.split(',').map(Number);
   return { lat, lng };
+}
+
+/** departAt / arriveBy belong to mode=transit, one of them at most. */
+function transitTime(
+  mode: string | undefined,
+  departAt?: string,
+  arriveBy?: string,
+): TransitTime | undefined {
+  if (mode !== 'transit') {
+    const fields: Record<string, string[]> = {};
+    if (departAt) fields.departAt = ['transitOnly'];
+    if (arriveBy) fields.arriveBy = ['transitOnly'];
+    if (Object.keys(fields).length) throw AppException.validation(fields);
+    return undefined;
+  }
+  if (departAt && arriveBy) {
+    throw AppException.validation({ arriveBy: ['notWithDepartAt'] });
+  }
+  if (arriveBy) return { at: new Date(arriveBy), arriveBy: true };
+  return departAt ? { at: new Date(departAt), arriveBy: false } : undefined;
 }

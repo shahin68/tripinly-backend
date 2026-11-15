@@ -31,9 +31,21 @@ import {
 import {
   type AlongTheWayDto,
   type OptimizeResultDto,
+  type RouteLegDto,
+  type RouteMode,
   ROUTING_ATTRIBUTION,
   type RouteResponseDto,
+  transitAttribution,
+  type TransitStepDto,
 } from './routing.dto';
+import { type PlannedTrip, TransitPlanner } from './transit/transit-planner';
+import {
+  regionFor,
+  TRANSIT_REGIONS,
+  type TransitRegion,
+  transitCredit,
+} from './transit/transit-regions';
+import { pathMeters, type TransitStep } from './transit/transit.provider';
 
 export const MAX_ROUTE_WAYPOINTS = 50;
 export const MAX_OPTIMIZE_MARKERS = 25;
@@ -47,6 +59,8 @@ const ALONG = {
 } as const satisfies Record<RoutingMode, unknown>;
 /** Stretches of the route the places along the way are spread over; each takes its share of APP_ALONG_THE_WAY_MAX_PLACES. */
 const ALONG_SEGMENTS = 10;
+/** Walks shorter than this (changing platforms) get no places along the way. */
+const MIN_ALONG_WALK_METERS = 100;
 
 /** Speeds for straight-line estimates when routing is unavailable (m/s). */
 const STRAIGHT_LINE_SPEED: Record<RoutingMode, number> = {
@@ -57,6 +71,12 @@ const STRAIGHT_LINE_SPEED: Record<RoutingMode, number> = {
 
 interface Waypoint extends LatLng {
   markerId: string | null;
+}
+
+/** When a public transport route sets off, or arrives by. */
+export interface TransitTime {
+  at: Date;
+  arriveBy: boolean;
 }
 
 /**
@@ -77,6 +97,7 @@ export class RoutingService {
     private readonly markers: MarkersService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly config: ConfigService<Env, true>,
+    private readonly transit: TransitPlanner,
   ) {}
 
   async pointToPoint(
@@ -84,7 +105,9 @@ export class RoutingService {
     input: {
       from: LatLng;
       to: LatLng;
-      mode: RoutingMode;
+      mode: RouteMode;
+      /** transit only; now when omitted. */
+      time?: TransitTime;
       categories?: PlaceCategory[];
       excludeTripId?: string;
       /** The places at the route's ends: they are its ends, not places along it. */
@@ -96,12 +119,24 @@ export class RoutingService {
       await this.access.assert(userId, input.excludeTripId, 'view');
     }
     await this.assertRoutes(userId);
+    const waypoints: Waypoint[] = [
+      { ...input.from, markerId: null },
+      { ...input.to, markerId: null },
+    ];
+    if (input.mode === 'transit') {
+      return this.buildTransit(
+        userId,
+        waypoints,
+        input.time ?? { at: new Date(), arriveBy: false },
+        input.categories,
+        input.excludeTripId,
+        lang,
+        input.excludePlaceIds,
+      );
+    }
     return this.build(
       userId,
-      [
-        { ...input.from, markerId: null },
-        { ...input.to, markerId: null },
-      ],
+      waypoints,
       input.mode,
       input.categories,
       input.excludeTripId,
@@ -114,9 +149,11 @@ export class RoutingService {
   async day(
     userId: string,
     dayId: string,
-    mode: RoutingMode,
+    mode: RouteMode,
     categories: PlaceCategory[] | undefined,
     lang: string,
+    /** transit only: the first leg leaves then (now when omitted), each next one when the last arrives. */
+    departAt?: Date,
   ): Promise<RouteResponseDto> {
     const { trip } = await this.access.assertForDay(userId, dayId, 'view');
     await this.assertRoutes(userId);
@@ -126,17 +163,28 @@ export class RoutingService {
         route: null,
         alongTheWay: [],
         degraded: false,
-        attribution: ROUTING_ATTRIBUTION,
+        attribution:
+          mode === 'transit'
+            ? transitAttribution(transitCredit(this.transitRegions()))
+            : ROUTING_ATTRIBUTION,
       };
     }
-    return this.build(
-      userId,
-      markers.map((m) => ({ lat: m.lat, lng: m.lng, markerId: m.id })),
-      mode,
-      categories,
-      trip.id,
-      lang,
-    );
+    const waypoints = markers.map((m) => ({
+      lat: m.lat,
+      lng: m.lng,
+      markerId: m.id,
+    }));
+    if (mode === 'transit') {
+      return this.buildTransit(
+        userId,
+        waypoints,
+        { at: departAt ?? new Date(), arriveBy: false },
+        categories,
+        trip.id,
+        lang,
+      );
+    }
+    return this.build(userId, waypoints, mode, categories, trip.id, lang);
   }
 
   /**
@@ -240,7 +288,8 @@ export class RoutingService {
 
     const alongTheWay = await this.alongTheWay(
       userId,
-      route,
+      route.line,
+      route.durationSeconds,
       excludePlaceIds,
       mode,
       categories,
@@ -263,6 +312,218 @@ export class RoutingService {
       degraded,
       attribution: ROUTING_ATTRIBUTION,
     };
+  }
+
+  /**
+   * By public transport, leg by leg: each leg leaves when the one before
+   * arrives (no stay times; the route is a rough guide). Places along the
+   * way only near the walks. A leg with no connection at all is a straight
+   * walk estimate and the route is degraded.
+   */
+  private async buildTransit(
+    userId: string,
+    waypoints: Waypoint[],
+    time: TransitTime,
+    categories: PlaceCategory[] | undefined,
+    excludeTripId: string | undefined,
+    lang: string,
+    excludePlaceIds: string[] = [],
+  ): Promise<RouteResponseDto> {
+    const region = this.config.get('TRANSIT_ENABLED', { infer: true })
+      ? regionFor(
+          this.config.get('TRANSIT_REGIONS', { infer: true }),
+          ...waypoints,
+        )
+      : undefined;
+    if (!region) {
+      throw new AppException(
+        ErrorCode.TRANSIT_NO_COVERAGE,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const pairs = waypoints.slice(1).map((to, i) => [waypoints[i], to]);
+    const trips: (PlannedTrip | null)[] = [];
+    try {
+      if (time.arriveBy) {
+        // Only A→B routes arrive by a time: one leg.
+        trips.push(await this.transitLeg(pairs[0], time, region));
+      } else {
+        let at = time.at;
+        for (const pair of pairs) {
+          const trip = await this.transitLeg(
+            pair,
+            { at, arriveBy: false },
+            region,
+          );
+          trips.push(trip);
+          at = trip
+            ? new Date(trip.itinerary.arrival)
+            : new Date(at.getTime() + straightWalkSeconds(pair) * 1000);
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof RoutingUnavailableError)) throw error;
+      throw new AppException(
+        ErrorCode.ROUTING_UNAVAILABLE,
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (pairs.length === 1 && !trips[0]) {
+      throw new AppException(
+        ErrorCode.TRANSIT_NO_CONNECTION,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    // Legs without a connection: a straight walk from when the last one arrived.
+    let clock = time.at;
+    const legSteps = trips.map((trip, i) => {
+      const steps = trip?.itinerary.steps ?? [straightWalk(pairs[i], clock)];
+      clock = new Date(steps[steps.length - 1].to.time);
+      return steps;
+    });
+    const steps = legSteps.flat();
+    const departure = steps[0].from.time;
+    const arrival = steps[steps.length - 1].to.time;
+    const durationSeconds =
+      (Date.parse(arrival) - Date.parse(departure)) / 1000;
+    const distanceMeters = steps.reduce(
+      (sum, step) => sum + step.distanceMeters,
+      0,
+    );
+
+    const alongTheWay = await this.transitAlongTheWay(
+      userId,
+      steps,
+      departure,
+      durationSeconds,
+      excludePlaceIds,
+      categories,
+      excludeTripId,
+      lang,
+    );
+    const legs: RouteLegDto[] = legSteps.map((legSteps, i) => ({
+      fromMarkerId: pairs[i][0].markerId,
+      toMarkerId: pairs[i][1].markerId,
+      distanceMeters: legSteps.reduce(
+        (sum, step) => sum + step.distanceMeters,
+        0,
+      ),
+      durationSeconds: Math.round(
+        (Date.parse(legSteps[legSteps.length - 1].to.time) -
+          Date.parse(legSteps[0].from.time)) /
+          1000,
+      ),
+      departure: legSteps[0].from.time,
+      arrival: legSteps[legSteps.length - 1].to.time,
+      transfers: trips[i]?.itinerary.transfers ?? 0,
+      steps: legSteps.map(toStepDto),
+    }));
+    return {
+      route: {
+        polyline: encodePolyline(steps.flatMap((step) => step.path)),
+        distanceMeters,
+        durationSeconds: Math.round(durationSeconds),
+        legs,
+        departure,
+        arrival,
+        transfers: legs.reduce((sum, leg) => sum + (leg.transfers ?? 0), 0),
+        typicalTimes: trips.some((trip) => trip?.typicalTimes),
+      },
+      alongTheWay,
+      degraded: trips.some((trip) => !trip),
+      attribution: transitAttribution(transitCredit([region])),
+    };
+  }
+
+  private transitLeg(
+    [from, to]: Waypoint[],
+    time: TransitTime,
+    region: TransitRegion,
+  ): Promise<PlannedTrip | null> {
+    return this.transit.trip({
+      from,
+      to,
+      time: time.at,
+      arriveBy: time.arriveBy,
+      timeZone: region.timeZone,
+    });
+  }
+
+  /** Places near the walks only (riders can't stop), in route order. */
+  private async transitAlongTheWay(
+    userId: string,
+    steps: TransitStep[],
+    departure: string,
+    durationSeconds: number,
+    excludePlaceIds: string[],
+    categories: PlaceCategory[] | undefined,
+    excludeTripId: string | undefined,
+    lang: string,
+  ): Promise<AlongTheWayDto[]> {
+    const total = steps.reduce((sum, step) => sum + step.distanceMeters, 0);
+    let before = 0;
+    const walks = steps.flatMap((step) => {
+      const start = before;
+      before += step.distanceMeters;
+      return step.kind === 'walk' &&
+        step.distanceMeters >= MIN_ALONG_WALK_METERS
+        ? [{ step, start }]
+        : [];
+    });
+    const found = await Promise.all(
+      walks.map(({ step }) =>
+        this.alongTheWay(
+          userId,
+          step.path,
+          step.durationSeconds,
+          excludePlaceIds,
+          'walking',
+          categories,
+          excludeTripId,
+          lang,
+        ),
+      ),
+    );
+    const seen = new Set<string>();
+    const max = this.config.get('APP_ALONG_THE_WAY_MAX_PLACES', {
+      infer: true,
+    });
+    return found
+      .flatMap((items, i) => {
+        const { step, start } = walks[i];
+        const offset =
+          (Date.parse(step.from.time) - Date.parse(departure)) / 1000;
+        return items.map((item) => ({
+          place: item.place,
+          distanceFromRouteMeters: item.distanceFromRouteMeters,
+          positionAlongRoute:
+            total > 0
+              ? Math.round(
+                  ((start + item.positionAlongRoute * step.distanceMeters) /
+                    total) *
+                    1000,
+                ) / 1000
+              : 0,
+          etaFromStartSeconds: Math.min(
+            Math.round(durationSeconds),
+            Math.round(offset + item.etaFromStartSeconds),
+          ),
+        }));
+      })
+      .filter((item) => {
+        if (seen.has(item.place.id)) return false;
+        seen.add(item.place.id);
+        return true;
+      })
+      .slice(0, max);
+  }
+
+  private transitRegions(): TransitRegion[] {
+    return this.config
+      .get('TRANSIT_REGIONS', { infer: true })
+      .map((id) => TRANSIT_REGIONS[id]);
   }
 
   /**
@@ -305,18 +566,19 @@ export class RoutingService {
    */
   private async alongTheWay(
     userId: string,
-    route: ProviderRoute,
+    routeLine: LatLng[],
+    durationSeconds: number,
     excludePlaceIds: string[],
     mode: RoutingMode,
     categories: PlaceCategory[] | undefined,
     excludeTripId: string | undefined,
     lang: string,
   ): Promise<AlongTheWayDto[]> {
-    const line = route.line.filter(
+    const line = routeLine.filter(
       (p, i) =>
         i === 0 ||
-        p.lat !== route.line[i - 1].lat ||
-        p.lng !== route.line[i - 1].lng,
+        p.lat !== routeLine[i - 1].lat ||
+        p.lng !== routeLine[i - 1].lng,
     );
     if (line.length < 2) return [];
     const wkt = `LINESTRING(${line.map((p) => `${p.lng} ${p.lat}`).join(',')})`;
@@ -369,7 +631,7 @@ export class RoutingService {
       place: items[i],
       distanceFromRouteMeters: Math.round(row.distance),
       positionAlongRoute: Math.round(row.frac * 1000) / 1000,
-      etaFromStartSeconds: Math.round(row.frac * route.durationSeconds),
+      etaFromStartSeconds: Math.round(row.frac * durationSeconds),
     }));
   }
 
@@ -398,4 +660,37 @@ function straightLine(points: LatLng[], mode: RoutingMode): ProviderRoute {
     durationSeconds: legs.reduce((sum, leg) => sum + leg.durationSeconds, 0),
     legs,
   };
+}
+
+/** A straight walk at the estimate speed, for a leg with no connection. */
+function straightWalk([from, to]: Waypoint[], at: Date): TransitStep {
+  const seconds = straightWalkSeconds([from, to]);
+  const path = [
+    { lat: from.lat, lng: from.lng },
+    { lat: to.lat, lng: to.lng },
+  ];
+  return {
+    kind: 'walk',
+    vehicle: null,
+    line: null,
+    headsign: null,
+    from: { name: null, ...path[0], time: at.toISOString() },
+    to: {
+      name: null,
+      ...path[1],
+      time: new Date(at.getTime() + seconds * 1000).toISOString(),
+    },
+    stops: 0,
+    distanceMeters: Math.round(pathMeters(path)),
+    durationSeconds: seconds,
+    path,
+  };
+}
+
+function straightWalkSeconds([from, to]: LatLng[]): number {
+  return Math.round(haversineMeters(from, to) / STRAIGHT_LINE_SPEED.walking);
+}
+
+function toStepDto({ path, ...step }: TransitStep): TransitStepDto {
+  return { ...step, polyline: encodePolyline(path) };
 }
