@@ -89,6 +89,7 @@ Build in these stages. Finish each with tests, a working `docker-compose` setup 
 8. **Real time and notifications:** Socket.IO rooms/events, push, batching and grouping, email.
 9. **Account:** deletion, export, moderation and admin.
 10. **Deploy:** Railway staging setup instructions and smoke test.
+    - **At the release checklist, re-check every paid service, storage and RAM cost** (Shahin, 2026-11-15): Railway usage per service and plan (Hobby vs Pro), the Postgres volume (5 GB on Hobby) and table sizes, Redis, Cloudflare R2 storage and operations against the free tier, MOTIS transit and self-hosted Photon, FCM, Resend, RevenueCat, openrouteservice. Use the review doc (https://claude.ai/artifact/MEB4CZ7y68DDbkWENJnUuC) and replace its estimates with measured numbers.
 11. **Documentation, legal pages and decision audit (before production, never skipped; Shahin, 2026-10-25).** Production waits for it:
     - **Decision audit and report:** go through every decision since the start (code, knowledge files, the three decision logs, memory), add what's missing to all three logs, and report to the user what was missing or contradicts the code.
     - **Product handbook** (`docs/handbook/`, static HTML plus a PDF/Docs copy): every feature and rule as users meet it (visibility, copying, hot spots, likes and ranking, Explore, photos and covers, blocking, reports and moderation, notifications and push limits, what is live), every Railway variable with service, default and range, providers, runbook commands, endpoints.
