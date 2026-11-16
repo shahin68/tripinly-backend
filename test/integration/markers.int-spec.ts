@@ -94,6 +94,7 @@ describe('Markers and place matching (integration)', () => {
         position: 0,
         coverPhotoId: null,
         photoCount: 0,
+        category: 'other',
         createdBy: expect.objectContaining({ username: 'owner' }),
       });
       const place = await prisma.place.findUniqueOrThrow({
@@ -121,6 +122,8 @@ describe('Markers and place matching (integration)', () => {
         location: NEAR_SACHER,
         category: 'landmark',
       }).expect(201);
+      // Every stop carries its place's kind, so the apps show its icon at once.
+      expect(other.body.category).toBe('landmark');
       expect(
         new Set([first.body.placeId, far.body.placeId, other.body.placeId])
           .size,
@@ -182,6 +185,7 @@ describe('Markers and place matching (integration)', () => {
       expect(atPlace.body).toMatchObject({
         placeId: osm.id,
         name: 'Hotel Sacher',
+        category: 'attraction',
         location: NEAR_SACHER,
       });
       expect(photon.requests).toHaveLength(0);
