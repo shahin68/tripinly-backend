@@ -18,7 +18,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import type { Prisma } from '../../generated/prisma/client';
+import type { PlaceCategory, Prisma } from '../../generated/prisma/client';
 import { thumbUrl, type UrlSigner } from '../photos/photo-keys';
 import { placeImageThumbUrl } from '../places/place-image-keys';
 import type { PlaceCover } from '../places/place-covers.service';
@@ -272,6 +272,13 @@ export class MarkerDto {
   @ApiProperty()
   name: string;
 
+  @ApiProperty({
+    enum: PLACE_CATEGORIES,
+    description:
+      "The stop's place's kind, so the apps show its icon without loading the place",
+  })
+  category: PlaceCategory;
+
   @ApiProperty({ type: LocationDto })
   location: LocationDto;
 
@@ -350,10 +357,11 @@ export const MARKER_INCLUDE = {
     },
   },
   coverImage: { select: { status: true } },
-  // Whether the place is public, for canMarkHot (see PlaceMatchingService.isLikeable).
+  // Its kind, and whether the place is public, for canMarkHot (see PlaceMatchingService.isLikeable).
   place: {
     select: {
       source: true,
+      category: true,
       popularity: true,
       markers: { where: PUBLIC_STOP_WHERE, select: { id: true }, take: 1 },
     },
@@ -450,6 +458,7 @@ export function toMarkerDto(
     dayId: marker.dayId,
     placeId: marker.placeId,
     name: marker.name,
+    category: marker.place.category,
     location: { lat: marker.lat, lng: marker.lng },
     time: marker.time,
     position: marker.position,
