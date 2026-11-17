@@ -149,7 +149,10 @@ export function categoryFor(tags: Tags): PlaceCategory | null {
   return null;
 }
 
-/** Tags kept on the place; everything else (phone, addresses, notes) is dropped. */
+/**
+ * Tags kept on the place; everything else (phone, notes) is dropped. The address
+ * parts tell search results with the same name apart ("KFC, Mariahilfer Straße 85").
+ */
 const KEPT_TAGS = [
   'website',
   'opening_hours',
@@ -158,6 +161,9 @@ const KEPT_TAGS = [
   'wikipedia',
   'wikimedia_commons',
   'image',
+  'addr:street',
+  'addr:housenumber',
+  'addr:city',
 ] as const;
 /** The tags that link a place to its images (Wikidata P18, a Commons file or an image URL). */
 const IMAGE_TAGS = ['wikidata', 'wikimedia_commons', 'image'] as const;

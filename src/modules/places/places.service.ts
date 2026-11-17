@@ -204,12 +204,15 @@ export class PlacesService {
   /** In-view for one area, the same for every viewer and cached for everyone. */
   private async placesIn(
     requested: Bbox,
-    query: Pick<InViewQueryDto, 'zoom' | 'categories' | 'limit'>,
+    query: Pick<InViewQueryDto, 'zoom' | 'categories' | 'limit'> & {
+      q?: string;
+    },
     lang: string,
   ): Promise<InViewResponseDto> {
     const zoom = Math.floor(query.zoom);
     const bbox = snapBbox(requested, zoom);
     const limit = query.limit ?? DEFAULT_IN_VIEW_LIMIT;
+    if (query.q) return this.placesNamed(bbox, query.q, limit, lang);
     const categories = query.categories?.length
       ? [...query.categories].sort()
       : undefined;
@@ -702,6 +705,34 @@ export class PlacesService {
   }
 
   /**
+   * The map searched by name (`q`): every listed place in the square whose name
+   * matches as search does, at any zoom, hot first, then the best known. Not
+   * cached: searches are many and short-lived.
+   */
+  private async placesNamed(
+    bbox: Bbox,
+    q: string,
+    limit: number,
+    lang: string,
+  ): Promise<InViewResponseDto> {
+    const normalized = normalizePlaceName(q);
+    if (normalized.length < 2) {
+      return { places: [], clusters: [], attribution: OSM_ATTRIBUTION };
+    }
+    const rows = await this.prisma.$queryRaw<PlaceRow[]>`
+      SELECT ${PLACE_COLUMNS} FROM places p
+      WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+        AND ${inBbox(bbox)} AND ${normalized} <% p."searchText"
+      ORDER BY p.popularity DESC, p.prominence DESC, p.id
+      LIMIT ${limit}`;
+    return {
+      places: rows.map((row) => toPlaceItem(row, lang)),
+      clusters: [],
+      attribution: OSM_ATTRIBUTION,
+    };
+  }
+
+  /**
    * Places with fewer than `minLikes` likes (OSM places, and liked user places).
    * Well-known places (prominence ≥ OSM_NOTABLE_MIN_PROMINENCE) come first, the
    * best known first, so a place shown at one zoom stays at every closer zoom:
@@ -762,9 +793,10 @@ export class PlacesService {
       (PlaceRow & {
         osmType: 'node' | 'way' | 'relation' | null;
         osmId: bigint | null;
+        tags: Prisma.JsonValue;
       })[]
     >`
-      SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId"
+      SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags
       FROM places p
       WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
         AND ${q} <% p."searchText"
@@ -781,7 +813,7 @@ export class PlacesService {
         isTripinly: item.isTripinly,
         hotCount: item.hotCount,
         type: null,
-        address: null,
+        address: placeAddress(asStringRecord(row.tags)),
         osmType: row.osmType,
         osmId: row.osmId?.toString() ?? null,
       };
@@ -856,6 +888,16 @@ export function categoryPriority(): Prisma.Sql {
     WHEN p.category IN ('attraction', 'museum', 'historic', 'landmark', 'viewpoint', 'zoo') THEN 0
     WHEN p.category IN ('park', 'nature', 'beach') THEN 1
     ELSE 2 END`;
+}
+
+/** "Herrengasse 14, Wien" from a place's OpenStreetMap address tags; null without a street or city. */
+export function placeAddress(tags: Record<string, string>): string | null {
+  const street = [tags['addr:street'], tags['addr:housenumber']]
+    .filter(Boolean)
+    .join(' ');
+  const parts = [tags['addr:street'] ? street : undefined, tags['addr:city']];
+  const address = parts.filter(Boolean).join(', ');
+  return address || null;
 }
 
 function asStringRecord(value: Prisma.JsonValue): Record<string, string> {

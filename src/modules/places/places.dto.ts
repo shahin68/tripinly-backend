@@ -104,6 +104,21 @@ export class TilesQueryDto extends PickType(InViewQueryDto, [
   })
   @Matches(TILES_PATTERN, { message: 'invalidTiles' })
   tiles: string;
+
+  @ApiPropertyOptional({
+    minLength: 2,
+    maxLength: 100,
+    example: 'kfc',
+    description:
+      'The map searched by name: only places whose name matches as in search, at any zoom (no clusters), hot first, then the best known. Ignores `categories`',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @Length(2, 100)
+  q?: string;
 }
 
 export class PopularQueryDto extends BboxQueryDto {
@@ -488,7 +503,8 @@ export class SearchResultDto {
     type: String,
     nullable: true,
     example: 'Stephansplatz 1, Wien, Austria',
-    description: 'Photon: street, city and country for telling results apart',
+    description:
+      'Telling results with the same name apart. Photon: street, city and country. Our places: street and house number, city, from OpenStreetMap (null when it has none)',
   })
   address: string | null;
 

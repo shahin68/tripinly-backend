@@ -47,7 +47,7 @@ Two sources in one table (`places.source`):
 - `user` — created when a user adds a marker that isn't an existing place (custom pin, address or city from Photon). Custom places are matched later by name + proximity (see `geo-discovery` skill).
 - **A tap on the map** (`POST /days/{id}/markers` with `location` only) is named on the server: one of our public places (OSM, or liked on a public trip) within 25 m is linked; else Photon `/reverse` (100 m) gives the address and its OSM ids; else the stop is named by its coordinates. One request from the app, no Google data, the point isn't logged.
 
-Stored per place: `name`, `names` (json of `name:<lang>` for localization), `category`, `location`, `source`, `osmType` + `osmId` (osm only, unique), `tags` (small json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image), `popularity`, `prominence`, `qrank`, `imageTagsHash`, `isActive`, `importedAt`.
+Stored per place: `name`, `names` (json of `name:<lang>` for localization), `category`, `location`, `source`, `osmType` + `osmId` (osm only, unique), `tags` (small json subset: website, opening_hours, cuisine, wikidata, wikipedia, wikimedia_commons, image, addr:street, addr:housenumber, addr:city — the address tells search results with the same name apart), `popularity`, `prominence`, `qrank`, `imageTagsHash`, `isActive`, `importedAt`.
 
 **Prominence** (how well known a place is, 0–100) is set by every import as `round(100 × max(Pq, Pt))`:
 
