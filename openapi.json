@@ -2025,6 +2025,85 @@
         ]
       }
     },
+    "/v1/places/around": {
+      "get": {
+        "description": "Every place within radiusMeters of the point: hot spots first, Tripinly spots before OSM places, then nearest; categoryCounts says how many of each kind the circle holds (for filter chips). 403 PREMIUM_REQUIRED without Tripinly Pro. The point is used for this query only.",
+        "operationId": "Places_around",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusMeters",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 50,
+              "maximum": 5000,
+              "default": 500,
+              "type": "number"
+            }
+          },
+          {
+            "name": "categories",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated: cafe, restaurant, bar, attraction, museum, historic, park, nature, landmark, other, bakery, fast_food, viewpoint, beach, entertainment, shopping, stay, transport, cinema, nightlife, health, pharmacy, groceries, market, sports, spa, zoo, kids, library, camping, winery, parking, fuel, money, toilets, rental, photo_spot, romantic. All when omitted; categoryCounts always counts every kind",
+            "schema": {
+              "example": "cafe,museum",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AroundResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Places around a point, by kind (Tripinly Pro)",
+        "tags": [
+          "places"
+        ]
+      }
+    },
     "/v1/places/popular": {
       "get": {
         "description": "Tripinly places only, by popularity. excludeTripId leaves out places already in that trip.",
@@ -6468,6 +6547,90 @@
           "attribution"
         ]
       },
+      "CategoryCountDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "restaurant",
+              "bar",
+              "attraction",
+              "museum",
+              "historic",
+              "park",
+              "nature",
+              "landmark",
+              "other",
+              "bakery",
+              "fast_food",
+              "viewpoint",
+              "beach",
+              "entertainment",
+              "shopping",
+              "stay",
+              "transport",
+              "cinema",
+              "nightlife",
+              "health",
+              "pharmacy",
+              "groceries",
+              "market",
+              "sports",
+              "spa",
+              "zoo",
+              "kids",
+              "library",
+              "camping",
+              "winery",
+              "parking",
+              "fuel",
+              "money",
+              "toilets",
+              "rental",
+              "photo_spot",
+              "romantic"
+            ]
+          },
+          "count": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "category",
+          "count"
+        ]
+      },
+      "AroundResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Hot spots first (from APP_PLACE_RANK_MIN_HOT_COUNT, most hot first), Tripinly spots before OSM places, then nearest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlaceDto"
+            }
+          },
+          "categoryCounts": {
+            "description": "Places in the circle per kind, ignoring `categories`; most first. Kinds with none are left out",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCountDto"
+            }
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "categoryCounts",
+          "attribution"
+        ]
+      },
       "PopularResponseDto": {
         "type": "object",
         "properties": {
@@ -7710,6 +7873,13 @@
               "$ref": "#/components/schemas/AlongTheWayDto"
             }
           },
+          "alongTheWayCounts": {
+            "description": "Places along the route per kind, ignoring `categories` and the APP_ALONG_THE_WAY_MAX_PLACES cap (for filter chips); most first. Kinds with none are left out",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCountDto"
+            }
+          },
           "degraded": {
             "type": "boolean",
             "description": "True when routing is unavailable (quota used up, not configured): the route is straight lines with estimated times"
@@ -7722,6 +7892,7 @@
         "required": [
           "route",
           "alongTheWay",
+          "alongTheWayCounts",
           "degraded",
           "attribution"
         ]

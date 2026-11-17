@@ -1,6 +1,6 @@
 /** Paid feature keys (premium-feature skill). RevenueCat's `tripinly_pro` unlocks all of them. */
 export const PremiumFeature = {
-  /** Routes along streets with places along the way (day and A→B). */
+  /** Routes along streets with places along the way (day and A→B), and places around a pin. */
   ROUTES: 'routes',
 } as const;
 

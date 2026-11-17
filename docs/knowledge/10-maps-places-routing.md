@@ -132,6 +132,7 @@ Returns:
 - Exclude places already in the day/trip.
 - Exclude the places at an A→B route's ends by id (`fromPlaceId`, `toPlaceId`): they are its ends, not places along the way (Shahin, 2026-11-13). A day route's markers and an A→B route's `excludeTripId` already leave the trip's own places out by id.
 - Order by `positionAlongRoute`.
+- `alongTheWayCounts`: how many places of each kind lie along the route (same buffer and exclusions, ignoring `categories` and the cap), most first, for the app's filter chips; transit counts along the walks only (2026-11-17).
 
 **Caching:** provider routes cached by (ordered coordinates rounded to 5 decimals, mode) in Redis for 7 days. A day's key changes whenever its markers move, are added, removed or reordered, so no explicit invalidation is needed. `alongTheWay` is recomputed on every request (one indexed query) because it is personalized (covers, likedByMe).
 
@@ -178,6 +179,10 @@ Returns:
 ## Nearby (unchanged idea, new data)
 
 `GET /places/nearby` ranks Tripinly places by `popularity / (1 + km)^1.2`, cursor-paginated; if the first page ends with fewer than 10, it is filled up to `limit` with OSM attractions, museums, historic sites and landmarks by distance. Location not stored or logged (query strings are stripped from request logs).
+
+## Around a pin — `GET /places/around` (Tripinly Pro, 2026-11-17)
+
+The app's "Around" button on a stop opens a ring the user drags to a radius; the app asks `GET /places/around?lat=&lng=&radiusMeters=&categories=&limit=` (radius 50–5000 m, default 500; limit 1–50, default 30). Every listed place in the circle (OSM, or a Tripinly spot on a public trip: `source = 'osm' OR popularity > 0`), ranked hot first (from `APP_PLACE_RANK_MIN_HOT_COUNT`, most hot first), Tripinly spots before OSM places, then nearest. `categoryCounts` counts every kind in the circle whatever `categories` asks, so every chip keeps its number. Pro through the same `routes` entitlement (one Pro key for now); 403 `PREMIUM_REQUIRED` otherwise. The point is used for the query only, never stored or logged.
 
 ## Popular spots
 
