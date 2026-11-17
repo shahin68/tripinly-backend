@@ -11,6 +11,7 @@ import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
 import { EntitlementService } from '../billing/entitlement.service';
 import { PremiumFeature } from '../billing/entitlements';
 import { MarkersService } from '../markers/markers.service';
+import type { CategoryCountDto } from '../places/places.dto';
 import {
   categoryPriority,
   PLACE_COLUMNS,
@@ -162,6 +163,7 @@ export class RoutingService {
       return {
         route: null,
         alongTheWay: [],
+        alongTheWayCounts: [],
         degraded: false,
         attribution:
           mode === 'transit'
@@ -286,16 +288,24 @@ export class RoutingService {
       degraded = true;
     }
 
-    const alongTheWay = await this.alongTheWay(
-      userId,
-      route.line,
-      route.durationSeconds,
-      excludePlaceIds,
-      mode,
-      categories,
-      excludeTripId,
-      lang,
-    );
+    const [alongTheWay, alongTheWayCounts] = await Promise.all([
+      this.alongTheWay(
+        userId,
+        route.line,
+        route.durationSeconds,
+        excludePlaceIds,
+        mode,
+        categories,
+        excludeTripId,
+        lang,
+      ),
+      this.alongTheWayCounts(
+        [route.line],
+        mode,
+        excludePlaceIds,
+        excludeTripId,
+      ),
+    ]);
     return {
       route: {
         polyline: encodePolyline(route.line),
@@ -309,6 +319,7 @@ export class RoutingService {
         })),
       },
       alongTheWay,
+      alongTheWayCounts,
       degraded,
       attribution: ROUTING_ATTRIBUTION,
     };
@@ -393,16 +404,24 @@ export class RoutingService {
       0,
     );
 
-    const alongTheWay = await this.transitAlongTheWay(
-      userId,
-      steps,
-      departure,
-      durationSeconds,
-      excludePlaceIds,
-      categories,
-      excludeTripId,
-      lang,
-    );
+    const [alongTheWay, alongTheWayCounts] = await Promise.all([
+      this.transitAlongTheWay(
+        userId,
+        steps,
+        departure,
+        durationSeconds,
+        excludePlaceIds,
+        categories,
+        excludeTripId,
+        lang,
+      ),
+      this.alongTheWayCounts(
+        alongWalks(steps).map((step) => step.path),
+        'walking',
+        excludePlaceIds,
+        excludeTripId,
+      ),
+    ]);
     const legs: RouteLegDto[] = legSteps.map((legSteps, i) => ({
       fromMarkerId: pairs[i][0].markerId,
       toMarkerId: pairs[i][1].markerId,
@@ -432,6 +451,7 @@ export class RoutingService {
         typicalTimes: trips.some((trip) => trip?.typicalTimes),
       },
       alongTheWay,
+      alongTheWayCounts,
       degraded: trips.some((trip) => !trip),
       attribution: transitAttribution(transitCredit([region])),
     };
@@ -467,10 +487,7 @@ export class RoutingService {
     const walks = steps.flatMap((step) => {
       const start = before;
       before += step.distanceMeters;
-      return step.kind === 'walk' &&
-        step.distanceMeters >= MIN_ALONG_WALK_METERS
-        ? [{ step, start }]
-        : [];
+      return isAlongWalk(step) ? [{ step, start }] : [];
     });
     const found = await Promise.all(
       walks.map(({ step }) =>
@@ -564,6 +581,49 @@ export class RoutingService {
    * (Tripinly places first, then sights), in route order. The places at the
    * route's ends ([excludePlaceIds]) are left out: they are its ends.
    */
+  /**
+   * How many places of each kind lie along the lines, for the filter chips:
+   * the same places alongTheWay picks from, ignoring the asked categories
+   * and the per-route cap.
+   */
+  private async alongTheWayCounts(
+    lines: LatLng[][],
+    mode: RoutingMode,
+    excludePlaceIds: string[],
+    excludeTripId: string | undefined,
+  ): Promise<CategoryCountDto[]> {
+    const parts = lines
+      .map((line) =>
+        line.filter(
+          (p, i) =>
+            i === 0 || p.lat !== line[i - 1].lat || p.lng !== line[i - 1].lng,
+        ),
+      )
+      .filter((line) => line.length >= 2);
+    if (!parts.length) return [];
+    const wkt = `MULTILINESTRING(${parts
+      .map((line) => `(${line.map((p) => `${p.lng} ${p.lat}`).join(',')})`)
+      .join(',')})`;
+    const { bufferMeters, simplifyMeters } = ALONG[mode];
+    return this.prisma.$queryRaw<CategoryCountDto[]>`
+      WITH line AS (
+        SELECT ST_Transform(ST_Simplify(ST_Transform(ST_GeomFromText(${wkt}, 4326), 3857), ${simplifyMeters}), 4326)::geography AS geog
+      )
+      SELECT p.category, count(*)::int AS count
+      FROM places p, line
+      WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+        AND ST_DWithin(p.location, line.geog, ${bufferMeters})
+        ${excludePlaceIds.length ? Prisma.sql`AND p.id <> ALL(${excludePlaceIds}::uuid[])` : Prisma.empty}
+        ${
+          excludeTripId
+            ? Prisma.sql`AND NOT EXISTS (
+                SELECT 1 FROM markers m WHERE m."placeId" = p.id AND m."tripId" = ${excludeTripId}::uuid)`
+            : Prisma.empty
+        }
+      GROUP BY p.category
+      ORDER BY count DESC, p.category`;
+  }
+
   private async alongTheWay(
     userId: string,
     routeLine: LatLng[],
@@ -693,4 +753,13 @@ function straightWalkSeconds([from, to]: LatLng[]): number {
 
 function toStepDto({ path, ...step }: TransitStep): TransitStepDto {
   return { ...step, polyline: encodePolyline(path) };
+}
+
+/** Walks long enough for places along the way (changing platforms is not). */
+function isAlongWalk(step: TransitStep): boolean {
+  return step.kind === 'walk' && step.distanceMeters >= MIN_ALONG_WALK_METERS;
+}
+
+function alongWalks(steps: TransitStep[]): TransitStep[] {
+  return steps.filter(isAlongWalk);
 }

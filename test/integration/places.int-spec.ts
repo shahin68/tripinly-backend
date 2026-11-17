@@ -827,6 +827,105 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
     });
   });
 
+  describe('GET /v1/places/around', () => {
+    const around = (query = '') =>
+      `/v1/places/around?lat=${CENTRE.lat}&lng=${CENTRE.lng}${query}`;
+    const grantPro = (session: Session) =>
+      prisma.entitlement.create({
+        data: { userId: session.userId, feature: 'routes', source: 'manual' },
+      });
+
+    it('lists hot spots first, our spots before OSM, then nearest, with counts per kind', async () => {
+      await grantPro(alice);
+      await insertPlace(app, {
+        name: 'Near café',
+        category: 'cafe',
+        lat: 48.2051,
+        lng: 16.3701,
+      });
+      await insertPlace(app, {
+        name: 'Farther café',
+        category: 'cafe',
+        lat: 48.207,
+        lng: 16.37,
+      });
+      await insertPlace(app, {
+        name: 'Hot museum',
+        category: 'museum',
+        lat: 48.208,
+        lng: 16.37,
+        popularity: 4,
+      });
+      await insertPlace(app, {
+        name: 'Liked spot',
+        category: 'other',
+        lat: 48.2075,
+        lng: 16.37,
+        source: 'user',
+        popularity: 1,
+      });
+      // A custom pin nobody liked (or only on a private trip) never shows.
+      await insertPlace(app, {
+        name: 'Our flat',
+        lat: 48.2052,
+        lng: 16.37,
+        source: 'user',
+      });
+      await insertPlace(app, {
+        name: 'Outside',
+        category: 'cafe',
+        lat: 48.215,
+        lng: 16.37,
+      });
+
+      const { body } = await as(alice)
+        .get(around('&radiusMeters=500'))
+        .expect(200);
+      expect(names(body.items)).toEqual([
+        'Hot museum',
+        'Liked spot',
+        'Near café',
+        'Farther café',
+      ]);
+      expect(body.items[2].distanceMeters).toBeLessThan(20);
+      expect(body.categoryCounts).toEqual([
+        { category: 'cafe', count: 2 },
+        { category: 'museum', count: 1 },
+        { category: 'other', count: 1 },
+      ]);
+      expect(body.attribution).toBe('© OpenStreetMap contributors');
+
+      // Filtering keeps the counts, so every chip keeps its number.
+      const cafes = await as(alice)
+        .get(around('&radiusMeters=500&categories=cafe&limit=1'))
+        .expect(200);
+      expect(names(cafes.body.items)).toEqual(['Near café']);
+      expect(cafes.body.categoryCounts).toEqual(body.categoryCounts);
+    });
+
+    it('is Tripinly Pro', async () => {
+      const { body } = await as(bob).get(around()).expect(403);
+      expect(body.error.code).toBe('PREMIUM_REQUIRED');
+    });
+
+    it('validates the point, radius and categories', async () => {
+      await grantPro(alice);
+      const { body } = await as(alice)
+        .get('/v1/places/around?lat=95&lng=16&radiusMeters=10&categories=moon')
+        .expect(400);
+      expect(Object.keys(body.error.details.fields).sort()).toEqual([
+        'categories',
+        'lat',
+        'radiusMeters',
+      ]);
+      await as(alice).get(around('&radiusMeters=5001')).expect(400);
+    });
+
+    it('requires sign-in', async () => {
+      await api(app).anonymous.get(around()).expect(401);
+    });
+  });
+
   describe('GET /v1/places/popular', () => {
     it("lists liked places in the view, leaving out the trip's own places", async () => {
       const inTrip = await insertPlace(app, {

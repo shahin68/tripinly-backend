@@ -1,12 +1,15 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type PlaceCategory } from '../../generated/prisma/client';
+import { EntitlementService } from '../billing/entitlement.service';
+import { PremiumFeature } from '../billing/entitlements';
 import { photoKeys } from '../photos/photo-keys';
 import { BlocksService } from '../moderation/blocks.service';
 import { likedAmong } from '../social/liked';
@@ -41,6 +44,10 @@ import {
   IN_VIEW_CACHE_VERSION_KEY,
 } from './places-cache';
 import {
+  AROUND_DEFAULT_RADIUS_METERS,
+  type AroundQueryDto,
+  type AroundResponseDto,
+  type CategoryCountDto,
   type InViewQueryDto,
   type InViewResponseDto,
   type NearbyPageDto,
@@ -138,6 +145,7 @@ export class PlacesService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly config: ConfigService<Env, true>,
     private readonly covers: PlaceCoversService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async inView(
@@ -306,6 +314,52 @@ export class PlacesService {
     return {
       items: await this.personalize(userId, items),
       nextCursor: hasMore ? encodeScoreCursor(last.score, last.id) : null,
+      attribution: OSM_ATTRIBUTION,
+    };
+  }
+
+  /**
+   * Around a pin (Tripinly Pro, the same entitlement as routes): every place
+   * in the circle, hot spots first, Tripinly spots before OSM places, then
+   * nearest; with how many of each kind the circle holds. Private spots
+   * never count (popularity only counts public trips). The point is used
+   * for this query only.
+   */
+  async around(
+    userId: string,
+    query: AroundQueryDto,
+    lang: string,
+  ): Promise<AroundResponseDto> {
+    if (!(await this.entitlements.has(userId, PremiumFeature.ROUTES))) {
+      throw new AppException(ErrorCode.PREMIUM_REQUIRED, HttpStatus.FORBIDDEN);
+    }
+    const radius = query.radiusMeters ?? AROUND_DEFAULT_RADIUS_METERS;
+    const point = Prisma.sql`ST_SetSRID(ST_MakePoint(${query.lng}, ${query.lat}), 4326)::geography`;
+    const inCircle = Prisma.sql`p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+      AND ST_DWithin(p.location, ${point}, ${radius})`;
+    const minLikes = this.rankMinLikes();
+    const [rows, counts] = await Promise.all([
+      this.prisma.$queryRaw<(PlaceRow & { distance: number })[]>`
+        SELECT ${PLACE_COLUMNS}, ST_Distance(p.location, ${point}) AS distance
+        FROM places p
+        WHERE ${inCircle} ${inCategories(query.categories)}
+        ORDER BY CASE WHEN p.popularity >= ${minLikes} THEN p.popularity ELSE 0 END DESC,
+                 (p.source <> 'osm') DESC, distance, p.id
+        LIMIT ${query.limit ?? 30}`,
+      this.prisma.$queryRaw<CategoryCountDto[]>`
+        SELECT p.category, count(*)::int AS count
+        FROM places p
+        WHERE ${inCircle}
+        GROUP BY p.category
+        ORDER BY count DESC, p.category`,
+    ]);
+    const items: NearbyPlaceDto[] = rows.map((row) => ({
+      ...toPlaceItem(row, lang),
+      distanceMeters: Math.round(row.distance),
+    }));
+    return {
+      items: await this.personalize(userId, items),
+      categoryCounts: counts,
       attribution: OSM_ATTRIBUTION,
     };
   }

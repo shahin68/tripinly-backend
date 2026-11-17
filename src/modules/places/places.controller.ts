@@ -11,6 +11,8 @@ import { type AuthUser, CurrentUser } from '../../common/auth/auth.decorators';
 import { IdParamDto } from '../../common/dto/id-param.dto';
 import { SEARCH_RATE_LIMIT } from '../../common/throttling/throttling.module';
 import {
+  AroundQueryDto,
+  AroundResponseDto,
   InViewQueryDto,
   InViewResponseDto,
   NearbyPageDto,
@@ -89,6 +91,21 @@ export class PlacesController {
     @I18nLang() lang: string,
   ): Promise<NearbyPageDto> {
     return this.places.nearby(user.id, query, lang);
+  }
+
+  @Get('around')
+  @ApiOperation({
+    summary: 'Places around a point, by kind (Tripinly Pro)',
+    description:
+      'Every place within radiusMeters of the point: hot spots first, Tripinly spots before OSM places, then nearest; categoryCounts says how many of each kind the circle holds (for filter chips). 403 PREMIUM_REQUIRED without Tripinly Pro. The point is used for this query only.',
+  })
+  @ApiOkResponse({ type: AroundResponseDto })
+  around(
+    @CurrentUser() user: AuthUser,
+    @Query() query: AroundQueryDto,
+    @I18nLang() lang: string,
+  ): Promise<AroundResponseDto> {
+    return this.places.around(user.id, query, lang);
   }
 
   @Get('popular')

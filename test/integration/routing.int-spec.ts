@@ -202,6 +202,29 @@ describe('Routing (integration)', () => {
       ).toEqual([far]);
     });
 
+    it('counts places along the way per kind, whatever the filter', async () => {
+      await insertPlace(app, {
+        name: 'Second café',
+        lat: 48.2008,
+        lng: 16.368,
+        category: 'cafe',
+      });
+      const all = `/v1/routes?from=${point(FROM)}&to=${point(TO)}&mode=driving`;
+      const expected = [
+        { category: 'cafe', count: 2 },
+        { category: 'museum', count: 1 },
+      ];
+      const { body } = await as(stranger).get(all).expect(200);
+      expect(body.alongTheWayCounts).toEqual(expected);
+
+      // Filtering the list keeps the counts, so every chip keeps its number.
+      const museums = await as(stranger)
+        .get(`${all}&categories=museum`)
+        .expect(200);
+      expect(museums.body.alongTheWay).toHaveLength(1);
+      expect(museums.body.alongTheWayCounts).toEqual(expected);
+    });
+
     it('caches routes by coordinates and mode', async () => {
       const path = `/v1/routes?from=${point(FROM)}&to=${point(TO)}`;
       await as(stranger).get(path).expect(200);
@@ -333,6 +356,7 @@ describe('Routing (integration)', () => {
       expect(body).toMatchObject({
         route: null,
         alongTheWay: [],
+        alongTheWayCounts: [],
         degraded: false,
       });
       expect(ors.requests).toHaveLength(0);

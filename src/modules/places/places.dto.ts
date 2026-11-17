@@ -162,6 +162,49 @@ export class NearbyQueryDto {
   limit?: number;
 }
 
+/** Around a pin: the ring's radius the app may ask for, in metres. */
+export const AROUND_MIN_RADIUS_METERS = 50;
+export const AROUND_MAX_RADIUS_METERS = 5000;
+export const AROUND_DEFAULT_RADIUS_METERS = 500;
+
+/** Coordinates are used for this query only: never stored, logged or echoed in errors. */
+export class AroundQueryDto extends PickType(NearbyQueryDto, [
+  'lat',
+  'lng',
+] as const) {
+  @ApiPropertyOptional({
+    minimum: AROUND_MIN_RADIUS_METERS,
+    maximum: AROUND_MAX_RADIUS_METERS,
+    default: AROUND_DEFAULT_RADIUS_METERS,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(AROUND_MIN_RADIUS_METERS)
+  @Max(AROUND_MAX_RADIUS_METERS)
+  radiusMeters?: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'cafe,museum',
+    description: `Comma-separated: ${PLACE_CATEGORIES.join(', ')}. All when omitted; categoryCounts always counts every kind`,
+  })
+  @IsOptional()
+  @Transform(toCategoryList)
+  @ArrayMaxSize(PLACE_CATEGORIES.length)
+  @ArrayUnique()
+  @IsIn(PLACE_CATEGORIES, { each: true })
+  categories?: PlaceCategory[];
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 30 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export const SEARCH_SCOPES = ['all', 'destination'] as const;
 export type SearchScope = (typeof SEARCH_SCOPES)[number];
 
@@ -354,6 +397,33 @@ export class NearbyPageDto {
 
   @ApiProperty({ type: String, nullable: true })
   nextCursor: string | null;
+
+  @ApiProperty({ example: OSM_ATTRIBUTION })
+  attribution: string;
+}
+
+export class CategoryCountDto {
+  @ApiProperty({ enum: PLACE_CATEGORIES })
+  category: PlaceCategory;
+
+  @ApiProperty({ minimum: 1 })
+  count: number;
+}
+
+export class AroundResponseDto {
+  @ApiProperty({
+    type: [NearbyPlaceDto],
+    description:
+      'Hot spots first (from APP_PLACE_RANK_MIN_HOT_COUNT, most hot first), Tripinly spots before OSM places, then nearest first',
+  })
+  items: NearbyPlaceDto[];
+
+  @ApiProperty({
+    type: [CategoryCountDto],
+    description:
+      'Places in the circle per kind, ignoring `categories`; most first. Kinds with none are left out',
+  })
+  categoryCounts: CategoryCountDto[];
 
   @ApiProperty({ example: OSM_ATTRIBUTION })
   attribution: string;

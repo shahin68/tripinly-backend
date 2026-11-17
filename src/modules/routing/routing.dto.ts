@@ -12,7 +12,11 @@ import {
 } from 'class-validator';
 import type { PlaceCategory } from '../../generated/prisma/client';
 import { PLACE_CATEGORIES } from '../markers/markers.dto';
-import { PlaceItemDto, toCategoryList } from '../places/places.dto';
+import {
+  CategoryCountDto,
+  PlaceItemDto,
+  toCategoryList,
+} from '../places/places.dto';
 import { ROUTING_MODES, type RoutingMode } from './routing.provider';
 import { TRANSIT_VEHICLES } from './transit/transit.provider';
 
@@ -302,6 +306,13 @@ export class RouteResponseDto {
     description: 'Ordered along the route',
   })
   alongTheWay: AlongTheWayDto[];
+
+  @ApiProperty({
+    type: [CategoryCountDto],
+    description:
+      'Places along the route per kind, ignoring `categories` and the APP_ALONG_THE_WAY_MAX_PLACES cap (for filter chips); most first. Kinds with none are left out',
+  })
+  alongTheWayCounts: CategoryCountDto[];
 
   @ApiProperty({
     description:
