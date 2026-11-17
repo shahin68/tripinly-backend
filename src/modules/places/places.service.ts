@@ -322,8 +322,9 @@ export class PlacesService {
    * Around a pin (Tripinly Pro, the same entitlement as routes): every place
    * in the circle, hot spots first, Tripinly spots before OSM places, then
    * nearest; with how many of each kind the circle holds. Private spots
-   * never count (popularity only counts public trips). The point is used
-   * for this query only.
+   * never count (popularity only counts public trips). The pin the ring is
+   * around (excludePlaceId) is left out. The point is used for this query
+   * only.
    */
   async around(
     userId: string,
@@ -335,8 +336,11 @@ export class PlacesService {
     }
     const radius = query.radiusMeters ?? AROUND_DEFAULT_RADIUS_METERS;
     const point = Prisma.sql`ST_SetSRID(ST_MakePoint(${query.lng}, ${query.lat}), 4326)::geography`;
+    const notThePin = query.excludePlaceId
+      ? Prisma.sql`AND p.id <> ${query.excludePlaceId}::uuid`
+      : Prisma.empty;
     const inCircle = Prisma.sql`p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-      AND ST_DWithin(p.location, ${point}, ${radius})`;
+      AND ST_DWithin(p.location, ${point}, ${radius}) ${notThePin}`;
     const minLikes = this.rankMinLikes();
     const [rows, counts] = await Promise.all([
       this.prisma.$queryRaw<(PlaceRow & { distance: number })[]>`
