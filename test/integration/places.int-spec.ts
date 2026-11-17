@@ -103,6 +103,45 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(body.tiles[0].places).toEqual(south.body.places);
     });
 
+    it('with q, lists only places named so, at any zoom, hot first', async () => {
+      await insertPlace(app, {
+        name: 'KFC',
+        lat: 48.2,
+        lng: 16.37,
+        category: 'fast_food',
+      });
+      await insertPlace(app, {
+        name: 'KFC',
+        lat: 48.201,
+        lng: 16.371,
+        category: 'fast_food',
+        popularity: 2,
+      });
+      await insertPlace(app, { name: 'Café Sacher', lat: 48.202, lng: 16.372 });
+      await insertPlace(app, {
+        name: 'KFC Home',
+        lat: 48.203,
+        lng: 16.373,
+        source: 'user',
+      });
+
+      const { body } = await as(alice)
+        .get(`/v1/places/tiles?tiles=${SOUTH}&zoom=11&q=kfc&categories=cafe`)
+        .expect(200);
+      expect(
+        body.tiles[0].places.map(
+          (place: { hotCount: number }) => place.hotCount,
+        ),
+      ).toEqual([2, 0]);
+      expect(names(body.tiles[0].places)).toEqual(['KFC', 'KFC']);
+      expect(body.tiles[0].clusters).toEqual([]);
+
+      const short = await as(alice)
+        .get(`/v1/places/tiles?tiles=${SOUTH}&zoom=11&q=k`)
+        .expect(400);
+      expect(short.body.error.details.fields).toEqual({ q: ['isLength'] });
+    });
+
     it('rejects malformed squares, too many, and squares too large for the zoom', async () => {
       const malformed = await as(alice)
         .get('/v1/places/tiles?tiles=abc&zoom=15')
@@ -531,6 +570,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         lat: 48.2037,
         lng: 16.3618,
         osmId: 4242,
+        tags: { 'addr:street': 'Maria-Theresien-Platz', 'addr:city': 'Wien' },
       });
       await insertPlace(app, {
         name: 'Museum Custom',
@@ -567,7 +607,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           isTripinly: false,
           hotCount: 0,
           type: null,
-          address: null,
+          address: 'Maria-Theresien-Platz, Wien',
           osmType: 'node',
           osmId: '4242',
         },

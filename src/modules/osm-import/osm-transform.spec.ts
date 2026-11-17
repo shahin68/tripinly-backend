@@ -96,6 +96,10 @@ describe('transformFeature', () => {
         'name:etymology': 'ignored',
         website: 'https://example.com',
         phone: '+43 1 000',
+        'addr:street': 'Herrengasse',
+        'addr:housenumber': '14',
+        'addr:city': 'Wien',
+        'addr:postcode': '1010',
       },
     });
     expect(place).toEqual({
@@ -106,7 +110,12 @@ describe('transformFeature', () => {
       searchText: 'cafe central central kavehaz',
       names: { 'name:hu': 'Central kávéház' },
       category: 'cafe',
-      tags: { website: 'https://example.com' },
+      tags: {
+        website: 'https://example.com',
+        'addr:street': 'Herrengasse',
+        'addr:housenumber': '14',
+        'addr:city': 'Wien',
+      },
       tagProminence: 2,
       wikidataIds: [],
       imageTagsHash: null,
