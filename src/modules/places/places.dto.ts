@@ -196,6 +196,15 @@ export class AroundQueryDto extends PickType(NearbyQueryDto, [
   @IsIn(PLACE_CATEGORIES, { each: true })
   categories?: PlaceCategory[];
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'The place the ring is around (the pin itself): left out of the items and the counts',
+  })
+  @IsOptional()
+  @IsUUID()
+  excludePlaceId?: string;
+
   @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 30 })
   @IsOptional()
   @Type(() => Number)

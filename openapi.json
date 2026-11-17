@@ -2070,6 +2070,16 @@
             }
           },
           {
+            "name": "excludePlaceId",
+            "required": false,
+            "in": "query",
+            "description": "The place the ring is around (the pin itself): left out of the items and the counts",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",

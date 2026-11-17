@@ -903,6 +903,29 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(cafes.body.categoryCounts).toEqual(body.categoryCounts);
     });
 
+    it('leaves out the pin the ring is around, from the list and the counts', async () => {
+      await grantPro(alice);
+      const pin = await insertPlace(app, {
+        name: 'The pin',
+        category: 'toilets',
+        lat: CENTRE.lat,
+        lng: CENTRE.lng,
+      });
+      await insertPlace(app, {
+        name: 'Near café',
+        category: 'cafe',
+        lat: 48.2051,
+        lng: 16.3701,
+      });
+
+      const { body } = await as(alice)
+        .get(around(`&radiusMeters=500&excludePlaceId=${pin}`))
+        .expect(200);
+      expect(names(body.items)).toEqual(['Near café']);
+      expect(body.categoryCounts).toEqual([{ category: 'cafe', count: 1 }]);
+      await as(alice).get(around('&excludePlaceId=nope')).expect(400);
+    });
+
     it('is Tripinly Pro', async () => {
       const { body } = await as(bob).get(around()).expect(403);
       expect(body.error.code).toBe('PREMIUM_REQUIRED');
