@@ -82,6 +82,9 @@ const OSM_FILL_CELLS_PER_TILE = 4;
 const OSM_NOTABLE_MIN_ZOOM = 10;
 /** Below zoom 14 only places this well known fill the map (about 4,000 page views a year, or more). */
 const OSM_NOTABLE_MIN_PROMINENCE = 60;
+/** Around spreads its places over cells this many per radius (a quarter of it). */
+const AROUND_CELLS_PER_RADIUS = 4;
+const METERS_PER_DEGREE = 111_320;
 /** Popular spots have no zoom; this keeps the query to a region. */
 const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
@@ -322,12 +325,17 @@ export class PlacesService {
   }
 
   /**
-   * Around a pin (Tripinly Pro, the same entitlement as routes): every place
-   * in the circle, hot spots first, Tripinly spots before OSM places, then
-   * nearest; with how many of each kind the circle holds. Private spots
-   * never count (popularity only counts public trips). The pin the ring is
-   * around (excludePlaceId) is left out. The point is used for this query
-   * only.
+   * Around a pin (Tripinly Pro, the same entitlement as routes): the places
+   * in the circle, at most APP_AROUND_MAX_PINS, with how many of each kind
+   * the circle holds. When the circle holds more, they are spread over it
+   * (Shahin, 2026-11-18): the ring is cut into a grid of cells (a quarter of
+   * the radius wide) and each cell's best place goes first (hot spots, then
+   * Tripinly spots, then the best known, then nearest), so a bigger ring
+   * shows places out to its edge instead of only the nearest ones. The ones
+   * picked are listed hot spots first, Tripinly spots before OSM places, then
+   * nearest. Private spots never count (popularity only counts public trips).
+   * The pin the ring is around (excludePlaceId) is left out. The point is
+   * used for this query only.
    */
   async around(
     userId: string,
@@ -345,14 +353,32 @@ export class PlacesService {
     const inCircle = Prisma.sql`p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
       AND ST_DWithin(p.location, ${point}, ${radius}) ${notThePin}`;
     const minLikes = this.rankMinLikes();
+    const maxPins = this.config.get('APP_AROUND_MAX_PINS', { infer: true });
+    const limit = Math.min(query.limit ?? maxPins, maxPins);
+    // Cells a quarter of the radius wide, in degrees (longitude ones wider away from the equator).
+    const cellLat = radius / AROUND_CELLS_PER_RADIUS / METERS_PER_DEGREE;
+    const cellLng =
+      cellLat / Math.max(Math.cos((query.lat * Math.PI) / 180), 0.01);
     const [rows, counts] = await Promise.all([
       this.prisma.$queryRaw<(PlaceRow & { distance: number })[]>`
-        SELECT ${PLACE_COLUMNS}, ST_Distance(p.location, ${point}) AS distance
-        FROM places p
-        WHERE ${inCircle} ${inCategories(query.categories)}
-        ORDER BY CASE WHEN p.popularity >= ${minLikes} THEN p.popularity ELSE 0 END DESC,
-                 (p.source <> 'osm') DESC, distance, p.id
-        LIMIT ${query.limit ?? 30}`,
+        SELECT id, name, names, category, lat, lng, popularity, prominence, distance FROM (
+          SELECT * FROM (
+            SELECT ${PLACE_COLUMNS}, ST_Distance(p.location, ${point}) AS distance,
+                   CASE WHEN p.popularity >= ${minLikes} THEN p.popularity ELSE 0 END AS hot,
+                   (p.source <> 'osm') AS ours,
+                   row_number() OVER (
+                     PARTITION BY floor(p.lng / ${cellLng}), floor(p.lat / ${cellLat})
+                     ORDER BY CASE WHEN p.popularity >= ${minLikes} THEN p.popularity ELSE 0 END DESC,
+                              (p.source <> 'osm') DESC, p.prominence DESC,
+                              ST_Distance(p.location, ${point}), p.id
+                   ) AS rank_in_cell
+            FROM places p
+            WHERE ${inCircle} ${inCategories(query.categories)}
+          ) spread
+          ORDER BY hot DESC, ours DESC, rank_in_cell, prominence DESC, distance, id
+          LIMIT ${limit}
+        ) picked
+        ORDER BY hot DESC, ours DESC, distance, id`,
       this.prisma.$queryRaw<CategoryCountDto[]>`
         SELECT p.category, count(*)::int AS count
         FROM places p

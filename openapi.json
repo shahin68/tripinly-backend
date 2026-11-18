@@ -2095,10 +2095,10 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "At most this many places; never more than APP_AROUND_MAX_PINS (default 150), which is also the default",
             "schema": {
               "minimum": 1,
-              "maximum": 50,
-              "default": 30,
+              "maximum": 500,
               "type": "number"
             }
           }

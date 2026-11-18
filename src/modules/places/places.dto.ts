@@ -220,12 +220,17 @@ export class AroundQueryDto extends PickType(NearbyQueryDto, [
   @IsUUID()
   excludePlaceId?: string;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 30 })
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 500,
+    description:
+      'At most this many places; never more than APP_AROUND_MAX_PINS (default 150), which is also the default',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(50)
+  @Max(500)
   limit?: number;
 }
 
