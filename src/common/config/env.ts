@@ -88,6 +88,8 @@ export const envSchema = z
       .default(40),
     /** Most place pins the app draws on the map at once, the best known and most liked first. */
     APP_MAP_MAX_PINS: z.coerce.number().int().min(20).max(1000).default(150),
+    /** Most places Around a pin sends (and the app draws) at once, spread over the ring. */
+    APP_AROUND_MAX_PINS: z.coerce.number().int().min(10).max(500).default(150),
     /** A pin shows its place's photo when the place's prominence is at least this... */
     APP_PHOTO_PIN_MIN_PROMINENCE: z.coerce
       .number()

@@ -943,6 +943,32 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(cafes.body.categoryCounts).toEqual(body.categoryCounts);
     });
 
+    it('spreads its places over the ring when it holds more than fit', async () => {
+      await grantPro(alice);
+      for (const [i, lng] of [16.3701, 16.3702, 16.3703].entries()) {
+        await insertPlace(app, {
+          name: `Corner café ${i + 1}`,
+          category: 'cafe',
+          lat: 48.2051,
+          lng,
+        });
+      }
+      await insertPlace(app, {
+        name: 'Edge café',
+        category: 'cafe',
+        lat: 48.209,
+        lng: 16.37,
+      });
+
+      // Two fit: the nearest of the crowded corner, and the one out at the edge rather than the corner's others.
+      const { body } = await as(alice)
+        .get(around('&radiusMeters=500&limit=2'))
+        .expect(200);
+      expect(names(body.items)).toEqual(['Corner café 1', 'Edge café']);
+      expect(body.categoryCounts).toEqual([{ category: 'cafe', count: 4 }]);
+      await as(alice).get(around('&limit=501')).expect(400);
+    });
+
     it('leaves out the pin the ring is around, from the list and the counts', async () => {
       await grantPro(alice);
       const pin = await insertPlace(app, {
