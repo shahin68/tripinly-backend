@@ -4,6 +4,14 @@ export interface PushMessage {
   body: string;
   /** String values only (FCM data payload). */
   data: Record<string, string>;
+  /** Android's notification channel and iOS's thread: see CHANNEL_FOR_SETTING. */
+  channel: string;
+  /**
+   * Pushes of one group (likes on one photo, comments on one stop) share it:
+   * a new one replaces the one still showing instead of stacking under it.
+   * At most 64 characters (Apple's collapse id limit).
+   */
+  replaceKey: string;
 }
 
 export interface PushResult {

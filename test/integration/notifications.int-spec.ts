@@ -200,7 +200,9 @@ describe('Notifications (integration)', () => {
       data: {
         type: 'join_requested',
         deepLink: `tripinly://trips/${trip.id}/members`,
+        channel: 'join_requests',
       },
+      channel: 'join_requests',
     });
     // Asking again doesn't notify again.
     await as(stranger).post(`/v1/trips/${trip.id}/join-request`).expect(200);
