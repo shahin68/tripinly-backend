@@ -695,6 +695,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       for (const q of ['steph', 'stephan', 'Stephan']) {
         const { body } = await as(alice)
           .get(`/v1/places/search?q=${q}&lat=48.2050&lng=16.3700`)
+          .set('Accept-Language', 'de')
           .expect(200);
         expect(names(body.items)).toEqual([
           'Stephansdom',
