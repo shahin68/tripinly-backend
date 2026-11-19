@@ -33,6 +33,14 @@ import { normalizePlaceName } from './normalize-name';
 import { placeImageCredit } from './commons-metadata';
 import { BEST_PHOTO_FIRST, PlaceCoversService } from './place-covers.service';
 import { PhotonClient } from './photon.client';
+import {
+  mergeSearchResults,
+  photonScore,
+  type Scored,
+  SEARCH_WEIGHTS,
+  searchWords,
+  SQL_WORD_SEPARATORS,
+} from './search-ranking';
 import { PUBLIC_STOP_WHERE } from './popularity';
 import { placeImageKeys } from './place-image-keys';
 import {
@@ -415,18 +423,17 @@ export class PlacesService {
       return { items: destinations(areas), attribution: OSM_ATTRIBUTION };
     }
     const [ours, photon] = await Promise.all([
-      this.searchOurs(normalizePlaceName(query.q), lang, near),
+      this.searchOurs(query.q, lang, near),
       this.photon.search({ q: query.q, lang, near }),
     ]);
-    const known = new Set(
-      ours
-        .filter((item) => item.osmType)
-        .map((item) => `${item.osmType}:${item.osmId}`),
-    );
-    const extra = photon.filter(
-      (item) => !item.osmType || !known.has(`${item.osmType}:${item.osmId}`),
-    );
-    return { items: [...ours, ...extra], attribution: OSM_ATTRIBUTION };
+    const scored = photon.map((item) => ({
+      item,
+      score: photonScore(item, query.q, near),
+    }));
+    return {
+      items: mergeSearchResults(ours, scored, SEARCH_LIMIT),
+      attribution: OSM_ATTRIBUTION,
+    };
   }
 
   /**
@@ -805,43 +812,66 @@ export class PlacesService {
     return this.config.get('APP_PLACE_RANK_MIN_HOT_COUNT', { infer: true });
   }
 
+  /** Our places for a search, each with its score (see `search-ranking.ts`). */
   private async searchOurs(
-    q: string,
+    query: string,
     lang: string,
     near: { lat: number; lng: number } | undefined,
-  ): Promise<SearchResultDto[]> {
+  ): Promise<Scored[]> {
+    const q = normalizePlaceName(query);
     // Trigram matching needs two characters; one letter is left to Photon's prefix search.
-    if (q.length < 2) return [];
+    const words = searchWords(query);
+    if (q.length < 2 || !words) return [];
+    const like = (text: string) => text.replace(/[\\%_]/g, '\\$&');
+    const w = SEARCH_WEIGHTS;
     const proximity = near
-      ? Prisma.sql`+ 0.3 / (1 + ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography) / 5000.0)`
+      ? Prisma.sql`+ ${w.near}::float8 / (1 + ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography) / ${w.nearMeters}::float8)`
       : Prisma.empty;
+    const name = Prisma.sql`regexp_replace(p."normalizedName", ${SQL_WORD_SEPARATORS}, ' ', 'g')`;
+    const all = Prisma.sql`(' ' || regexp_replace(p."searchText", ${SQL_WORD_SEPARATORS}, ' ', 'g'))`;
     const rows = await this.prisma.$queryRaw<
       (PlaceRow & {
         osmType: 'node' | 'way' | 'relation' | null;
         osmId: bigint | null;
         tags: Prisma.JsonValue;
+        score: number;
       })[]
     >`
-      SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags
-      FROM places p
-      WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-        AND ${q} <% p."searchText"
-      ORDER BY word_similarity(${q}, p."searchText") + 0.05 * ln(1 + p.popularity) ${proximity} DESC, p.id
+      SELECT * FROM (
+        SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags,
+          CASE
+            WHEN ${name} LIKE ${like(words) + '%'} THEN ${w.nameStart}::float8
+            WHEN ${all} LIKE ${'% ' + like(words) + '%'} THEN ${w.wordStart}::float8
+            ELSE ${w.fuzzy}::float8 * word_similarity(${q}, p."searchText")
+          END
+          + CASE WHEN ${name} = ${words} THEN ${w.exact}::float8 ELSE 0 END
+          + ${w.prominence}::float8 * p.prominence / 100.0
+          + ${w.hot}::float8 * ln(1 + p.popularity)
+          ${proximity} AS score
+        FROM places p
+        WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+          AND (${q} <% p."searchText" OR p."searchText" LIKE ${'%' + like(q) + '%'})
+      ) ranked
+      ORDER BY score DESC, id
       LIMIT ${SEARCH_LIMIT}`;
     return rows.map((row) => {
       const item = toPlaceItem(row, lang);
       return {
-        source: 'place',
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        location: item.location,
-        isTripinly: item.isTripinly,
-        hotCount: item.hotCount,
-        type: null,
-        address: placeAddress(asStringRecord(row.tags)),
-        osmType: row.osmType,
-        osmId: row.osmId?.toString() ?? null,
+        score: row.score,
+        item: {
+          source: 'place',
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          location: item.location,
+          isTripinly: item.isTripinly,
+          hotCount: item.hotCount,
+          prominence: item.prominence,
+          type: null,
+          address: placeAddress(asStringRecord(row.tags)),
+          osmType: row.osmType,
+          osmId: row.osmId?.toString() ?? null,
+        },
       };
     });
   }

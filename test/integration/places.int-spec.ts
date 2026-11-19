@@ -606,6 +606,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           location: { lat: 48.2037, lng: 16.3618 },
           isTripinly: false,
           hotCount: 0,
+          prominence: 0,
           type: null,
           address: 'Maria-Theresien-Platz, Wien',
           osmType: 'node',
@@ -656,6 +657,106 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       ]);
       // Hungarian has no Photon index: no lang parameter.
       expect(photon.requests[0].has('lang')).toBe(false);
+    });
+
+    it('ranks the best known name starts first, not the closest exact word', async () => {
+      await insertPlace(app, {
+        name: 'Franz-Stephan-Denkmal',
+        lat: 48.2059,
+        lng: 16.3612,
+        prominence: 20,
+      });
+      await insertPlace(app, {
+        name: 'Stephansdom',
+        names: { 'name:en': "St. Stephen's Cathedral" },
+        lat: 48.2085,
+        lng: 16.373,
+        prominence: 95,
+      });
+      await insertPlace(app, {
+        name: 'Stephansplatz',
+        lat: 48.2084,
+        lng: 16.3721,
+        prominence: 70,
+      });
+      await insertPlace(app, {
+        name: 'Café Stephan',
+        lat: 48.2051,
+        lng: 16.3702,
+      });
+      photon.features = [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [16.3721, 48.2084] },
+          properties: { name: 'Stephansplatz', type: 'street', city: 'Wien' },
+        },
+      ];
+
+      for (const q of ['steph', 'stephan', 'Stephan']) {
+        const { body } = await as(alice)
+          .get(`/v1/places/search?q=${q}&lat=48.2050&lng=16.3700`)
+          .expect(200);
+        expect(names(body.items)).toEqual([
+          'Stephansdom',
+          'Stephansplatz',
+          'Stephansplatz',
+          'Franz-Stephan-Denkmal',
+          'Café Stephan',
+        ]);
+        // The street comes after the places starting with its name.
+        expect(body.items[2]).toEqual(
+          expect.objectContaining({ source: 'photon', name: 'Stephansplatz' }),
+        );
+        expect(body.items[0].prominence).toBe(95);
+      }
+
+      const english = await as(alice)
+        .get('/v1/places/search?q=st%20stephen')
+        .set('Accept-Language', 'en')
+        .expect(200);
+      expect(names(english.body.items)[0]).toBe("St. Stephen's Cathedral");
+    });
+
+    it('puts hot spots ahead and addresses first for a house number', async () => {
+      await insertPlace(app, {
+        name: 'Graben Bakery',
+        lat: 48.2087,
+        lng: 16.3695,
+        source: 'user',
+        popularity: 12,
+      });
+      await insertPlace(app, {
+        name: 'Graben Gallery',
+        lat: 48.2087,
+        lng: 16.3695,
+        prominence: 30,
+      });
+      const address = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [16.3695, 48.2087] },
+        properties: {
+          name: undefined,
+          street: 'Graben',
+          housenumber: '12',
+          type: 'house',
+          city: 'Wien',
+        },
+      };
+      photon.features = [address];
+
+      const plain = await as(alice)
+        .get('/v1/places/search?q=graben')
+        .expect(200);
+      expect(names(plain.body.items)).toEqual([
+        'Graben Bakery',
+        'Graben Gallery',
+        'Graben 12',
+      ]);
+
+      const numbered = await as(alice)
+        .get('/v1/places/search?q=graben%2012')
+        .expect(200);
+      expect(names(numbered.body.items)[0]).toBe('Graben 12');
     });
 
     it('returns our places when Photon fails or times out', async () => {

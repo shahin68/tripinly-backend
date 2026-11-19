@@ -496,6 +496,14 @@ export class SearchResultDto {
   hotCount: number;
 
   @ApiProperty({
+    minimum: 0,
+    maximum: 100,
+    description:
+      'How well known the place is (OSM/Wikipedia page views, as on map pins); 0 for photon',
+  })
+  prominence: number;
+
+  @ApiProperty({
     type: String,
     nullable: true,
     example: 'city',
