@@ -46,8 +46,14 @@ export class FcmPushProvider extends PushProvider implements OnModuleDestroy {
         token: message.token,
         notification: { title: message.title, body: message.body },
         data: message.data,
-        android: { priority: 'high' as const },
-        apns: { payload: { aps: { sound: 'default' } } },
+        android: {
+          priority: 'high' as const,
+          notification: { channelId: message.channel, tag: message.replaceKey },
+        },
+        apns: {
+          headers: { 'apns-collapse-id': message.replaceKey },
+          payload: { aps: { sound: 'default', threadId: message.channel } },
+        },
       })),
     );
     return response.responses.map((result, index) => {

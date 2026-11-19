@@ -7,7 +7,12 @@ import {
   type RenderedText,
   resolveLanguage,
 } from './notification-renderer';
-import { isAboutComments, SETTING_FOR_TYPE } from './notification-types';
+import {
+  channelFor,
+  isAboutComments,
+  replaceKeyFor,
+  SETTING_FOR_TYPE,
+} from './notification-types';
 import { type View, ViewingService } from '../realtime/viewing.service';
 import { PushProvider } from './push.provider';
 
@@ -69,6 +74,8 @@ export class PushService {
 
     const context = await this.renderer.context([notification]);
     const deepLink = this.renderer.deepLink(notification, context);
+    const channel = channelFor(notification.type);
+    const replaceKey = replaceKeyFor(notification);
     const texts = new Map<string, RenderedText>();
     const messages = recipient.devices.map((device) => {
       const lang = resolveLanguage(device.locale, recipient.locale);
@@ -85,7 +92,10 @@ export class PushService {
           type: notification.type,
           notificationId: notification.id,
           deepLink,
+          channel,
         },
+        channel,
+        replaceKey,
       };
     });
 

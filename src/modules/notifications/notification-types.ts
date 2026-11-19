@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   NotificationSettings,
   NotificationType,
@@ -26,6 +27,32 @@ export const COMMENT_TYPES = [
   'comment_reply',
   'comment_mention',
 ] as const satisfies readonly NotificationType[];
+
+/**
+ * The phone's channel for each push switch: on Android a notification channel
+ * of its own (the app creates one per switch, so the system settings list the
+ * same six as the app), on iOS the thread its pushes stack in. Stable ids: the
+ * app keys its channels by them.
+ */
+export const CHANNEL_FOR_SETTING = {
+  commentOnMarker: 'comments',
+  likesGrouped: 'likes',
+  tripChangedByCollaborator: 'trip_changes',
+  addedToTrip: 'added_to_trips',
+  joinRequested: 'join_requests',
+  newFollowers: 'followers',
+} as const satisfies Record<
+  keyof Omit<NotificationSettings, 'userId' | 'updatedAt'>,
+  string
+>;
+
+export type PushChannel =
+  (typeof CHANNEL_FOR_SETTING)[keyof typeof CHANNEL_FOR_SETTING];
+
+/** The channel a notification type's push goes to (its switch's). */
+export function channelFor(type: NotificationType): PushChannel {
+  return CHANNEL_FOR_SETTING[SETTING_FOR_TYPE[type]];
+}
 
 /**
  * The per-type push switch in notification_settings: each switch turns off
@@ -202,4 +229,17 @@ export function newsKind(row: { type: string; payload: unknown }): NewsKind {
   )
     return 'photos';
   return 'other';
+}
+
+/**
+ * A grouped row's pushes replace each other on the phone ("Anna and 3 others
+ * liked your photo" over "Anna liked your photo"): their group key, hashed to
+ * fit Apple's 64-character collapse id. A single notification replaces nothing.
+ */
+export function replaceKeyFor(row: {
+  id: string;
+  groupKey: string | null;
+}): string {
+  if (!row.groupKey) return row.id;
+  return createHash('sha256').update(row.groupKey).digest('hex').slice(0, 32);
 }

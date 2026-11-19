@@ -1,4 +1,5 @@
 import {
+  channelFor,
   isAboutComments,
   milestoneReached,
   newsKind,
@@ -69,5 +70,18 @@ describe('milestoneReached', () => {
     expect(milestoneReached(6, milestones)).toBeUndefined();
     expect(milestoneReached(5, milestones, 5)).toBeUndefined();
     expect(milestoneReached(5, milestones, 25)).toBeUndefined();
+  });
+});
+
+describe('channelFor', () => {
+  it("puts each push in its switch's channel", () => {
+    expect(channelFor('comment_on_marker')).toBe('comments');
+    expect(channelFor('comment_mention')).toBe('comments');
+    expect(channelFor('place_hot')).toBe('likes');
+    expect(channelFor('trip_saved')).toBe('likes');
+    expect(channelFor('trip_changed_by_collaborator')).toBe('trip_changes');
+    expect(channelFor('removed_from_trip')).toBe('added_to_trips');
+    expect(channelFor('join_requested')).toBe('join_requests');
+    expect(channelFor('became_friends')).toBe('followers');
   });
 });
