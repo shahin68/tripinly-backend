@@ -281,6 +281,24 @@ export class SearchQueryDto {
 }
 
 /** A place on the map: in-view, popular, nearby and along-the-way results. */
+/** The brand a place is a store of (Zara, KFC); the map draws a square pin with its logo. */
+export class PlaceBrandDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Zara' })
+  name: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '/v1/brands/0b5e…/logo/3f2a9c01d4e5b6a7',
+    description:
+      "Path of the brand's logo on this API (prepend the API's base URL): a square WebP of 96 px, a few KB, public, never changing at this path, so cache it forever. Null when there's no logo, logos are off (BRAND_LOGOS_ENABLED) or this brand's is hidden (BRAND_LOGOS_HIDDEN): draw the round pin then",
+  })
+  logoUrl: string | null;
+}
+
 export class PlaceItemDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -349,6 +367,14 @@ export class PlaceItemDto {
 
   @ApiProperty({ description: 'I marked the place hot' })
   hotByMe: boolean;
+
+  @ApiProperty({
+    type: () => PlaceBrandDto,
+    nullable: true,
+    description:
+      'The brand this place is a store of; with a logoUrl the pin is a rounded square showing the logo, otherwise round as usual',
+  })
+  brand: PlaceBrandDto | null;
 }
 
 export class PlaceClusterDto {
@@ -526,6 +552,14 @@ export class SearchResultDto {
 
   @ApiProperty({ type: String, nullable: true, example: '240109189' })
   osmId: string | null;
+
+  @ApiProperty({
+    type: () => PlaceBrandDto,
+    nullable: true,
+    description:
+      "Our place's brand (as on in-view places); null for Photon results",
+  })
+  brand: PlaceBrandDto | null;
 }
 
 export class SearchResponseDto {
@@ -669,6 +703,7 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
   'coverSource',
   'coverThumbUrl',
   'hotByMe',
+  'brand',
 ] as const) {
   @ApiProperty({ enum: ['osm', 'user'] })
   source: 'osm' | 'user';

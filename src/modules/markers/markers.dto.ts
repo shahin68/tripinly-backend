@@ -160,6 +160,15 @@ export class CreateMarkerDto {
   @IsIn(PLACE_CATEGORIES)
   category?: (typeof PLACE_CATEGORIES)[number];
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      '"This is a brand store": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place. Omit when sending placeId.',
+  })
+  @IsOptional()
+  @IsUUID()
+  brandId?: string;
+
   @ApiPropertyOptional({ example: '14:30', description: 'Local time HH:mm' })
   @IsOptional()
   @Matches(TIME_PATTERN)

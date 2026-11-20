@@ -32,6 +32,7 @@ import { haversineMeters } from '../routing/geo';
 import { normalizePlaceName } from './normalize-name';
 import { placeImageCredit } from './commons-metadata';
 import { BEST_PHOTO_FIRST, PlaceCoversService } from './place-covers.service';
+import { BrandPolicy, type BrandRef } from './brands';
 import { PhotonClient } from './photon.client';
 import {
   inBox,
@@ -136,10 +137,15 @@ export interface PlaceRow {
   lng: number;
   popularity: number;
   prominence: number;
+  /** Selected by PLACE_COLUMNS; absent where a query doesn't need it. */
+  brand?: BrandRef | null;
 }
 
+/** A place's brand as JSON (`BrandRef`), null without one. */
+const BRAND_JSON = Prisma.sql`(SELECT json_build_object('id', b.id, 'name', b.name, 'wikidataId', b."wikidataId", 'logoHash', b."logoHash") FROM brands b WHERE b.id = p."brandId")`;
+
 /** Columns every place list selects (PlaceRow). */
-export const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity, p.prominence`;
+export const PLACE_COLUMNS = Prisma.sql`p.id, p.name, p.names, p.category, p.lat, p.lng, p.popularity, p.prominence, ${BRAND_JSON} AS brand`;
 
 /**
  * Map, search and discovery reads over our places (geo-discovery skill).
@@ -161,6 +167,7 @@ export class PlacesService {
     private readonly config: ConfigService<Env, true>,
     private readonly covers: PlaceCoversService,
     private readonly entitlements: EntitlementService,
+    private readonly brands: BrandPolicy,
   ) {}
 
   async inView(
@@ -268,7 +275,7 @@ export class PlacesService {
     return {
       items: await this.personalize(
         userId,
-        rows.map((row) => toPlaceItem(row, lang)),
+        rows.map((row) => toPlaceItem(row, lang, this.brands)),
       ),
       attribution: OSM_ATTRIBUTION,
     };
@@ -303,7 +310,7 @@ export class PlacesService {
 
     const kept = rows.slice(0, limit);
     const items: NearbyPlaceDto[] = kept.map((row) => ({
-      ...toPlaceItem(row, lang),
+      ...toPlaceItem(row, lang, this.brands),
       distanceMeters: Math.round(row.distance),
     }));
     const hasMore = rows.length > limit;
@@ -323,7 +330,7 @@ export class PlacesService {
         LIMIT ${limit - items.length}`;
       for (const row of sights) {
         items.push({
-          ...toPlaceItem(row, lang),
+          ...toPlaceItem(row, lang, this.brands),
           distanceMeters: Math.round(row.distance),
         });
       }
@@ -373,7 +380,7 @@ export class PlacesService {
       cellLat / Math.max(Math.cos((query.lat * Math.PI) / 180), 0.01);
     const [rows, counts] = await Promise.all([
       this.prisma.$queryRaw<(PlaceRow & { distance: number })[]>`
-        SELECT id, name, names, category, lat, lng, popularity, prominence, distance FROM (
+        SELECT id, name, names, category, lat, lng, popularity, prominence, brand, distance FROM (
           SELECT * FROM (
             SELECT ${PLACE_COLUMNS}, ST_Distance(p.location, ${point}) AS distance,
                    CASE WHEN p.popularity >= ${minLikes} THEN p.popularity ELSE 0 END AS hot,
@@ -399,7 +406,7 @@ export class PlacesService {
         ORDER BY count DESC, p.category`,
     ]);
     const items: NearbyPlaceDto[] = rows.map((row) => ({
-      ...toPlaceItem(row, lang),
+      ...toPlaceItem(row, lang, this.brands),
       distanceMeters: Math.round(row.distance),
     }));
     return {
@@ -505,6 +512,9 @@ export class PlacesService {
         osmId: true,
         tags: true,
         createdById: true,
+        brand: {
+          select: { id: true, name: true, wikidataId: true, logoHash: true },
+        },
       },
     });
     if (
@@ -515,7 +525,7 @@ export class PlacesService {
     }
     const tags = asStringRecord(place.tags);
     const [[item], tripPhotos, commons, addedBy] = await Promise.all([
-      this.personalize(userId, [toPlaceItem(place, lang)]),
+      this.personalize(userId, [toPlaceItem(place, lang, this.brands)]),
       this.placeTripPhotos(userId, place.id),
       this.placeCommonsImages(place.id),
       this.addedBy(userId, place.id, place.createdById),
@@ -684,7 +694,9 @@ export class PlacesService {
       false,
     );
     return {
-      places: [...tripinly, ...osm].map((row) => toPlaceItem(row, lang)),
+      places: [...tripinly, ...osm].map((row) =>
+        toPlaceItem(row, lang, this.brands),
+      ),
       clusters: [],
       attribution: OSM_ATTRIBUTION,
     };
@@ -721,7 +733,9 @@ export class PlacesService {
             )
           : [];
       return {
-        places: [...rows, ...osm].map((row) => toPlaceItem(row, lang)),
+        places: [...rows, ...osm].map((row) =>
+          toPlaceItem(row, lang, this.brands),
+        ),
         clusters: [],
         attribution: OSM_ATTRIBUTION,
       };
@@ -734,7 +748,7 @@ export class PlacesService {
              (array_agg(json_build_object(
                 'id', p.id, 'name', p.name, 'names', p.names, 'category', p.category,
                 'lat', p.lat, 'lng', p.lng, 'popularity', p.popularity,
-                'prominence', p.prominence)
+                'prominence', p.prominence, 'brand', ${BRAND_JSON})
               ORDER BY p.popularity DESC, p.id))[1] AS top
       FROM places p
       WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
@@ -745,7 +759,7 @@ export class PlacesService {
     const clusters: PlaceClusterDto[] = [];
     for (const cell of cells) {
       if (cell.count === 1) {
-        places.push(toPlaceItem(cell.top, lang));
+        places.push(toPlaceItem(cell.top, lang, this.brands));
       } else {
         clusters.push({
           count: cell.count,
@@ -782,7 +796,7 @@ export class PlacesService {
       ORDER BY p.popularity DESC, p.prominence DESC, p.id
       LIMIT ${limit}`;
     return {
-      places: rows.map((row) => toPlaceItem(row, lang)),
+      places: rows.map((row) => toPlaceItem(row, lang, this.brands)),
       clusters: [],
       attribution: OSM_ATTRIBUTION,
     };
@@ -811,7 +825,7 @@ export class PlacesService {
       ? Prisma.sql`AND p.prominence >= ${OSM_NOTABLE_MIN_PROMINENCE}`
       : Prisma.empty;
     return this.prisma.$queryRaw<PlaceRow[]>`
-      SELECT id, name, names, category, lat, lng, popularity, prominence FROM (
+      SELECT id, name, names, category, lat, lng, popularity, prominence, brand FROM (
         SELECT ${PLACE_COLUMNS},
                row_number() OVER (
                  PARTITION BY ${mapCell(tileSize(zoom) / OSM_FILL_CELLS_PER_TILE)}
@@ -878,7 +892,7 @@ export class PlacesService {
       ORDER BY score DESC, id
       LIMIT ${OURS_CANDIDATES}`;
     return rows.map((row) => {
-      const item = toPlaceItem(row, lang);
+      const item = toPlaceItem(row, lang, this.brands);
       return {
         score: row.score,
         item: {
@@ -894,6 +908,7 @@ export class PlacesService {
           address: placeAddress(asStringRecord(row.tags)),
           osmType: row.osmType,
           osmId: row.osmId?.toString() ?? null,
+          brand: item.brand,
         },
       };
     });
@@ -1004,7 +1019,11 @@ export function localizedName(
 /** Plain-object view of the DTO, so callers can spread it into larger shapes. */
 export type PlaceItem = Pick<PlaceItemDto, keyof PlaceItemDto>;
 
-export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
+export function toPlaceItem(
+  row: PlaceRow,
+  lang: string,
+  brands: BrandPolicy,
+): PlaceItem {
   return {
     id: row.id,
     name: localizedName(row, lang),
@@ -1018,6 +1037,7 @@ export function toPlaceItem(row: PlaceRow, lang: string): PlaceItem {
     coverSource: null,
     coverThumbUrl: null,
     hotByMe: false,
+    brand: brands.present(row.brand),
   };
 }
 

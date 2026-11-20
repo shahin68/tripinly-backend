@@ -28,6 +28,7 @@ describe('Photon result mapping', () => {
       address: 'Österreich',
       osmType: 'relation',
       osmId: '109166',
+      brand: null,
     });
   });
 

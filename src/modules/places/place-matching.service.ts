@@ -22,6 +22,8 @@ export type PlaceInput =
       lng: number;
       osm?: { type: 'node' | 'way' | 'relation'; id: bigint };
       category?: PlaceCategory;
+      /** "This is a brand store": an existing brand, only for a new place. */
+      brandId?: string;
     };
 
 export interface MatchedPlace {
@@ -83,6 +85,13 @@ export class PlaceMatchingService {
       if (nearby) return nearby;
     }
 
+    if (input.brandId) {
+      const brand = await tx.brand.findUnique({
+        where: { id: input.brandId },
+        select: { id: true },
+      });
+      if (!brand) throw AppException.validation({ brandId: ['notFound'] });
+    }
     const data: Prisma.PlaceCreateInput = {
       name: input.name,
       normalizedName,
@@ -94,6 +103,7 @@ export class PlaceMatchingService {
       osmType: input.osm?.type,
       osmId: input.osm?.id,
       createdBy: { connect: { id: userId } },
+      brand: input.brandId ? { connect: { id: input.brandId } } : undefined,
     };
     if (!input.osm) {
       return tx.place.create({
@@ -103,9 +113,10 @@ export class PlaceMatchingService {
     }
     // Two markers for the same OSM feature may race; the unique (osmType, osmId) decides.
     const [created] = await tx.$queryRaw<MatchedPlace[]>`
-      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "updatedAt")
+      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "brandId", "updatedAt")
       VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${normalizedName}, ${data.category}::"PlaceCategory",
-              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid, now())
+              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid,
+              ${input.brandId ?? null}::uuid, now())
       ON CONFLICT ("osmType", "osmId") DO UPDATE SET "updatedAt" = places."updatedAt"
       RETURNING id, name, lat, lng`;
     return created;

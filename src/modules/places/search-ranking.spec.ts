@@ -24,6 +24,7 @@ const result = (
   address: null,
   osmType: null,
   osmId: null,
+  brand: null,
   ...extra,
 });
 

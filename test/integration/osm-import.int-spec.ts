@@ -182,6 +182,42 @@ describe('OSM import (integration)', () => {
     expect(after.popularity).toBe(7);
   });
 
+  it('adds brands from brand:wikidata and ties the shops to them', async () => {
+    const branded = variant('branded', (xml) =>
+      xml.replace(
+        '<tag k="name" v="Bakery"/>',
+        '<tag k="name" v="Bakery"/>\n    <tag k="brand" v="Anker"/>\n    <tag k="brand:wikidata" v="Q566915;Q1"/>',
+      ),
+    );
+    await imports.runRegion(REGION, { sourceFile: branded });
+    const brand = await prisma.brand.findUniqueOrThrow({
+      where: { wikidataId: 'Q566915' },
+    });
+    expect(brand.name).toBe('Anker');
+    const bakery = await prisma.place.findFirstOrThrow({
+      where: { osmId: 3n },
+    });
+    expect(bakery.brandId).toBe(brand.id);
+
+    // Our name stays once the brand is ours; a second run changes nothing.
+    await prisma.brand.update({
+      where: { id: brand.id },
+      data: { name: 'Anker Brot' },
+    });
+    await imports.runRegion(REGION, { sourceFile: branded });
+    expect(await prisma.brand.count()).toBe(1);
+    expect(
+      (await prisma.brand.findUniqueOrThrow({ where: { id: brand.id } })).name,
+    ).toBe('Anker Brot');
+
+    // The tag gone, the shop is let go; the brand stays.
+    await imports.runRegion(REGION, { sourceFile: FIXTURE });
+    expect(
+      (await prisma.place.findFirstOrThrow({ where: { osmId: 3n } })).brandId,
+    ).toBeNull();
+    expect(await prisma.brand.count()).toBe(1);
+  });
+
   it('ranks places by QRank and by their tags', async () => {
     // Stephansdom's tag lists two items; the better known one counts.
     const twoItems = variant('two-items', (xml) =>

@@ -256,5 +256,6 @@ export function toResult(feature: PhotonFeature): SearchResultDto | null {
     address: address.length ? address.join(', ') : null,
     osmType: osmType && osmId ? osmType : null,
     osmId: osmType && osmId ? osmId : null,
+    brand: null,
   };
 }

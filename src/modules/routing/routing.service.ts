@@ -19,6 +19,7 @@ import {
   PlacesService,
   toPlaceItem,
 } from '../places/places.service';
+import { BrandPolicy } from '../places/brands';
 import { TripAccessService } from '../trips/trip-access.service';
 import { limitReached } from '../trips/trips.service';
 import { encodePolyline, haversineMeters, type LatLng } from './geo';
@@ -99,6 +100,7 @@ export class RoutingService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly config: ConfigService<Env, true>,
     private readonly transit: TransitPlanner,
+    private readonly brands: BrandPolicy,
   ) {}
 
   async pointToPoint(
@@ -672,7 +674,7 @@ export class RoutingService {
               : Prisma.empty
           }
       )
-      SELECT id, name, names, category, lat, lng, popularity, prominence, distance, frac FROM (
+      SELECT id, name, names, category, lat, lng, popularity, prominence, brand, distance, frac FROM (
         SELECT near.*, row_number() OVER (
           PARTITION BY least(floor(frac * ${ALONG_SEGMENTS}), ${ALONG_SEGMENTS - 1})
           ORDER BY (popularity > 0) DESC, popularity DESC, priority, id
@@ -685,7 +687,7 @@ export class RoutingService {
 
     const items = await this.places.personalize(
       userId,
-      rows.map((row) => toPlaceItem(row, lang)),
+      rows.map((row) => toPlaceItem(row, lang, this.brands)),
     );
     return rows.map((row, i) => ({
       place: items[i],

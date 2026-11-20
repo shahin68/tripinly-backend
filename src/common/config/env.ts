@@ -327,6 +327,24 @@ export const envSchema = z
      * sync, weekly recheck) only when true; it also needs storage configured.
      */
     PLACE_IMAGES_SYNC_ENABLED: booleanFlag,
+    /**
+     * Brand logos on square map pins (api). Off: every place keeps its round pin
+     * and no logo is served. Trademarks: on in production only after legal review.
+     */
+    BRAND_LOGOS_ENABLED: booleanFlag,
+    /**
+     * Brands whose logo never shows (api), comma-separated names or Wikidata ids,
+     * any case: "Gucci,Q178516". Empty: none hidden.
+     */
+    BRAND_LOGOS_HIDDEN: z
+      .string()
+      .default('')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((entry) => entry.trim().toLowerCase())
+          .filter(Boolean),
+      ),
     /** Scratch space for downloads (a few GB per region). Defaults to the OS temp dir. */
     OSM_IMPORT_TMP_DIR: optionalString,
     /** Enables POST /v1/auth/dev for local development and staging. Refused in production. */
