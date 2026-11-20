@@ -125,7 +125,7 @@ describe('WikimediaClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('treats a maxlag error like a 429 and gives up after three tries', async () => {
+  it('waits longer each time on a maxlag error and gives up after eight tries', async () => {
     jest.useFakeTimers();
     fetchMock.mockImplementation(() =>
       Promise.resolve(
@@ -139,9 +139,12 @@ describe('WikimediaClient', () => {
     const assertion = expect(pending).rejects.toThrow(
       new WikimediaError('maxlag'),
     );
-    await jest.advanceTimersByTimeAsync(2_000);
+    // Retry-After 1 s doubled: 1 + 2 + 4 + … + 64 s before the eighth try.
+    await jest.advanceTimersByTimeAsync(126_999);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    await jest.advanceTimersByTimeAsync(1_000);
     await assertion;
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
   it('fails on other HTTP and API errors without retrying', async () => {

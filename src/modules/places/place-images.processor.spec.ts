@@ -1,6 +1,9 @@
 import type { Job, Queue } from 'bullmq';
 import type { BrandLogosService } from './brand-logos.service';
-import { PlaceImagesProcessor } from './place-images.processor';
+import {
+  LOGO_RETRY_JOB_ID,
+  PlaceImagesProcessor,
+} from './place-images.processor';
 import { PlaceImageJobs } from './place-images.queue';
 import type { PlaceImagesService } from './place-images.service';
 
@@ -44,6 +47,14 @@ describe('PlaceImagesProcessor', () => {
       brandLogos: { brands: 0, logos: 0 },
     });
     expect(images.sync).toHaveBeenCalledTimes(1);
-    expect(queue.add).not.toHaveBeenCalled();
+    // The logos are tried again in 10 minutes, once.
+    expect(queue.add).toHaveBeenCalledWith(
+      PlaceImageJobs.SYNC,
+      {},
+      expect.objectContaining({
+        jobId: LOGO_RETRY_JOB_ID,
+        delay: 10 * 60_000,
+      }),
+    );
   });
 });
