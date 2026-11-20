@@ -22,9 +22,10 @@ export class PlaceImagesProcessor extends WorkerHost {
     let result: { more: boolean };
     switch (job.name) {
       case PlaceImageJobs.SYNC: {
-        // Brand logos come with the daily image sync: the same Wikimedia pace.
-        const images = await this.images.sync();
+        // Brand logos come with the daily image sync, at the same Wikimedia pace. They go
+        // first: a few hundred brands at most, while new places can keep the photos busy for long.
         const logos = await this.brandLogos.sync();
+        const images = await this.images.sync();
         const synced = {
           ...images,
           brandLogos: logos,

@@ -93,9 +93,8 @@ export class BrandLogosService {
         if (rendered) logos++;
       }
     }
-    if (due.length) {
-      this.logger.log(`Brand logos: ${due.length} brands, ${logos} logos`);
-    }
+    // Logged even with nothing due, so the logs show the sync ran.
+    this.logger.log(`Brand logos: ${due.length} brands, ${logos} logos`);
     return {
       brands: due.length,
       logos,
