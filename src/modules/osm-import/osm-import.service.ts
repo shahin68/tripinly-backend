@@ -39,6 +39,30 @@ const OSMIUM_TIMEOUT_MS = 60 * 60 * 1000;
 /** Any value works as long as every import uses it; pg advisory locks are per database. */
 const IMPORT_LOCK_KEY = 72_310_001;
 
+/**
+ * Geofabrik's MD5 of an extract: next to the file actually served (`-latest`
+ * may redirect to a dated file), else next to the name asked for. Null when
+ * neither exists (Shahin, 2026-11-20: Austria's `.md5` answered 404 all day);
+ * other HTTP errors throw.
+ */
+export async function fetchExpectedMd5(
+  requestedUrl: string,
+  servedUrl: string,
+  headers: Record<string, string>,
+): Promise<string | null> {
+  const candidates = [
+    ...new Set([servedUrl, requestedUrl].filter(Boolean)),
+  ].map((file) => `${file}.md5`);
+  for (const candidate of candidates) {
+    const checksum = await fetch(candidate, { headers });
+    if (checksum.ok) return (await checksum.text()).trim().split(/\s+/)[0];
+    if (checksum.status !== 404) {
+      throw new Error(`checksum download failed with HTTP ${checksum.status}`);
+    }
+  }
+  return null;
+}
+
 export interface OsmImportResult {
   runId: string;
   region: string;
@@ -227,14 +251,13 @@ export class OsmImportService {
       createWriteStream(path),
     );
 
-    const checksum = await fetch(`${url}.md5`, { headers });
-    if (!checksum.ok) {
-      throw new Error(
-        `checksum of ${region} failed with HTTP ${checksum.status}`,
+    const expected = await fetchExpectedMd5(url, response.url, headers);
+    if (expected === null) {
+      // osmium still refuses a broken file: every PBF block carries its own checksum.
+      this.logger.warn(
+        `OSM import of ${region}: Geofabrik publishes no checksum for it, importing unchecked`,
       );
-    }
-    const expected = (await checksum.text()).trim().split(/\s+/)[0];
-    if (expected !== md5.digest('hex')) {
+    } else if (expected !== md5.digest('hex')) {
       throw new Error(`checksum mismatch for ${region}`);
     }
 
