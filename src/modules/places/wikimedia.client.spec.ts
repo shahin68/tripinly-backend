@@ -61,7 +61,7 @@ describe('WikimediaClient', () => {
       'https://www.wikidata.org/w/api.php',
     );
     expect(url.searchParams.get('ids')).toBe('Q1|Q2|Q3|Q4');
-    expect(url.searchParams.get('maxlag')).toBe('5');
+    expect(url.searchParams.has('maxlag')).toBe(false);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect((init.headers as Record<string, string>)['User-Agent']).toContain(
       'tripinly@gmail.com',
@@ -125,26 +125,20 @@ describe('WikimediaClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('waits longer each time on a maxlag error and gives up after eight tries', async () => {
+  it('gives up after three 429 answers', async () => {
     jest.useFakeTimers();
     fetchMock.mockImplementation(() =>
       Promise.resolve(
-        json(
-          { error: { code: 'maxlag' } },
-          { headers: { 'Retry-After': '1' } },
-        ),
+        new Response('', { status: 429, headers: { 'Retry-After': '1' } }),
       ),
     );
     const pending = client.wikidataMainImages(['Q1']);
     const assertion = expect(pending).rejects.toThrow(
-      new WikimediaError('maxlag'),
+      new WikimediaError('HTTP 429'),
     );
-    // Retry-After 1 s doubled: 1 + 2 + 4 + … + 64 s before the eighth try.
-    await jest.advanceTimersByTimeAsync(126_999);
-    expect(fetchMock).toHaveBeenCalledTimes(7);
-    await jest.advanceTimersByTimeAsync(1_000);
+    await jest.advanceTimersByTimeAsync(2_000);
     await assertion;
-    expect(fetchMock).toHaveBeenCalledTimes(8);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('fails on other HTTP and API errors without retrying', async () => {
