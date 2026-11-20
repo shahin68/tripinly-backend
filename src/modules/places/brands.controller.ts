@@ -47,7 +47,7 @@ export class BrandsController {
   @ApiOperation({
     summary: 'Find a brand for "This is a brand store"',
     description:
-      'Brands whose name has a word starting with `q`. People pick from this list; they cannot add brands.',
+      'Brands whose name has a word starting with `q`. People pick from this list; they cannot add brands. Empty while brands are off (BRAND_LOGOS_ENABLED), so the apps offer no "This is a brand store".',
   })
   @ApiOkResponse({ type: BrandsResponseDto })
   async search(@Query() query: BrandsQueryDto): Promise<BrandsResponseDto> {

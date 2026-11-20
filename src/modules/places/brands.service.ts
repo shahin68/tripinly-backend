@@ -28,8 +28,12 @@ export class BrandsService {
     private readonly policy: BrandPolicy,
   ) {}
 
-  /** Brands whose name has a word starting with [q], most places first. */
+  /**
+   * Brands whose name has a word starting with [q], most places first; none
+   * while brands are off, so the apps show no "This is a brand store".
+   */
   async search(q: string): Promise<PlaceBrandDto[]> {
+    if (!this.policy.isOn()) return [];
     const rows = await this.prisma.$queryRaw<BrandRef[]>`
       SELECT b.id, b.name, b."wikidataId", b."logoHash" FROM brands b
       WHERE lower(b.name) ~ ('(^|[^[:alnum:]])' || ${escapeRegex(q.toLowerCase())})

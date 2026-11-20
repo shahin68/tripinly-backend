@@ -26,7 +26,9 @@ export function brandLogoPath(id: string, hash: string): string {
 }
 
 /**
- * Whether a brand's logo shows: only with BRAND_LOGOS_ENABLED and when the
+ * Brands show only with BRAND_LOGOS_ENABLED: their logos, the brand picker and
+ * "This is a brand store" on new spots (Shahin, 2026-11-20: off means people
+ * can't tie a spot to a brand either). A logo shows only with BRAND_LOGOS_ENABLED and when the
  * brand isn't in BRAND_LOGOS_HIDDEN (by name or Wikidata id, any case). A
  * brand without a shown logo still comes with its name; its pin stays round.
  */
@@ -34,8 +36,13 @@ export function brandLogoPath(id: string, hash: string): string {
 export class BrandPolicy {
   constructor(private readonly config: ConfigService<Env, true>) {}
 
+  /** BRAND_LOGOS_ENABLED: brands can be seen and picked at all. */
+  isOn(): boolean {
+    return this.config.get('BRAND_LOGOS_ENABLED', { infer: true });
+  }
+
   showsLogo(brand: Pick<BrandRef, 'name' | 'wikidataId'>): boolean {
-    if (!this.config.get('BRAND_LOGOS_ENABLED', { infer: true })) return false;
+    if (!this.isOn()) return false;
     const hidden = this.config.get('BRAND_LOGOS_HIDDEN', { infer: true });
     return !hidden.some(
       (entry) =>

@@ -163,7 +163,7 @@ export class CreateMarkerDto {
   @ApiPropertyOptional({
     format: 'uuid',
     description:
-      '"This is a brand store": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place. Omit when sending placeId.',
+      '"This is a brand store": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place or while brands are off (BRAND_LOGOS_ENABLED). Omit when sending placeId.',
   })
   @IsOptional()
   @IsUUID()

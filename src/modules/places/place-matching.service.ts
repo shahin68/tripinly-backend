@@ -6,6 +6,7 @@ import {
   type PlaceSource,
 } from '../../generated/prisma/client';
 import { TripAccessService } from '../trips/trip-access.service';
+import { BrandPolicy } from './brands';
 import { normalizePlaceName } from './normalize-name';
 import { PUBLIC_STOP_WHERE } from './popularity';
 
@@ -40,7 +41,10 @@ export interface MatchedPlace {
  */
 @Injectable()
 export class PlaceMatchingService {
-  constructor(private readonly access: TripAccessService) {}
+  constructor(
+    private readonly access: TripAccessService,
+    private readonly brands: BrandPolicy,
+  ) {}
 
   /** `userId` is the caller: a place picked by id must be one they can see. */
   async match(
@@ -85,9 +89,11 @@ export class PlaceMatchingService {
       if (nearby) return nearby;
     }
 
-    if (input.brandId) {
+    // While brands are off a picked brand is dropped: a spot made then stays plain.
+    const brandId = this.brands.isOn() ? input.brandId : undefined;
+    if (brandId) {
       const brand = await tx.brand.findUnique({
-        where: { id: input.brandId },
+        where: { id: brandId },
         select: { id: true },
       });
       if (!brand) throw AppException.validation({ brandId: ['notFound'] });
@@ -103,7 +109,7 @@ export class PlaceMatchingService {
       osmType: input.osm?.type,
       osmId: input.osm?.id,
       createdBy: { connect: { id: userId } },
-      brand: input.brandId ? { connect: { id: input.brandId } } : undefined,
+      brand: brandId ? { connect: { id: brandId } } : undefined,
     };
     if (!input.osm) {
       return tx.place.create({
@@ -116,7 +122,7 @@ export class PlaceMatchingService {
       INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "brandId", "updatedAt")
       VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${normalizedName}, ${data.category}::"PlaceCategory",
               ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid,
-              ${input.brandId ?? null}::uuid, now())
+              ${brandId ?? null}::uuid, now())
       ON CONFLICT ("osmType", "osmId") DO UPDATE SET "updatedAt" = places."updatedAt"
       RETURNING id, name, lat, lng`;
     return created;

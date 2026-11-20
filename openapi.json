@@ -2225,7 +2225,7 @@
     },
     "/v1/brands": {
       "get": {
-        "description": "Brands whose name has a word starting with `q`. People pick from this list; they cannot add brands.",
+        "description": "Brands whose name has a word starting with `q`. People pick from this list; they cannot add brands. Empty while brands are off (BRAND_LOGOS_ENABLED), so the apps offer no \"This is a brand store\".",
         "operationId": "Brands_search",
         "parameters": [
           {
@@ -7507,7 +7507,7 @@
           "brandId": {
             "type": "string",
             "format": "uuid",
-            "description": "\"This is a brand store\": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place. Omit when sending placeId."
+            "description": "\"This is a brand store\": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place or while brands are off (BRAND_LOGOS_ENABLED). Omit when sending placeId."
           },
           "time": {
             "type": "string",

@@ -237,6 +237,33 @@ describe('Brands (integration)', () => {
     ).toBeNull();
   });
 
+  it('offers no brands and ties no spot to one while brands are off', async () => {
+    const zara = await createBrand('Zara', 'Q147662');
+    withConfig({ BRAND_LOGOS_ENABLED: false });
+    const found = await as(alice).get('/v1/brands?q=zar').expect(200);
+    expect(found.body.items).toEqual([]);
+
+    const trip = (
+      await as(alice)
+        .post('/v1/trips')
+        .send({ title: 'Vienna', visibility: 'public' })
+        .expect(201)
+    ).body as TripBody;
+    const created = await as(alice)
+      .post(`/v1/days/${trip.days[0].id}/markers`)
+      .send({
+        name: 'Zara Mariahilfer',
+        location: { lat: 48.198, lng: 16.35 },
+        category: 'shopping',
+        brandId: zara.id,
+      })
+      .expect(201);
+    const place = await prisma.place.findUniqueOrThrow({
+      where: { id: created.body.placeId as string },
+    });
+    expect(place.brandId).toBeNull();
+  });
+
   it('keeps brand admin to admins and refuses images it cannot use', async () => {
     const zara = await createBrand('Zara', 'Q147662');
     await as(alice).post('/v1/admin/brands').send({ name: 'Mine' }).expect(403);

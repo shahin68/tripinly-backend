@@ -43,6 +43,11 @@ describe('BrandPolicy', () => {
     },
   );
 
+  it('is on only with BRAND_LOGOS_ENABLED', () => {
+    expect(policy(true).isOn()).toBe(true);
+    expect(policy(false).isOn()).toBe(false);
+  });
+
   it('keeps the name of a brand without a logo, and no brand stays null', () => {
     expect(
       policy(true).present({ ...ZARA, logoHash: null })?.logoUrl,
