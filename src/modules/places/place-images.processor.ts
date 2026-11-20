@@ -18,6 +18,10 @@ import { PlaceImagesService } from './place-images.service';
  * One job at a time, so Wikimedia sees one request a second. A run does a
  * bounded amount of work and queues the next run while more is waiting.
  */
+/** One pending logo retry at a time. */
+export const LOGO_RETRY_JOB_ID = 'place-images-logo-retry';
+const LOGO_RETRY_DELAY_MS = 10 * 60_000;
+
 @Processor(PLACE_IMAGES_QUEUE, { concurrency: 1, lockDuration: 5 * 60_000 })
 export class PlaceImagesProcessor extends WorkerHost {
   private readonly logger = new Logger(PlaceImagesProcessor.name);
@@ -36,11 +40,24 @@ export class PlaceImagesProcessor extends WorkerHost {
       case PlaceImageJobs.SYNC: {
         // Brand logos come with the daily image sync, at the same Wikimedia pace. They go
         // first: a few hundred brands at most, while new places can keep the photos busy for long.
-        const logos = await this.brandLogos.sync().catch((error: Error) => {
-          // The photos still run; the next run (or the daily one) tries the logos again.
-          this.logger.warn(`Brand logos failed: ${error.message}`);
-          return { brands: 0, logos: 0, more: false };
-        });
+        const logos = await this.brandLogos
+          .sync()
+          .catch(async (error: Error) => {
+            // The photos still run, and the logos are tried again in 10 minutes.
+            this.logger.warn(`Brand logos failed: ${error.message}`);
+            await this.queue.add(
+              job.name,
+              {},
+              {
+                ...PLACE_IMAGE_JOB_RETRIES,
+                jobId: LOGO_RETRY_JOB_ID,
+                delay: LOGO_RETRY_DELAY_MS,
+                removeOnComplete: true,
+                removeOnFail: true,
+              },
+            );
+            return { brands: 0, logos: 0, more: false };
+          });
         const images = await this.images.sync();
         const synced = {
           ...images,

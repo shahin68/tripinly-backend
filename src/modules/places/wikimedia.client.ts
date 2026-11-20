@@ -10,8 +10,14 @@ export const WIKIMEDIA_BATCH = 50;
 /** A standard Commons thumbnail width; other widths are refused since 2026. */
 const THUMB_WIDTH = 1280;
 const TIMEOUT_MS = 15_000;
-/** Times a request is tried when Wikimedia says to slow down (429 or maxlag). */
+/** Times a request is tried when Wikimedia answers 429. */
 const MAX_ATTEMPTS = 3;
+/**
+ * Times a request is tried on a maxlag error, waiting twice as long each time
+ * (5, 10, 20 … up to 120 s, about 6 minutes in all): Wikidata's lag can stay
+ * high for minutes, and three tries 5 s apart gave up (Shahin, 2026-11-20).
+ */
+const MAX_LAG_ATTEMPTS = 8;
 const DEFAULT_RETRY_AFTER_S = 5;
 const MAX_RETRY_AFTER_S = 120;
 /** At most about one request a second (Wikimedia robot policy). */
@@ -145,8 +151,8 @@ export class WikimediaClient {
       if (code !== 'maxlag') {
         throw new WikimediaError(`API error ${code ?? 'unknown'}`);
       }
-      if (attempt >= MAX_ATTEMPTS) throw new WikimediaError('maxlag');
-      await this.slowDown('maxlag', response);
+      if (attempt >= MAX_LAG_ATTEMPTS) throw new WikimediaError('maxlag');
+      await this.slowDown('maxlag', response, 2 ** (attempt - 1));
     }
   }
 
@@ -173,8 +179,15 @@ export class WikimediaClient {
     }
   }
 
-  private async slowDown(reason: string, response: Response): Promise<void> {
-    const waitS = retryAfterSeconds(response.headers.get('retry-after'));
+  private async slowDown(
+    reason: string,
+    response: Response,
+    factor = 1,
+  ): Promise<void> {
+    const waitS = Math.min(
+      retryAfterSeconds(response.headers.get('retry-after')) * factor,
+      MAX_RETRY_AFTER_S,
+    );
     this.logger.warn(
       `Wikimedia asked to slow down (${reason}); waiting ${waitS} s`,
     );

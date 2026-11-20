@@ -257,8 +257,8 @@ Lines and what they mean:
 - `OSM import of <region>: Geofabrik publishes no checksum for it, importing unchecked`: fine; osmium still rejects a broken file.
 - `Brand logos: N brands, M logos`: one logo run finished (up to 200 brands; written every run, also with 0).
 - `Place images: N places, … ready, … rejected, … removed`: one place-photo run finished.
-- `Wikimedia asked to slow down (maxlag); waiting 5 s`: normal, Wikimedia is busy; the worker waits and goes on.
-- `Place images job sync failed: <reason>, will retry`: a run failed (Wikimedia refusing, a timeout); it's tried again 10, 20 and 40 minutes later. `Brand logos failed: <reason>`: the logos failed but the photos went on.
+- `Wikimedia asked to slow down (maxlag); waiting N s`: normal, Wikimedia is busy; the worker waits twice as long each time (5, 10, 20 … 120 s, about 6 minutes) and goes on.
+- `Place images job sync failed: <reason>, will retry`: a run failed (Wikimedia refusing, a timeout); it's tried again 10, 20 and 40 minutes later. `Brand logos failed: <reason>`: the logos failed but the photos went on; the logos are tried again 10 minutes later.
 
 ### When logos and place photos come
 
