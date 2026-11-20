@@ -36,6 +36,7 @@ import { BrandPolicy, type BrandRef } from './brands';
 import { PhotonClient } from './photon.client';
 import {
   inBox,
+  isArea,
   keepPhotonResult,
   mergeSearchResults,
   photonScore,
@@ -437,18 +438,26 @@ export class PlacesService {
         attribution: OSM_ATTRIBUTION,
       };
     }
-    // Places come from the city the map is in only (Shahin, 2026-11-20); its
+    // Places come from the city the map is in while it has any; otherwise from
+    // anywhere, so the camera can go to another city (Shahin, 2026-11-20). Its
     // bounds are looked up while the places are, and the app frames by them.
     const [ours, photon, city] = await Promise.all([
       this.searchOurs(query.q, lang, near),
       this.photon.search({ q: query.q, lang, near }),
       near ? this.photon.cityAt({ ...near, lang }) : Promise.resolve(null),
     ]);
+    const cityHasAny =
+      !!city &&
+      (ours.some(({ item }) => inBox(item.location, city)) ||
+        photon.some(
+          (item) => !isArea(item) && keepPhotonResult(item, query.q, city),
+        ));
+    const within = cityHasAny ? city : null;
     const scored = photon
-      .filter((item) => keepPhotonResult(item, query.q, city))
+      .filter((item) => keepPhotonResult(item, query.q, within))
       .map((item) => ({ item, score: photonScore(item, query.q, near) }));
-    const inCity = city
-      ? ours.filter(({ item }) => inBox(item.location, city))
+    const inCity = within
+      ? ours.filter(({ item }) => inBox(item.location, within))
       : ours;
     return {
       items: mergeSearchResults(inCity, scored, SEARCH_LIMIT),

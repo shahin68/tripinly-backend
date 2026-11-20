@@ -101,13 +101,18 @@ export function inBox(
  * A Photon result stays when it's an area (anywhere), or lies in the map's
  * `city` (when known) and is an address or a place whose name matches.
  */
+/** A city, region or country: kept from anywhere. */
+export function isArea(result: SearchResultDto): boolean {
+  return AREA_TYPES.has(result.type ?? '');
+}
+
 export function keepPhotonResult(
   result: SearchResultDto,
   query: string,
   city: Bbox | null,
 ): boolean {
   const type = result.type ?? '';
-  if (AREA_TYPES.has(type)) return true;
+  if (isArea(result)) return true;
   if (city && !inBox(result.location, city)) return false;
   return ADDRESS_TYPES.has(type) || wordsMatch(searchWords(query), result.name);
 }

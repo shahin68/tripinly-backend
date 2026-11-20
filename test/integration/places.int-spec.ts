@@ -828,6 +828,17 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
       expect(anywhere.body.city).toBeNull();
       expect(names(anywhere.body.items)).not.toContain('Dr. Zarza');
       expect(names(anywhere.body.items)).toContain('Zarándokszállás');
+
+      // Nothing by that name in Wien: places from other cities, so the camera can go there.
+      const elsewhere = await as(alice)
+        .get('/v1/places/search?q=zarándok&lat=48.2050&lng=16.3700')
+        .expect(200);
+      // (The stub answers Wien to every query; areas come from anywhere.)
+      expect(names(elsewhere.body.items).sort()).toEqual([
+        'Wien',
+        'Zarándokszállás',
+      ]);
+      expect(elsewhere.body.city).toEqual(body.city);
     });
 
     it('returns our places when Photon fails or times out', async () => {
