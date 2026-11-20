@@ -424,10 +424,13 @@ model Place {
   imagesSyncedHash String?
   /// Who made a user place (its first stop); credited as "added by" while they have it in a public trip. Null for OSM places.
   createdById    String?                               @db.Uuid
+  /// The brand this place is a store of: from OSM's brand:wikidata for imported places, picked by the creator for user places.
+  brandId        String?                               @db.Uuid
   createdAt      DateTime                              @default(now())
   updatedAt      DateTime                              @updatedAt
 
   createdBy User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  brand     Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
   markers   Marker[]
   images    PlaceImage[]
   photos    Photo[]
@@ -440,7 +443,37 @@ model Place {
   @@index([osmRegion])
   @@index([popularity(sort: Desc)])
   @@index([category])
+  @@index([brandId])
   @@map("places")
+}
+
+/// Where a brand's logo came from: Wikimedia (Wikidata P154 on Commons) or our own upload, which wins.
+enum BrandLogoSource {
+  wikimedia
+  upload
+}
+
+/// A brand with stores on the map (Zara, KFC): our list, seeded from OSM's brand:wikidata (10-maps-places-routing.md, Brands).
+model Brand {
+  id            String           @id @default(uuid()) @db.Uuid
+  name          String
+  /// Wikidata item (Q-id); null for a brand we added ourselves.
+  wikidataId    String?          @unique
+  /// The logo as a small square WebP (96 px, a few KB), served by GET /v1/brands/{id}/logo/{hash}.
+  logo          Bytes?
+  /// Hash of `logo`, part of its URL so phones can cache it forever.
+  logoHash      String?
+  logoSource    BrandLogoSource?
+  /// The Commons file the Wikimedia logo came from.
+  commonsTitle  String?
+  /// When the Wikimedia logo was last looked for; null: look soon.
+  logoCheckedAt DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  places Place[]
+
+  @@map("brands")
 }
 
 /// Where a place image's Commons file was linked from, in priority order.

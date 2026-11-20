@@ -1,5 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
+import { BrandLogosService } from './brand-logos.service';
 import { PlaceImageJobs, PLACE_IMAGES_QUEUE } from './place-images.queue';
 import { PlaceImagesService } from './place-images.service';
 
@@ -11,6 +12,7 @@ import { PlaceImagesService } from './place-images.service';
 export class PlaceImagesProcessor extends WorkerHost {
   constructor(
     private readonly images: PlaceImagesService,
+    private readonly brandLogos: BrandLogosService,
     @InjectQueue(PLACE_IMAGES_QUEUE) private readonly queue: Queue,
   ) {
     super();
@@ -19,9 +21,18 @@ export class PlaceImagesProcessor extends WorkerHost {
   async process(job: Job): Promise<unknown> {
     let result: { more: boolean };
     switch (job.name) {
-      case PlaceImageJobs.SYNC:
-        result = await this.images.sync();
+      case PlaceImageJobs.SYNC: {
+        // Brand logos come with the daily image sync: the same Wikimedia pace.
+        const images = await this.images.sync();
+        const logos = await this.brandLogos.sync();
+        const synced = {
+          ...images,
+          brandLogos: logos,
+          more: images.more || logos.more,
+        };
+        result = synced;
         break;
+      }
       case PlaceImageJobs.REVALIDATE:
         result = await this.images.revalidate();
         break;

@@ -103,6 +103,9 @@ export default async function globalSetup(): Promise<void> {
     TRANSIT_BASE_URL: MOTIS_STUB_URL,
     // The billing tests replace the RevenueCat client; no API key, so deletion skips it.
     REVENUECAT_WEBHOOK_AUTH: 'test-revenuecat-webhook-auth',
+    // Brand logos show in tests (Zara's); BrandPolicy turns them off per test.
+    BRAND_LOGOS_ENABLED: 'true',
+    BRAND_LOGOS_SHOWN: 'Zara',
     R2_ENDPOINT: s3Endpoint,
     R2_ACCESS_KEY_ID: S3_KEY,
     R2_SECRET_ACCESS_KEY: S3_SECRET,

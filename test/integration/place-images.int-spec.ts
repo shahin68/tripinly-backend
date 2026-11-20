@@ -5,6 +5,7 @@ import { StorageService } from '../../src/common/storage/storage.service';
 import { imageTagsHash } from '../../src/modules/osm-import/osm-transform';
 import { placeImageKeys } from '../../src/modules/places/place-image-keys';
 import { PlaceImagesWorkerModule } from '../../src/modules/places/place-images-worker.module';
+import { BrandLogosService } from '../../src/modules/places/brand-logos.service';
 import { PlaceImagesService } from '../../src/modules/places/place-images.service';
 import {
   type CommonsImage,
@@ -20,6 +21,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Stands in for Wikidata and Commons. */
 class FakeWikimedia {
   mainImages = new Map<string, string>();
+  logos = new Map<string, string>();
   files = new Map<string, CommonsImage>();
   failDownloads = false;
   downloads: string[] = [];
@@ -34,6 +36,16 @@ class FakeWikimedia {
     );
   }
 
+  wikidataLogos(qids: string[]): Promise<Map<string, string>> {
+    return Promise.resolve(
+      new Map(
+        qids.flatMap((q) =>
+          this.logos.has(q) ? [[q, this.logos.get(q)!]] : [],
+        ),
+      ),
+    );
+  }
+
   commonsImages(titles: string[]): Promise<Map<string, CommonsImage | null>> {
     return Promise.resolve(
       new Map(titles.map((t) => [t, this.files.get(t) ?? null])),
@@ -43,6 +55,11 @@ class FakeWikimedia {
   async download(url: string): Promise<Buffer> {
     this.downloads.push(url);
     if (this.failDownloads) throw new WikimediaError('HTTP 503');
+    if (url.includes('Logo')) {
+      return Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200"><rect x="100" y="50" width="400" height="100" fill="#000"/></svg>',
+      );
+    }
     return sharp({
       create: {
         width: 1600,
@@ -109,6 +126,7 @@ describe('Place images (integration)', () => {
   beforeEach(async () => {
     await resetState(app);
     wikimedia.mainImages.clear();
+    wikimedia.logos.clear();
     wikimedia.files.clear();
     wikimedia.failDownloads = false;
     wikimedia.downloads = [];
@@ -349,5 +367,97 @@ describe('Place images (integration)', () => {
     await expect(
       storage.head(placeImageKeys(removed.id).display),
     ).resolves.toBeNull();
+  });
+
+  describe('brand logos', () => {
+    const PD = { License: 'pd', Restrictions: 'trademarked' };
+
+    async function brandWithShop(wikidataId: string) {
+      const brand = await prisma.brand.create({
+        data: { name: wikidataId, wikidataId },
+      });
+      const placeId = await insertPlace(app, {
+        name: 'Shop',
+        lat: 48.2,
+        lng: 16.37,
+        category: 'shopping',
+      });
+      await prisma.place.update({
+        where: { id: placeId },
+        data: { brandId: brand.id },
+      });
+      return brand.id;
+    }
+
+    const logoOf = (id: string) =>
+      prisma.brand.findUniqueOrThrow({
+        where: { id },
+        select: {
+          logoHash: true,
+          logoSource: true,
+          commonsTitle: true,
+          logoCheckedAt: true,
+        },
+      });
+
+    it('copies public-domain logos of brands with places, never non-free ones', async () => {
+      const free = await brandWithShop('Q1');
+      const nonFree = await brandWithShop('Q2');
+      const unused = await prisma.brand.create({
+        data: { name: 'No shops', wikidataId: 'Q3' },
+      });
+      wikimedia.logos.set('Q1', 'File:Q1 Logo.svg');
+      wikimedia.logos.set('Q2', 'File:Q2 Logo.svg');
+      wikimedia.logos.set('Q3', 'File:Q3 Logo.svg');
+      wikimedia.files.set('File:Q1 Logo.svg', {
+        ...commonsFile('File:Q1 Logo.svg', PD),
+        mime: 'image/svg+xml',
+      });
+      wikimedia.files.set('File:Q2 Logo.svg', {
+        ...commonsFile('File:Q2 Logo.svg', CC_BY_SA_4),
+        mime: 'image/svg+xml',
+      });
+
+      const result = await app.get(BrandLogosService).sync();
+
+      expect(result).toEqual({ brands: 2, logos: 1, more: false });
+      expect(await logoOf(free)).toMatchObject({
+        logoSource: 'wikimedia',
+        commonsTitle: 'File:Q1 Logo.svg',
+        logoHash: expect.stringMatching(/^[0-9a-f]{16}$/),
+      });
+      expect(await logoOf(nonFree)).toMatchObject({
+        logoSource: null,
+        logoHash: null,
+        logoCheckedAt: expect.any(Date),
+      });
+      expect((await logoOf(unused.id)).logoCheckedAt).toBeNull();
+
+      // Checked brands wait a month.
+      expect((await app.get(BrandLogosService).sync()).brands).toBe(0);
+    });
+
+    it('never replaces a logo we uploaded', async () => {
+      const id = await brandWithShop('Q1');
+      await prisma.brand.update({
+        where: { id },
+        data: {
+          logo: Buffer.from('ours'),
+          logoHash: 'ours',
+          logoSource: 'upload',
+        },
+      });
+      wikimedia.logos.set('Q1', 'File:Q1 Logo.svg');
+      wikimedia.files.set('File:Q1 Logo.svg', {
+        ...commonsFile('File:Q1 Logo.svg', PD),
+        mime: 'image/svg+xml',
+      });
+
+      expect((await app.get(BrandLogosService).sync()).brands).toBe(0);
+      expect(await logoOf(id)).toMatchObject({
+        logoHash: 'ours',
+        logoSource: 'upload',
+      });
+    });
   });
 });

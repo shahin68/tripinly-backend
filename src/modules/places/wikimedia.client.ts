@@ -43,6 +43,18 @@ export class WikimediaClient {
    * are skipped and a preferred one wins. Items without one are left out.
    */
   async wikidataMainImages(qids: string[]): Promise<Map<string, string>> {
+    return this.wikidataFiles(qids, 'P18');
+  }
+
+  /** Each item's logo image (P154) as a "File:…" title, picked as main images are. */
+  async wikidataLogos(qids: string[]): Promise<Map<string, string>> {
+    return this.wikidataFiles(qids, 'P154');
+  }
+
+  private async wikidataFiles(
+    qids: string[],
+    property: 'P18' | 'P154',
+  ): Promise<Map<string, string>> {
     assertBatch(qids);
     const result = new Map<string, string>();
     if (qids.length === 0) return result;
@@ -53,7 +65,7 @@ export class WikimediaClient {
     });
     const entities = (body.entities ?? {}) as Record<string, WikidataEntity>;
     for (const [id, entity] of Object.entries(entities)) {
-      const file = mainImage(entity.claims?.P18 ?? []);
+      const file = mainImage(entity.claims?.[property] ?? []);
       if (file) result.set(id, `File:${file}`);
     }
     return result;

@@ -1,6 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import type { Env } from '../../common/config/env';
-import { PhotonClient, toResult } from './photon.client';
+import { extentOf, PhotonClient, toResult } from './photon.client';
 
 describe('Photon result mapping', () => {
   it('maps a city with OSM ids', () => {
@@ -28,6 +28,7 @@ describe('Photon result mapping', () => {
       address: 'Österreich',
       osmType: 'relation',
       osmId: '109166',
+      brand: null,
     });
   });
 
@@ -113,5 +114,22 @@ describe('Photon requests', () => {
     ).resolves.toBeNull();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Photon city extent', () => {
+  it("reads Photon's [west, north, east, south] extent as a box", () => {
+    expect(
+      extentOf({ properties: { extent: [16.18, 48.32, 16.58, 48.12] } }),
+    ).toEqual({ minLng: 16.18, minLat: 48.12, maxLng: 16.58, maxLat: 48.32 });
+  });
+
+  it('gives nothing for a missing or broken extent', () => {
+    expect(extentOf(undefined)).toBeNull();
+    expect(extentOf({ properties: {} })).toBeNull();
+    expect(
+      extentOf({ properties: { extent: [16.58, 48.32, 16.18, 48.12] } }),
+    ).toBeNull();
+    expect(extentOf({ properties: { extent: ['a', 1, 2, 3] } })).toBeNull();
   });
 });

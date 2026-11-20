@@ -119,6 +119,7 @@ export class OsmImportService {
       const { inserted, updated } = await upsert(db, region);
       const hasQrank = await this.stageQrank(db, region, options);
       await rank(db, hasQrank);
+      await linkBrands(db);
 
       const previous = await this.prisma.osmImportRun.findFirst({
         where: {
@@ -540,6 +541,48 @@ async function rank(db: Client, hasQrank: boolean): Promise<void> {
          AND (p.qrank, p.prominence, p."imageTagsHash", p.tags)
              IS DISTINCT FROM (n.qrank, n.prominence, n.image_tags_hash, n.tags)`,
       [from, from + UPSERT_BATCH, hasQrank],
+    );
+  }
+}
+
+/**
+ * Brands from the extract's `brand:wikidata` tags (the first id when OSM lists
+ * several): a brand row is added for each new Wikidata id, named by the `brand`
+ * tag or else the place's name, and never renamed later (ours is the source of
+ * truth once it exists). The extract's OSM places are then tied to their brand,
+ * and let go when the tag is gone. User places keep the brand their creator
+ * picked.
+ */
+async function linkBrands(db: Client): Promise<void> {
+  await db.query(
+    `INSERT INTO brands (id, name, "wikidataId", "updatedAt")
+     SELECT DISTINCT ON (b.qid) gen_random_uuid(), b.name, b.qid, now()
+     FROM (
+       SELECT split_part(s.tags->>'brand:wikidata', ';', 1) AS qid,
+              coalesce(nullif(trim(s.tags->>'brand'), ''), s.name) AS name
+       FROM osm_staging s
+       WHERE s.tags ? 'brand:wikidata'
+     ) b
+     WHERE b.qid ~ '^Q[0-9]+$'
+     ORDER BY b.qid, b.name
+     ON CONFLICT ("wikidataId") DO NOTHING`,
+  );
+  const { rows } = await db.query<{ max: string | null }>(
+    'SELECT max(seq) AS max FROM osm_staging',
+  );
+  const maxSeq = Number(rows[0].max ?? 0);
+  for (let from = 0; from < maxSeq; from += UPSERT_BATCH) {
+    await db.query(
+      `UPDATE places p SET "brandId" = n.brand_id, "updatedAt" = now()
+       FROM (
+         SELECT pl.id, b.id AS brand_id
+         FROM osm_staging s
+         JOIN places pl ON pl."osmType" = s.osm_type::"OsmType" AND pl."osmId" = s.osm_id
+         LEFT JOIN brands b ON b."wikidataId" = split_part(s.tags->>'brand:wikidata', ';', 1)
+         WHERE s.seq > $1 AND s.seq <= $2 AND pl.source = 'osm'
+       ) n
+       WHERE p.id = n.id AND p."brandId" IS DISTINCT FROM n.brand_id`,
+      [from, from + UPSERT_BATCH],
     );
   }
 }

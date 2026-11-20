@@ -2223,6 +2223,264 @@
         ]
       }
     },
+    "/v1/brands": {
+      "get": {
+        "description": "Brands whose name has a word starting with `q`. People pick from this list; they cannot add brands. Empty while brands are off (BRAND_LOGOS_ENABLED), so the apps offer no \"This is a brand store\".",
+        "operationId": "Brands_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Start of any word of the brand name, any case",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 60,
+              "example": "zar",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Find a brand for \"This is a brand store\"",
+        "tags": [
+          "brands"
+        ]
+      }
+    },
+    "/v1/brands/{id}/logo/{hash}": {
+      "get": {
+        "description": "The path comes from `brand.logoUrl`. A 96 px square WebP that never changes at this path. 404 when logos are off, the brand is not listed in BRAND_LOGOS_SHOWN or the logo changed.",
+        "operationId": "Brands_logo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "hash",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "3f2a9c01d4e5b6a7",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The WebP image"
+          },
+          "404": {
+            "description": "No logo shown here (NOT_FOUND)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A brand's logo (public)",
+        "tags": [
+          "brands"
+        ]
+      }
+    },
+    "/v1/admin/brands": {
+      "post": {
+        "operationId": "Brands_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBrandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceBrandDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a brand (admins)",
+        "tags": [
+          "brands"
+        ]
+      }
+    },
+    "/v1/admin/brands/{id}/logo": {
+      "put": {
+        "description": "Ours wins over the Wikimedia logo and is never replaced by it. An image that cannot be read, or is white on transparency, answers 415 UNSUPPORTED_MEDIA_TYPE.",
+        "operationId": "Brands_uploadLogo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadBrandLogoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceBrandDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload a brand's logo (admins)",
+        "tags": [
+          "brands"
+        ]
+      },
+      "delete": {
+        "description": "The brand shows a round pin until the next daily sync finds its Wikimedia logo, if it has one.",
+        "operationId": "Brands_removeLogo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceBrandDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a brand's logo (admins)",
+        "tags": [
+          "brands"
+        ]
+      }
+    },
+    "/v1/admin/places/{id}/brand": {
+      "put": {
+        "description": "For a spot wrongly marked as a brand store. The OSM import ties OSM shops again while their OSM tag says so.",
+        "operationId": "Brands_setPlaceBrand",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlaceBrandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Not an admin (FORBIDDEN)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tie a place to a brand or untie it (admins)",
+        "tags": [
+          "brands"
+        ]
+      }
+    },
     "/v1/days/{id}/markers": {
       "post": {
         "description": "Send placeId (a place from our results), name + location (custom pin, or a Photon result with osmType/osmId), or location alone (a tap on the map): the server then names the stop after one of our public places within 25 m, else the address there (Photon reverse), else its coordinates. Google place IDs are rejected.",
@@ -6074,6 +6332,30 @@
           "photoCount"
         ]
       },
+      "PlaceBrandDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "Zara"
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "/v1/brands/0b5e…/logo/3f2a9c01d4e5b6a7",
+            "description": "Path of the brand's logo on this API (prepend the API's base URL): a square WebP of 96 px, a few KB, public, never changing at this path, so cache it forever. Null when there's no logo, logos are off (BRAND_LOGOS_ENABLED) or this brand isn't listed in BRAND_LOGOS_SHOWN: draw the round pin then"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "logoUrl"
+        ]
+      },
       "PlaceItemDto": {
         "type": "object",
         "properties": {
@@ -6174,6 +6456,16 @@
           "hotByMe": {
             "type": "boolean",
             "description": "I marked the place hot"
+          },
+          "brand": {
+            "nullable": true,
+            "description": "The brand this place is a store of; with a logoUrl the pin is a rounded square showing the logo, otherwise round as usual",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaceBrandDto"
+              }
+            ]
           }
         },
         "required": [
@@ -6188,7 +6480,8 @@
           "coverImageId",
           "coverSource",
           "coverThumbUrl",
-          "hotByMe"
+          "hotByMe",
+          "brand"
         ]
       },
       "PlaceClusterDto": {
@@ -6392,6 +6685,16 @@
             "type": "string",
             "nullable": true,
             "example": "240109189"
+          },
+          "brand": {
+            "nullable": true,
+            "description": "Our place's brand (as on in-view places); null for Photon results",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaceBrandDto"
+              }
+            ]
           }
         },
         "required": [
@@ -6406,7 +6709,35 @@
           "type",
           "address",
           "osmType",
-          "osmId"
+          "osmId",
+          "brand"
+        ]
+      },
+      "SearchCityDto": {
+        "type": "object",
+        "properties": {
+          "west": {
+            "type": "number",
+            "example": 16.18
+          },
+          "south": {
+            "type": "number",
+            "example": 48.12
+          },
+          "east": {
+            "type": "number",
+            "example": 16.58
+          },
+          "north": {
+            "type": "number",
+            "example": 48.32
+          }
+        },
+        "required": [
+          "west",
+          "south",
+          "east",
+          "north"
         ]
       },
       "SearchResponseDto": {
@@ -6419,6 +6750,16 @@
               "$ref": "#/components/schemas/SearchResultDto"
             }
           },
+          "city": {
+            "nullable": true,
+            "description": "Bounds of the city the map centre (lat/lng) is in; places, streets and addresses come from it only, cities and countries from anywhere. The app frames search results inside it and leaves the camera alone when there are none. Null without lat/lng or when the city is unknown.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SearchCityDto"
+              }
+            ]
+          },
           "attribution": {
             "type": "string",
             "example": "© OpenStreetMap contributors"
@@ -6426,6 +6767,7 @@
         },
         "required": [
           "items",
+          "city",
           "attribution"
         ]
       },
@@ -6530,6 +6872,16 @@
             "type": "boolean",
             "description": "I marked the place hot"
           },
+          "brand": {
+            "nullable": true,
+            "description": "The brand this place is a store of; with a logoUrl the pin is a rounded square showing the logo, otherwise round as usual",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaceBrandDto"
+              }
+            ]
+          },
           "distanceMeters": {
             "type": "number",
             "description": "From the query point, in metres"
@@ -6548,6 +6900,7 @@
           "coverSource",
           "coverThumbUrl",
           "hotByMe",
+          "brand",
           "distanceMeters"
         ]
       },
@@ -6912,6 +7265,16 @@
             "type": "boolean",
             "description": "I marked the place hot"
           },
+          "brand": {
+            "nullable": true,
+            "description": "The brand this place is a store of; with a logoUrl the pin is a rounded square showing the logo, otherwise round as usual",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaceBrandDto"
+              }
+            ]
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -6984,6 +7347,7 @@
           "coverSource",
           "coverThumbUrl",
           "hotByMe",
+          "brand",
           "source",
           "isActive",
           "osmType",
@@ -6993,6 +7357,66 @@
           "images",
           "addedBy",
           "attribution"
+        ]
+      },
+      "BrandsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "At most 20, the brands with the most places first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceBrandDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CreateBrandDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "example": "Zara"
+          },
+          "wikidataId": {
+            "type": "string",
+            "example": "Q147662",
+            "description": "Its Wikidata item, if it has one: the import ties OSM shops with this brand:wikidata to it, and its Wikimedia logo is looked for"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UploadBrandLogoDto": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "The logo image (PNG, JPEG, WebP or SVG) in base64, under 70 KB. It is cut to the logo and made into a 96 px square WebP of a few KB; ours always wins over Wikimedia"
+          }
+        },
+        "required": [
+          "image"
+        ]
+      },
+      "SetPlaceBrandDto": {
+        "type": "object",
+        "properties": {
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The brand, or null to untie the place from its brand"
+          }
+        },
+        "required": [
+          "brandId"
         ]
       },
       "CreateMarkerDto": {
@@ -7079,6 +7503,11 @@
               "romantic"
             ],
             "description": "Category for a new place; defaults to other"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "\"This is a brand store\": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place or while brands are off (BRAND_LOGOS_ENABLED). Omit when sending placeId."
           },
           "time": {
             "type": "string",

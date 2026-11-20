@@ -118,6 +118,8 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         popularity: 2,
       });
       await insertPlace(app, { name: 'Café Sacher', lat: 48.202, lng: 16.372 });
+      // A look-alike name isn't a match (Shahin, 2026-11-20).
+      await insertPlace(app, { name: 'KFF Kebab', lat: 48.2015, lng: 16.3715 });
       await insertPlace(app, {
         name: 'KFC Home',
         lat: 48.203,
@@ -220,6 +222,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         coverSource: null,
         coverThumbUrl: null,
         hotByMe: false,
+        brand: null,
       });
       expect(body.places[2].isTripinly).toBe(false);
       expect(body.clusters).toEqual([]);
@@ -611,6 +614,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           address: 'Maria-Theresien-Platz, Wien',
           osmType: 'node',
           osmId: '4242',
+          brand: null,
         },
         expect.objectContaining({
           source: 'photon',
@@ -620,7 +624,9 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           osmId: '109166',
         }),
       ]);
-      const sent = photon.requests[0];
+      const sent = photon.requests.find(
+        (request) => request.get('q') === 'museum of art',
+      )!;
       expect(sent.get('q')).toBe('museum of art');
       expect(sent.get('lang')).toBe('en');
       expect(sent.get('lat')).toBe('48.2');
@@ -758,6 +764,83 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         .get('/v1/places/search?q=graben%2012')
         .expect(200);
       expect(names(numbered.body.items)[0]).toBe('Graben 12');
+    });
+
+    it("keeps places to the map's city and drops look-alike names", async () => {
+      const vienna = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [16.3725, 48.2083] },
+        properties: {
+          osm_type: 'R',
+          osm_id: 109166,
+          name: 'Wien',
+          type: 'city',
+          extent: [16.18, 48.32, 16.58, 48.12],
+        },
+      };
+      const shop = (name: string, [lng, lat]: [number, number]) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: { name, type: 'other', osm_type: 'N', osm_id: 1 },
+      });
+      await insertPlace(app, {
+        name: 'Zara',
+        category: 'shopping',
+        lat: 48.1987,
+        lng: 16.3489,
+      });
+      await insertPlace(app, { name: 'Dr. Zarza', lat: 48.2, lng: 16.36 });
+      await insertPlace(app, { name: 'Café Zartl', lat: 48.21, lng: 16.39 });
+      await insertPlace(app, {
+        name: 'Zara',
+        category: 'shopping',
+        lat: 47.4979,
+        lng: 19.0402,
+      });
+      // The stub answers every request alike: the reverse lookup names Wien,
+      // the city search gives its bounds, the search lists the rest.
+      photon.features = [
+        vienna,
+        shop('Zara', [16.3762, 48.2079]),
+        shop('Zarándokszállás', [19.06, 47.5]),
+        shop('Zarza Bistro', [16.37, 48.2]),
+      ];
+
+      const { body } = await as(alice)
+        .get('/v1/places/search?q=zara&lat=48.2050&lng=16.3700')
+        .expect(200);
+
+      expect(names(body.items).sort()).toEqual(['Wien', 'Zara', 'Zara']);
+      expect(
+        body.items.every(
+          (item: { location: { lat: number } }) => item.location.lat > 48,
+        ),
+      ).toBe(true);
+      expect(body.city).toEqual({
+        west: 16.18,
+        south: 48.12,
+        east: 16.58,
+        north: 48.32,
+      });
+
+      // Without a map centre there's no city: anywhere goes, look-alikes still don't.
+      const anywhere = await as(alice)
+        .get('/v1/places/search?q=zara')
+        .expect(200);
+      expect(anywhere.body.city).toBeNull();
+      expect(names(anywhere.body.items)).not.toContain('Dr. Zarza');
+      expect(names(anywhere.body.items)).toContain('Zarándokszállás');
+
+      // Nothing by that name in Wien: places from other cities, so the camera can go there.
+      const elsewhere = await as(alice)
+        .get('/v1/places/search?q=zarándok&lat=48.2050&lng=16.3700')
+        .expect(200);
+      // (The stub answers Wien to every query; areas come from anywhere.)
+      expect(names(elsewhere.body.items).sort()).toEqual([
+        'Wien',
+        'Zarándokszállás',
+      ]);
+      expect(elsewhere.body.city).toEqual(body.city);
     });
 
     it('returns our places when Photon fails or times out', async () => {
@@ -1185,6 +1268,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         coverSource: null,
         coverThumbUrl: null,
         hotByMe: false,
+        brand: null,
         source: 'osm',
         isActive: true,
         osmType: 'node',

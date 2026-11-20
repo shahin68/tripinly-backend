@@ -9,7 +9,7 @@ import { representativePoint, type Geometry } from './geometry';
  */
 export const OSMIUM_TAG_FILTERS = [
   'nwr/amenity=cafe,ice_cream,restaurant,food_court,fast_food,bar,pub,biergarten,nightclub,theatre,cinema,arts_centre,marketplace,ferry_terminal,bus_station,place_of_worship,doctors,clinic,dentist,hospital,pharmacy,public_bath,library',
-  'nwr/shop=coffee,bakery,pastry,confectionery,mall,department_store,supermarket,convenience,greengrocer',
+  'nwr/shop=coffee,bakery,pastry,confectionery,mall,department_store,supermarket,convenience,greengrocer,clothes,shoes,boutique,jewelry,bag,watches,fashion_accessories,cosmetics,perfumery',
   'nwr/tourism=viewpoint,attraction,zoo,theme_park,aquarium,museum,gallery,artwork,hotel,hostel,guest_house,camp_site,caravan_site',
   'nwr/historic',
   'nwr/leisure=park,garden,nature_reserve,sports_centre,stadium,fitness_centre,swimming_pool,golf_course,sauna,playground,water_park',
@@ -20,6 +20,19 @@ export const OSMIUM_TAG_FILTERS = [
 ];
 
 type Tags = Record<string, string>;
+
+/** Fashion and beauty shops: searched for by brand when planning a trip. */
+const FASHION_SHOPS = [
+  'clothes',
+  'shoes',
+  'boutique',
+  'jewelry',
+  'bag',
+  'watches',
+  'fashion_accessories',
+  'cosmetics',
+  'perfumery',
+] as const;
 
 interface CategoryRule {
   key: string;
@@ -71,6 +84,15 @@ export const CATEGORY_RULES: readonly CategoryRule[] = [
     key: 'shop',
     values: ['mall', 'department_store'],
     category: 'shopping',
+  },
+  {
+    key: 'shop',
+    values: FASHION_SHOPS,
+    category: 'shopping',
+    // Brand stores and well-known shops (Zara, Gucci), not every small boutique:
+    // there are thousands, and they would crowd the map (Shahin, 2026-11-20).
+    when: (tags) =>
+      Boolean(tags.brand || tags['brand:wikidata'] || tags.wikidata),
   },
   { key: 'amenity', values: ['marketplace'], category: 'market' },
   {
@@ -157,6 +179,8 @@ const KEPT_TAGS = [
   'website',
   'opening_hours',
   'cuisine',
+  'brand',
+  'brand:wikidata',
   'wikidata',
   'wikipedia',
   'wikimedia_commons',
