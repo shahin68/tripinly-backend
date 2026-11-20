@@ -264,6 +264,8 @@ Lines and what they mean:
 
 The worker's image job runs on every worker start and daily at 04:30 UTC (photos rechecked weekly on Sunday 05:00 UTC). Each run does brand logos first (up to 200 brands, the brands with most places first), then place photos, at one Wikimedia request a second, and queues the next run while work is left. After an import that adds many places, the first runs take a while. **A brand needs a logo to show a square pin:** brands are created by the OSM import; logos only come with this job, so restart the worker after an import to fetch them at once.
 
+**Why some stores of a brand show the logo and others don't (KFC in Austria vs Hungary, 2026-11-20):** a logo belongs to the brand, not to a country, so once a brand has its logo every place linked to that brand shows it. A place is linked to its brand only during an OSM import, from the OSM `brand` / `brand:wikidata` tags, which we keep since backend#89. Places imported before that (for example Hungary's restaurants) have no brand link yet and keep their category icon until their region is imported again: run `npm run osm:import -- europe/hungary` in the worker shell, or wait for the scheduled import. When the brand already has a logo, those places switch to the logo pin right after the import; a brand that is new to us gets its logo on the next image job run (or restart the worker).
+
 ### Checking progress in the database
 
 Connect DBeaver to Postgres (the `postgres` service's TCP proxy; host, port and the `POSTGRES_*` values from its variables). Then:
