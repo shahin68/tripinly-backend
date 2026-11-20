@@ -222,6 +222,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         coverSource: null,
         coverThumbUrl: null,
         hotByMe: false,
+        brand: null,
       });
       expect(body.places[2].isTripinly).toBe(false);
       expect(body.clusters).toEqual([]);
@@ -613,6 +614,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
           address: 'Maria-Theresien-Platz, Wien',
           osmType: 'node',
           osmId: '4242',
+          brand: null,
         },
         expect.objectContaining({
           source: 'photon',
@@ -1266,6 +1268,7 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         coverSource: null,
         coverThumbUrl: null,
         hotByMe: false,
+        brand: null,
         source: 'osm',
         isActive: true,
         osmType: 'node',
