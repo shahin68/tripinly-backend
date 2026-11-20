@@ -32,6 +32,9 @@ describe('categoryFor', () => {
     [{ amenity: 'theatre' }, 'entertainment'],
     [{ tourism: 'artwork' }, 'entertainment'],
     [{ shop: 'mall' }, 'shopping'],
+    [{ shop: 'clothes', brand: 'Zara' }, 'shopping'],
+    [{ shop: 'boutique', 'brand:wikidata': 'Q178516' }, 'shopping'],
+    [{ shop: 'jewelry', wikidata: 'Q1' }, 'shopping'],
     [{ amenity: 'marketplace' }, 'market'],
     [{ shop: 'supermarket' }, 'groceries'],
     [{ shop: 'convenience' }, 'groceries'],
@@ -62,6 +65,8 @@ describe('categoryFor', () => {
   it.each([
     [{ amenity: 'place_of_worship' }],
     [{ shop: 'chemist' }],
+    // A small shop without a brand would crowd the map.
+    [{ shop: 'clothes' }],
     [{ leisure: 'swimming_pool', access: 'private' }],
     [{ leisure: 'playground', access: 'private' }],
     [{ amenity: 'parking' }],

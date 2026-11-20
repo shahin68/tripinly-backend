@@ -34,6 +34,8 @@ import { placeImageCredit } from './commons-metadata';
 import { BEST_PHOTO_FIRST, PlaceCoversService } from './place-covers.service';
 import { PhotonClient } from './photon.client';
 import {
+  inBox,
+  keepPhotonResult,
   mergeSearchResults,
   photonScore,
   type Scored,
@@ -98,6 +100,8 @@ const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
 const NEARBY_TOP_UP_BELOW = 10;
 const SEARCH_LIMIT = 10;
+/** Our best matches before those outside the map's city are left out. */
+const OURS_CANDIDATES = 40;
 /** What a trip can head to: Photon's area layers, never addresses, streets or farms. */
 const DESTINATION_LAYERS = [
   'country',
@@ -420,18 +424,33 @@ export class PlacesService {
         near,
         layers: DESTINATION_LAYERS,
       });
-      return { items: destinations(areas), attribution: OSM_ATTRIBUTION };
+      return {
+        items: destinations(areas),
+        city: null,
+        attribution: OSM_ATTRIBUTION,
+      };
     }
-    const [ours, photon] = await Promise.all([
+    // Places come from the city the map is in only (Shahin, 2026-11-20); its
+    // bounds are looked up while the places are, and the app frames by them.
+    const [ours, photon, city] = await Promise.all([
       this.searchOurs(query.q, lang, near),
       this.photon.search({ q: query.q, lang, near }),
+      near ? this.photon.cityAt({ ...near, lang }) : Promise.resolve(null),
     ]);
-    const scored = photon.map((item) => ({
-      item,
-      score: photonScore(item, query.q, near),
-    }));
+    const scored = photon
+      .filter((item) => keepPhotonResult(item, query.q, city))
+      .map((item) => ({ item, score: photonScore(item, query.q, near) }));
+    const inCity = city
+      ? ours.filter(({ item }) => inBox(item.location, city))
+      : ours;
     return {
-      items: mergeSearchResults(ours, scored, SEARCH_LIMIT),
+      items: mergeSearchResults(inCity, scored, SEARCH_LIMIT),
+      city: city && {
+        west: city.minLng,
+        south: city.minLat,
+        east: city.maxLng,
+        north: city.maxLat,
+      },
       attribution: OSM_ATTRIBUTION,
     };
   }
@@ -749,13 +768,17 @@ export class PlacesService {
     lang: string,
   ): Promise<InViewResponseDto> {
     const normalized = normalizePlaceName(q);
-    if (normalized.length < 2) {
+    const words = searchWords(q);
+    if (normalized.length < 2 || !words) {
       return { places: [], clusters: [], attribution: OSM_ATTRIBUTION };
     }
+    const like = (text: string) => text.replace(/[\\%_]/g, '\\$&');
     const rows = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
       WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-        AND ${inBbox(bbox)} AND ${normalized} <% p."searchText"
+        AND ${inBbox(bbox)}
+        AND (${normalized} <% p."searchText" OR p."searchText" LIKE ${'%' + like(normalized) + '%'})
+        AND ${searchTextWords()} LIKE ${'% ' + like(words) + '%'}
       ORDER BY p.popularity DESC, p.prominence DESC, p.id
       LIMIT ${limit}`;
     return {
@@ -828,7 +851,7 @@ export class PlacesService {
       ? Prisma.sql`+ ${w.near}::float8 / (1 + ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography) / ${w.nearMeters}::float8)`
       : Prisma.empty;
     const name = Prisma.sql`regexp_replace(p."normalizedName", ${SQL_WORD_SEPARATORS}, ' ', 'g')`;
-    const all = Prisma.sql`(' ' || regexp_replace(p."searchText", ${SQL_WORD_SEPARATORS}, ' ', 'g'))`;
+    const all = searchTextWords();
     const rows = await this.prisma.$queryRaw<
       (PlaceRow & {
         osmType: 'node' | 'way' | 'relation' | null;
@@ -841,8 +864,7 @@ export class PlacesService {
         SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags,
           CASE
             WHEN ${name} LIKE ${like(words) + '%'} THEN ${w.nameStart}::float8
-            WHEN ${all} LIKE ${'% ' + like(words) + '%'} THEN ${w.wordStart}::float8
-            ELSE ${w.fuzzy}::float8 * word_similarity(${q}, p."searchText")
+            ELSE ${w.wordStart}::float8
           END
           + CASE WHEN ${name} = ${words} THEN ${w.exact}::float8 ELSE 0 END
           + ${w.prominence}::float8 * p.prominence / 100.0
@@ -851,9 +873,10 @@ export class PlacesService {
         FROM places p
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
           AND (${q} <% p."searchText" OR p."searchText" LIKE ${'%' + like(q) + '%'})
+          AND ${all} LIKE ${'% ' + like(words) + '%'}
       ) ranked
       ORDER BY score DESC, id
-      LIMIT ${SEARCH_LIMIT}`;
+      LIMIT ${OURS_CANDIDATES}`;
     return rows.map((row) => {
       const item = toPlaceItem(row, lang);
       return {
@@ -915,6 +938,11 @@ export class PlacesService {
       this.logger.warn(`In-view cache write failed: ${(error as Error).name}`);
     }
   }
+}
+
+/** Every name of the place as plain words after a space, for word-start matching. */
+function searchTextWords(): Prisma.Sql {
+  return Prisma.sql`(' ' || regexp_replace(p."searchText", ${SQL_WORD_SEPARATORS}, ' ', 'g'))`;
 }
 
 function inBbox(bbox: Bbox): Prisma.Sql {

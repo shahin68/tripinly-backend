@@ -535,8 +535,23 @@ export class SearchResponseDto {
   })
   items: SearchResultDto[];
 
+  @ApiProperty({
+    type: () => SearchCityDto,
+    nullable: true,
+    description:
+      'Bounds of the city the map centre (lat/lng) is in; places, streets and addresses come from it only, cities and countries from anywhere. The app frames search results inside it and leaves the camera alone when there are none. Null without lat/lng or when the city is unknown.',
+  })
+  city: SearchCityDto | null;
+
   @ApiProperty({ example: OSM_ATTRIBUTION })
   attribution: string;
+}
+
+export class SearchCityDto {
+  @ApiProperty({ example: 16.18 }) west: number;
+  @ApiProperty({ example: 48.12 }) south: number;
+  @ApiProperty({ example: 16.58 }) east: number;
+  @ApiProperty({ example: 48.32 }) north: number;
 }
 
 export class ImageCreditDto {

@@ -6409,6 +6409,33 @@
           "osmId"
         ]
       },
+      "SearchCityDto": {
+        "type": "object",
+        "properties": {
+          "west": {
+            "type": "number",
+            "example": 16.18
+          },
+          "south": {
+            "type": "number",
+            "example": 48.12
+          },
+          "east": {
+            "type": "number",
+            "example": 16.58
+          },
+          "north": {
+            "type": "number",
+            "example": 48.32
+          }
+        },
+        "required": [
+          "west",
+          "south",
+          "east",
+          "north"
+        ]
+      },
       "SearchResponseDto": {
         "type": "object",
         "properties": {
@@ -6419,6 +6446,16 @@
               "$ref": "#/components/schemas/SearchResultDto"
             }
           },
+          "city": {
+            "nullable": true,
+            "description": "Bounds of the city the map centre (lat/lng) is in; places, streets and addresses come from it only, cities and countries from anywhere. The app frames search results inside it and leaves the camera alone when there are none. Null without lat/lng or when the city is unknown.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SearchCityDto"
+              }
+            ]
+          },
           "attribution": {
             "type": "string",
             "example": "© OpenStreetMap contributors"
@@ -6426,6 +6463,7 @@
         },
         "required": [
           "items",
+          "city",
           "attribution"
         ]
       },

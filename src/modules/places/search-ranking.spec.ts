@@ -1,6 +1,7 @@
 import type { SearchResultDto } from './places.dto';
 import {
   hasHouseNumber,
+  keepPhotonResult,
   mergeSearchResults,
   photonScore,
   searchWords,
@@ -38,6 +39,44 @@ describe('search ranking', () => {
     expect(hasHouseNumber('Mariahilfer Str 3a')).toBe(true);
     expect(hasHouseNumber('Stephansdom')).toBe(false);
     expect(hasHouseNumber('U2 Station')).toBe(false);
+  });
+
+  it('keeps places whose name or a word in it starts with the query, in the city', () => {
+    const vienna = {
+      minLng: 16.18,
+      minLat: 48.12,
+      maxLng: 16.58,
+      maxLat: 48.32,
+    };
+    const zara = result('Zara', 'other');
+    expect(keepPhotonResult(zara, 'zara', vienna)).toBe(true);
+    expect(keepPhotonResult(result('Zara Home', 'other'), 'zara', vienna)).toBe(
+      true,
+    );
+    expect(keepPhotonResult(result('Dr. Zarza', 'other'), 'zara', vienna)).toBe(
+      false,
+    );
+    expect(keepPhotonResult(result('Café Zartl', 'other'), 'zara', null)).toBe(
+      false,
+    );
+    const budapest = { location: { lat: 47.4979, lng: 19.0402 } };
+    expect(
+      keepPhotonResult(
+        result('Zarándokszállás', 'other', budapest),
+        'zara',
+        vienna,
+      ),
+    ).toBe(false);
+    // Cities and countries come from anywhere; addresses only from the city.
+    expect(
+      keepPhotonResult(result('Budapest', 'city', budapest), 'buda', vienna),
+    ).toBe(true);
+    expect(
+      keepPhotonResult(result('Váci utca', 'street', budapest), 'vaci', vienna),
+    ).toBe(false);
+    expect(
+      keepPhotonResult(result('Graben 12', 'house'), 'graben 12', vienna),
+    ).toBe(true);
   });
 
   it('lifts an area only when its name matches', () => {

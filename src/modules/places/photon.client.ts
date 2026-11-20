@@ -1,11 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../common/config/env';
+import type { Bbox } from './bbox';
 import type { SearchResultDto } from './places.dto';
 
 /** The public Photon can be slow at busy times; past this, search shows our places only. */
 const PHOTON_TIMEOUT_MS = 4_000;
-const PHOTON_LIMIT = 8;
+const PHOTON_LIMIT = 12;
+/** How far from the map's centre the address naming its city may be. */
+const CITY_REVERSE_RADIUS_KM = 2;
 /** How far from a tapped point an address may be to name it. */
 const REVERSE_RADIUS_KM = 0.1;
 /** Languages the public Photon index has names for; others get local names. */
@@ -73,6 +76,50 @@ export class PhotonClient {
     }
   }
 
+  /**
+   * The bounds of the city or town a point is in (Photon's `extent` of it), or
+   * null when there's none or Photon fails: the address nearest the point names
+   * its city, and the city by that name nearest the point gives the bounds.
+   */
+  async cityAt({
+    lat,
+    lng,
+    lang,
+  }: {
+    lat: number;
+    lng: number;
+    lang: string;
+  }): Promise<Bbox | null> {
+    const base = this.config.get('PHOTON_BASE_URL', { infer: true });
+    try {
+      const reverse = new URL('/reverse', base);
+      reverse.searchParams.set('lat', String(lat));
+      reverse.searchParams.set('lon', String(lng));
+      reverse.searchParams.set('limit', '1');
+      reverse.searchParams.set('radius', String(CITY_REVERSE_RADIUS_KM));
+      if (PHOTON_LANGUAGES.has(lang)) reverse.searchParams.set('lang', lang);
+      const [here] = featuresOf(await fetchPhoton(reverse));
+      const props = here?.properties ?? {};
+      const name =
+        text(props.city) ??
+        (props.type === 'city' ? text(props.name) : undefined);
+      if (!name) return null;
+      const search = new URL('/api', base);
+      search.searchParams.set('q', name);
+      search.searchParams.set('limit', '1');
+      search.searchParams.set('layer', 'city');
+      search.searchParams.set('lat', String(lat));
+      search.searchParams.set('lon', String(lng));
+      if (PHOTON_LANGUAGES.has(lang)) search.searchParams.set('lang', lang);
+      const [city] = featuresOf(await fetchPhoton(search));
+      return extentOf(city);
+    } catch (error) {
+      // No coordinates in logs.
+      this.logger.warn(`Photon city lookup failed: ${describe(error)}`);
+      return null;
+    }
+  }
+
   /** The nearest address or named feature at a point, or null (also on any failure). */
   async reverse({
     lat,
@@ -125,6 +172,27 @@ async function fetchPhoton(url: URL): Promise<{ features?: unknown }> {
       if (attempt > 1 || !retryable) throw error;
     }
   }
+}
+
+function featuresOf(body: { features?: unknown }): PhotonFeature[] {
+  return Array.isArray(body.features) ? (body.features as PhotonFeature[]) : [];
+}
+
+/** Photon's `extent` ([west, north, east, south]) as a box, or null. */
+export function extentOf(feature: PhotonFeature | undefined): Bbox | null {
+  const extent = feature?.properties?.extent;
+  if (
+    !Array.isArray(extent) ||
+    extent.length !== 4 ||
+    !extent.every(
+      (value) => typeof value === 'number' && Number.isFinite(value),
+    )
+  ) {
+    return null;
+  }
+  const [west, north, east, south] = extent as number[];
+  if (west >= east || south >= north) return null;
+  return { minLng: west, minLat: south, maxLng: east, maxLat: north };
 }
 
 /** The failure's kind (and HTTP status), never the query or coordinates. */

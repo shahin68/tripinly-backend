@@ -1,4 +1,5 @@
 import { haversineMeters } from '../routing/geo';
+import type { Bbox } from './bbox';
 import { normalizePlaceName } from './normalize-name';
 import type { SearchResultDto } from './places.dto';
 
@@ -7,19 +8,21 @@ import type { SearchResultDto } from './places.dto';
  * order (2026-11-19). How well the name matches comes first, then how well
  * known the place is, then a gentle nearness to the map centre:
  * - text: the name starts with the query 1.0, a word in it starts with the
- *   query 0.75, a looser match up to 0.5 (ours: trigram word similarity;
- *   Photon found it some other way: 0.3); exactly the name adds 0.25.
+ *   query 0.75 (Photon found an area or address some other way: 0.3); exactly
+ *   the name adds 0.25. A place matches only so: no look-alike names
+ *   ("Zara" doesn't find Dr Zarza or Café Zartl; Shahin, 2026-11-20).
  * - known: ours `0.6 × prominence / 100 + 0.15 × ln(1 + hot count)`; Photon's
  *   areas by type (`PHOTON_TYPE_WEIGHT`) times the text score, so an area
  *   only rises when its name matches.
  * - near: `0.3 / (1 + km / 5)`, nothing without a map centre.
  * A query with a house number ("Graben 12") puts addresses and streets first.
+ * Places, streets and addresses come from the city the map is in only; cities,
+ * regions and countries from anywhere (`keepPhotonResult`).
  * The SQL in `PlacesService.searchOurs` uses the same numbers.
  */
 export const SEARCH_WEIGHTS = {
   nameStart: 1,
   wordStart: 0.75,
-  fuzzy: 0.5,
   photonOther: 0.3,
   exact: 0.25,
   prominence: 0.6,
@@ -41,6 +44,15 @@ const PHOTON_TYPE_WEIGHT: Record<string, number> = {
   other: 0.1,
 };
 const ADDRESS_TYPES = new Set(['house', 'street']);
+/** Photon's areas: found anywhere, so the map can go to another city. */
+const AREA_TYPES = new Set([
+  'country',
+  'state',
+  'county',
+  'city',
+  'district',
+  'locality',
+]);
 
 /** Punctuation that splits words, the same set as `SQL_WORD_SEPARATORS`. */
 const WORD_SEPARATORS = /[-\s'’.,/&()+:;!?"]+/g;
@@ -66,6 +78,38 @@ function photonText(words: string, name: string): number {
   if (candidate.startsWith(words)) return SEARCH_WEIGHTS.nameStart;
   if (` ${candidate}`.includes(` ${words}`)) return SEARCH_WEIGHTS.wordStart;
   return SEARCH_WEIGHTS.photonOther;
+}
+
+/** The query's words start the name or a word in it ("zara" in "Zara Home", not in "Zarza"). */
+export function wordsMatch(words: string, name: string): boolean {
+  return Boolean(words) && ` ${searchWords(name)}`.includes(` ${words}`);
+}
+
+export function inBox(
+  location: { lat: number; lng: number },
+  box: Bbox,
+): boolean {
+  return (
+    location.lat >= box.minLat &&
+    location.lat <= box.maxLat &&
+    location.lng >= box.minLng &&
+    location.lng <= box.maxLng
+  );
+}
+
+/**
+ * A Photon result stays when it's an area (anywhere), or lies in the map's
+ * `city` (when known) and is an address or a place whose name matches.
+ */
+export function keepPhotonResult(
+  result: SearchResultDto,
+  query: string,
+  city: Bbox | null,
+): boolean {
+  const type = result.type ?? '';
+  if (AREA_TYPES.has(type)) return true;
+  if (city && !inBox(result.location, city)) return false;
+  return ADDRESS_TYPES.has(type) || wordsMatch(searchWords(query), result.name);
 }
 
 export function nearScore(
