@@ -12,12 +12,6 @@ const THUMB_WIDTH = 1280;
 const TIMEOUT_MS = 15_000;
 /** Times a request is tried when Wikimedia answers 429. */
 const MAX_ATTEMPTS = 3;
-/**
- * Times a request is tried on a maxlag error, waiting twice as long each time
- * (5, 10, 20 … up to 120 s, about 6 minutes in all): Wikidata's lag can stay
- * high for minutes, and three tries 5 s apart gave up (Shahin, 2026-11-20).
- */
-const MAX_LAG_ATTEMPTS = 8;
 const DEFAULT_RETRY_AFTER_S = 5;
 const MAX_RETRY_AFTER_S = 120;
 /** At most about one request a second (Wikimedia robot policy). */
@@ -36,8 +30,8 @@ export interface CommonsImage extends CommonsFileInfo {
 /**
  * Reads Wikidata main images (P18) and Commons file details, and downloads
  * Commons thumbnails. Requests go one at a time, about one a second; when
- * Wikimedia answers 429 or a maxlag error the client waits for Retry-After
- * and tries again. Use it from one job at a time.
+ * Wikimedia answers 429 the client waits for Retry-After and tries again.
+ * Use it from one job at a time.
  */
 @Injectable()
 export class WikimediaClient {
@@ -133,27 +127,24 @@ export class WikimediaClient {
     endpoint: string,
     params: Record<string, string>,
   ): Promise<Record<string, unknown>> {
+    // No maxlag parameter: it is meant for edits, and we only read. Wikidata's
+    // lag (which counts its query service) stayed above 5 s for over an hour
+    // on 2026-11-20, so every logo sync gave up (Shahin's worker log). The
+    // one-request-a-second gap and 429 handling keep us polite.
     const url = new URL(endpoint);
     for (const [key, value] of Object.entries({
       ...params,
       format: 'json',
       formatversion: '2',
-      maxlag: '5',
     })) {
       url.searchParams.set(key, value);
     }
-    for (let attempt = 1; ; attempt++) {
-      const response = await this.send(url, 'application/json', TIMEOUT_MS);
-      if (!response.ok) throw new WikimediaError(`HTTP ${response.status}`);
-      const body = (await response.json()) as Record<string, unknown>;
-      const code = (body.error as { code?: string } | undefined)?.code;
-      if (!body.error) return body;
-      if (code !== 'maxlag') {
-        throw new WikimediaError(`API error ${code ?? 'unknown'}`);
-      }
-      if (attempt >= MAX_LAG_ATTEMPTS) throw new WikimediaError('maxlag');
-      await this.slowDown('maxlag', response, 2 ** (attempt - 1));
-    }
+    const response = await this.send(url, 'application/json', TIMEOUT_MS);
+    if (!response.ok) throw new WikimediaError(`HTTP ${response.status}`);
+    const body = (await response.json()) as Record<string, unknown>;
+    if (!body.error) return body;
+    const code = (body.error as { code?: string }).code;
+    throw new WikimediaError(`API error ${code ?? 'unknown'}`);
   }
 
   /**
@@ -179,15 +170,8 @@ export class WikimediaClient {
     }
   }
 
-  private async slowDown(
-    reason: string,
-    response: Response,
-    factor = 1,
-  ): Promise<void> {
-    const waitS = Math.min(
-      retryAfterSeconds(response.headers.get('retry-after')) * factor,
-      MAX_RETRY_AFTER_S,
-    );
+  private async slowDown(reason: string, response: Response): Promise<void> {
+    const waitS = retryAfterSeconds(response.headers.get('retry-after'));
     this.logger.warn(
       `Wikimedia asked to slow down (${reason}); waiting ${waitS} s`,
     );
