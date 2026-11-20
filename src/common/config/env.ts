@@ -333,10 +333,10 @@ export const envSchema = z
      */
     BRAND_LOGOS_ENABLED: booleanFlag,
     /**
-     * Brands whose logo never shows (api), comma-separated names or Wikidata ids,
-     * any case: "Gucci,Q178516". Empty: none hidden.
+     * The only brands whose logo shows (api), comma-separated names or Wikidata
+     * ids, any case: "Zara,Q178516". Empty: no logos. Brands roll out one by one.
      */
-    BRAND_LOGOS_HIDDEN: z
+    BRAND_LOGOS_SHOWN: z
       .string()
       .default('')
       .transform((value) =>

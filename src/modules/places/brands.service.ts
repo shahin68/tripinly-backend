@@ -44,7 +44,7 @@ export class BrandsService {
   }
 
   /**
-   * The logo's bytes, only while it shows (BRAND_LOGOS_ENABLED, not hidden)
+   * The logo's bytes, only while it shows (BRAND_LOGOS_ENABLED, listed in BRAND_LOGOS_SHOWN)
    * and [hash] is its current one; otherwise null, which answers 404.
    */
   async logo(id: string, hash: string): Promise<Buffer | null> {

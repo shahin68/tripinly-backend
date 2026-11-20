@@ -61,7 +61,7 @@ export class BrandsController {
   @ApiOperation({
     summary: "A brand's logo (public)",
     description:
-      'The path comes from `brand.logoUrl`. A 96 px square WebP that never changes at this path. 404 when logos are off, the brand is hidden or the logo changed.',
+      'The path comes from `brand.logoUrl`. A 96 px square WebP that never changes at this path. 404 when logos are off, the brand is not listed in BRAND_LOGOS_SHOWN or the logo changed.',
   })
   @ApiOkResponse({ description: 'The WebP image' })
   @ApiNotFoundResponse({ description: 'No logo shown here (NOT_FOUND)' })

@@ -10,8 +10,8 @@ import {
   renderBrandLogo,
 } from './brands';
 
-function policy(enabled: boolean, hidden: string[] = []): BrandPolicy {
-  const values = { BRAND_LOGOS_ENABLED: enabled, BRAND_LOGOS_HIDDEN: hidden };
+function policy(enabled: boolean, shown: string[] = ['zara']): BrandPolicy {
+  const values = { BRAND_LOGOS_ENABLED: enabled, BRAND_LOGOS_SHOWN: shown };
   const config = {
     get: (key: keyof typeof values) => values[key],
   } as unknown as ConfigService<Env, true>;
@@ -36,9 +36,17 @@ describe('BrandPolicy', () => {
   });
 
   it.each([['zara'], ['q147662']])(
-    'hides a brand listed by name or Wikidata id (%s)',
+    'shows a brand listed by name or Wikidata id (%s)',
     (entry) => {
       const brand = policy(true, [entry]).present(ZARA);
+      expect(brand?.logoUrl).toBe(brandLogoPath(ZARA.id, ZARA.logoHash));
+    },
+  );
+
+  it.each([[[]], [['gucci', 'q2639']]])(
+    'keeps the name but no logo for a brand not listed (%j)',
+    (shown) => {
+      const brand = policy(true, shown).present(ZARA);
       expect(brand).toMatchObject({ name: 'Zara', logoUrl: null });
     },
   );

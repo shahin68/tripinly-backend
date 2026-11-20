@@ -132,7 +132,7 @@ describe('Brands (integration)', () => {
     expect(details.body.brand).toEqual(uploaded);
   });
 
-  it('keeps the name but drops the logo when logos are off or the brand is hidden', async () => {
+  it('keeps the name but drops the logo when logos are off or the brand is not listed', async () => {
     const zara = await createBrand('Zara', 'Q147662');
     const placeId = await insertPlace(app, {
       name: 'Zara',
@@ -148,8 +148,8 @@ describe('Brands (integration)', () => {
 
     for (const values of [
       { BRAND_LOGOS_ENABLED: false },
-      { BRAND_LOGOS_HIDDEN: ['q147662'] },
-      { BRAND_LOGOS_HIDDEN: ['zara'] },
+      { BRAND_LOGOS_SHOWN: [] },
+      { BRAND_LOGOS_SHOWN: ['gucci', 'q2639'] },
     ]) {
       withConfig(values);
       expect((await inViewBrands()).Zara).toEqual({

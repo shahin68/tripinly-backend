@@ -294,7 +294,7 @@ export class PlaceBrandDto {
     nullable: true,
     example: '/v1/brands/0b5e…/logo/3f2a9c01d4e5b6a7',
     description:
-      "Path of the brand's logo on this API (prepend the API's base URL): a square WebP of 96 px, a few KB, public, never changing at this path, so cache it forever. Null when there's no logo, logos are off (BRAND_LOGOS_ENABLED) or this brand's is hidden (BRAND_LOGOS_HIDDEN): draw the round pin then",
+      "Path of the brand's logo on this API (prepend the API's base URL): a square WebP of 96 px, a few KB, public, never changing at this path, so cache it forever. Null when there's no logo, logos are off (BRAND_LOGOS_ENABLED) or this brand isn't listed in BRAND_LOGOS_SHOWN: draw the round pin then",
   })
   logoUrl: string | null;
 }
