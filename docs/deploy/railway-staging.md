@@ -258,6 +258,7 @@ Lines and what they mean:
 - `Brand logos: N brands, M logos`: one logo run finished (up to 200 brands; written every run, also with 0).
 - `Place images: N places, … ready, … rejected, … removed`: one place-photo run finished.
 - `Wikimedia asked to slow down (maxlag); waiting 5 s`: normal, Wikimedia is busy; the worker waits and goes on.
+- `Place images job sync failed: <reason>, will retry`: a run failed (Wikimedia refusing, a timeout); it's tried again 10, 20 and 40 minutes later. `Brand logos failed: <reason>`: the logos failed but the photos went on.
 
 ### When logos and place photos come
 
@@ -296,4 +297,5 @@ Many trademark logos on Wikimedia aren't public domain, so the worker skips them
 | `npm error … Could not read package.json` | The command ran on your PC. | `railway ssh` first. |
 | `could not find the CLI binary … railway.exe` | npm blocked the CLI's install script. | Reinstall with `--allow-scripts=@railway/cli`. |
 | Brand stores found but round pins | No logo yet, or the brand isn't in `BRAND_LOGOS_SHOWN`, or logos are off. | Check the SQL above; restart the worker; check the api variables. |
+| Nothing at all after `Worker started` | Before backend#92 a failed image run left no log line. Now a failure logs `Place images job … failed: …`. | Send that line to the developer. |
 | No "Brand store" row on a new spot | Logos are off, no brands imported yet, or the spot's name matches no brand. | Type a brand name, e.g. "Zara". |

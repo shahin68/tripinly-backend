@@ -4,7 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import type { Queue } from 'bullmq';
 import type { Env } from '../../common/config/env';
 import { StorageService } from '../../common/storage/storage.service';
-import { PlaceImageJobs, PLACE_IMAGES_QUEUE } from './place-images.queue';
+import {
+  PLACE_IMAGE_JOB_RETRIES,
+  PlaceImageJobs,
+  PLACE_IMAGES_QUEUE,
+} from './place-images.queue';
 
 const SCHEDULES = [
   {
@@ -48,7 +52,7 @@ export class PlaceImagesScheduler implements OnApplicationBootstrap {
       await this.queue.upsertJobScheduler(
         schedule.key,
         { pattern: schedule.pattern, tz: 'UTC' },
-        { name: schedule.name },
+        { name: schedule.name, opts: PLACE_IMAGE_JOB_RETRIES },
       );
     }
     if (enabled) {
@@ -56,6 +60,7 @@ export class PlaceImagesScheduler implements OnApplicationBootstrap {
         PlaceImageJobs.SYNC,
         {},
         {
+          ...PLACE_IMAGE_JOB_RETRIES,
           jobId: STARTUP_SYNC_JOB_ID,
           removeOnComplete: true,
           removeOnFail: true,
