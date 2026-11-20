@@ -208,3 +208,94 @@ So, on the api, from biggest effect to smallest:
 | Photos when zoomed further out    | Lower `APP_PIN_DOT_BELOW_ZOOM`                                                | 14 → 13                                                    |
 
 More photo pins mean more image downloads and more markers drawn: raise them a step at a time and check the map stays smooth on an older phone. Changes apply after the api restarts (Railway restarts it when a variable is saved) and the app relaunches.
+
+## 10. Runbook: OSM import, place photos and brand logos
+
+How to switch things on and off, run them, and see what they're doing. Written after the first brand import (Shahin, 2026-11-20).
+
+### Switches
+
+| What | Variable | Service | Default | Values |
+| --- | --- | --- | --- | --- |
+| OSM import at all (scheduled and first loads) | `OSM_IMPORT_ENABLED` | worker | `false` | `true` / `false` |
+| When the scheduled import runs | `OSM_IMPORT_CRON` | worker | `0 3 2 * *` (03:00 UTC on the 2nd) | cron in **UTC** |
+| Which regions | `OSM_IMPORT_REGIONS` | worker | `europe/austria,europe/hungary` | comma-separated Geofabrik paths |
+| Place photos and brand logos copied from Wikimedia | `PLACE_IMAGES_SYNC_ENABLED` | worker | `false` | `true` / `false` (needs the R2 variables) |
+| Brands at all: logos, the brand picker, "Brand store" on new spots | `BRAND_LOGOS_ENABLED` | api | `false` | `true` / `false` |
+| Which brands show their logo | `BRAND_LOGOS_SHOWN` | api | empty (no logos) | comma-separated names or Wikidata ids, any case, e.g. `Zara,H&M,Q147662` |
+
+Saving a variable restarts that service. A change to the brand switches shows on the map once the in-view cache expires (a few minutes). Names in `BRAND_LOGOS_SHOWN` must match the brand's name as OpenStreetMap spells it (`H&M`, `McDonald's`); a Wikidata id always matches.
+
+**Logos off quickly:** set `BRAND_LOGOS_ENABLED=false` on the api. **One brand off:** take it out of `BRAND_LOGOS_SHOWN`.
+
+### Running an OSM import by hand (Windows `cmd`)
+
+One-time setup:
+1. `npm install -g @railway/cli --allow-scripts=@railway/cli` (without `--allow-scripts` npm blocks the step that downloads `railway.exe`), then `railway --version`.
+2. `railway login` (opens the browser).
+3. `railway ssh` needs an SSH key: `ssh-keygen`, Enter at every prompt.
+
+Each time:
+1. `cd %USERPROFILE%` (any folder; nothing from the repo is needed).
+2. `railway link`: pick the project, the `staging` environment and the `worker` service.
+3. `railway ssh`: a Linux shell inside the worker, in `/app`. **The import command only works here, not on your PC.**
+4. `npm run osm:import -- europe/austria` for one region, or `npm run osm:import` for every region in `OSM_IMPORT_REGIONS`.
+5. Wait for `OSM import of europe/austria succeeded: seen …, inserted …, updated …, deactivated …` (a few minutes). Keep the window open; closing it stops the import. `exit` leaves the worker.
+
+The Railway dashboard's right-click on the worker → **Copy SSH Command** gives steps 2 and 3 in one.
+
+### A scheduled import at a set time
+
+Set `OSM_IMPORT_CRON` on the worker to `<minute> <hour UTC> <day> <month> *`; Budapest/Vienna is UTC+1 in winter, UTC+2 in summer. Example: 13:14 Budapest on 20 November (winter) = `14 12 20 11 *`. Afterwards set it back to `0 3 2 * *`, or it runs again on that day next year. A failed scheduled import retries three times, 10, 20 and 40 minutes later, and **every retry downloads the whole extract again** (Austria is ~780 MB): don't chain test runs, or Geofabrik starts refusing us (see below). A manual run is usually simpler.
+
+### Where to see logs
+
+Railway → the service (`worker` or `api`) → **Deployments** → the active deployment → **View logs** (Deploy Logs). The search box filters lines, e.g. `OSM import`, `Brand logos`, `Place images`. `railway logs` (after `railway link`) shows the same in the terminal.
+
+Lines and what they mean:
+- `OSM import of <region>: downloading` / `… MB to download` / `filtering with osmium` / `… places staged, saving` / `… succeeded: seen …`: an import's steps.
+- `OSM import of <region>: Geofabrik publishes no checksum for it, importing unchecked`: fine; osmium still rejects a broken file.
+- `Brand logos: N brands, M logos`: one logo run finished (up to 200 brands; written every run, also with 0).
+- `Place images: N places, … ready, … rejected, … removed`: one place-photo run finished.
+- `Wikimedia asked to slow down (maxlag); waiting 5 s`: normal, Wikimedia is busy; the worker waits and goes on.
+- `Place images job sync failed: <reason>, will retry`: a run failed (Wikimedia refusing, a timeout); it's tried again 10, 20 and 40 minutes later. `Brand logos failed: <reason>`: the logos failed but the photos went on.
+
+### When logos and place photos come
+
+The worker's image job runs on every worker start and daily at 04:30 UTC (photos rechecked weekly on Sunday 05:00 UTC). Each run does brand logos first (up to 200 brands, the brands with most places first), then place photos, at one Wikimedia request a second, and queues the next run while work is left. After an import that adds many places, the first runs take a while. **A brand needs a logo to show a square pin:** brands are created by the OSM import; logos only come with this job, so restart the worker after an import to fetch them at once.
+
+### Checking progress in the database
+
+Connect DBeaver to Postgres (the `postgres` service's TCP proxy; host, port and the `POSTGRES_*` values from its variables). Then:
+
+```sql
+-- Brands and their logos: run twice a few minutes apart; "checked" rises while the worker works.
+select count(*) as brands, count("logoCheckedAt") as checked, count("logoHash") as with_logo from brands;
+
+-- One brand
+select name, "wikidataId", "logoHash" is not null as has_logo, "logoSource", "logoCheckedAt"
+from brands where name ilike 'zara%';
+
+-- Shops tied to a brand
+select count(*) from places where "brandId" is not null and "isActive";
+
+-- Recent OSM imports
+select region, status, "startedAt", "finishedAt", seen, inserted, updated, deactivated, error
+from osm_import_runs order by "startedAt" desc limit 10;
+```
+
+### A brand without a Wikimedia logo
+
+Many trademark logos on Wikimedia aren't public domain, so the worker skips them. An admin can upload one instead (it always wins and is never replaced): `PUT /v1/admin/brands/{id}/logo` with the image; `DELETE /v1/admin/brands/{id}/logo` removes it. Brands are added with `POST /v1/admin/brands`, and a wrongly tied store is untied with `PUT /v1/admin/places/{id}/brand`. See Swagger (`/v1/docs` on staging).
+
+### Troubleshooting
+
+| You see | Means | Do |
+| --- | --- | --- |
+| `checksum of <region> failed with HTTP 404` | Geofabrik published no `.md5` (old code). Since backend#90 the import goes on without it. | Make sure the worker runs develop. |
+| `fetch failed: redirect count exceeded` | Geofabrik is turning us away, most likely after many full downloads in a row. | Stop retries (`OSM_IMPORT_CRON` back to `0 3 2 * *`), wait a few hours, run once by hand. |
+| `npm error … Could not read package.json` | The command ran on your PC. | `railway ssh` first. |
+| `could not find the CLI binary … railway.exe` | npm blocked the CLI's install script. | Reinstall with `--allow-scripts=@railway/cli`. |
+| Brand stores found but round pins | No logo yet, or the brand isn't in `BRAND_LOGOS_SHOWN`, or logos are off. | Check the SQL above; restart the worker; check the api variables. |
+| Nothing at all after `Worker started` | Before backend#92 a failed image run left no log line. Now a failure logs `Place images job … failed: …`. | Send that line to the developer. |
+| No "Brand store" row on a new spot | Logos are off, no brands imported yet, or the spot's name matches no brand. | Type a brand name, e.g. "Zara". |

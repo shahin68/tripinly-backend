@@ -1,7 +1,17 @@
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import {
+  InjectQueue,
+  OnWorkerEvent,
+  Processor,
+  WorkerHost,
+} from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
 import { BrandLogosService } from './brand-logos.service';
-import { PlaceImageJobs, PLACE_IMAGES_QUEUE } from './place-images.queue';
+import {
+  PLACE_IMAGE_JOB_RETRIES,
+  PlaceImageJobs,
+  PLACE_IMAGES_QUEUE,
+} from './place-images.queue';
 import { PlaceImagesService } from './place-images.service';
 
 /**
@@ -10,6 +20,8 @@ import { PlaceImagesService } from './place-images.service';
  */
 @Processor(PLACE_IMAGES_QUEUE, { concurrency: 1, lockDuration: 5 * 60_000 })
 export class PlaceImagesProcessor extends WorkerHost {
+  private readonly logger = new Logger(PlaceImagesProcessor.name);
+
   constructor(
     private readonly images: PlaceImagesService,
     private readonly brandLogos: BrandLogosService,
@@ -24,7 +36,11 @@ export class PlaceImagesProcessor extends WorkerHost {
       case PlaceImageJobs.SYNC: {
         // Brand logos come with the daily image sync, at the same Wikimedia pace. They go
         // first: a few hundred brands at most, while new places can keep the photos busy for long.
-        const logos = await this.brandLogos.sync();
+        const logos = await this.brandLogos.sync().catch((error: Error) => {
+          // The photos still run; the next run (or the daily one) tries the logos again.
+          this.logger.warn(`Brand logos failed: ${error.message}`);
+          return { brands: 0, logos: 0, more: false };
+        });
         const images = await this.images.sync();
         const synced = {
           ...images,
@@ -41,8 +57,26 @@ export class PlaceImagesProcessor extends WorkerHost {
         throw new Error(`unknown place-images job ${job.name}`);
     }
     if (result.more) {
-      await this.queue.add(job.name, {}, { removeOnComplete: true });
+      await this.queue.add(
+        job.name,
+        {},
+        {
+          ...PLACE_IMAGE_JOB_RETRIES,
+          removeOnComplete: true,
+        },
+      );
     }
     return result;
+  }
+
+  /** Without this a failed run (Wikimedia refusing, a timeout) left no trace in the logs (Shahin, 2026-11-20). */
+  @OnWorkerEvent('failed')
+  onFailed(job: Job | undefined, error: Error): void {
+    if (!job) return;
+    const retry =
+      job.attemptsMade < (job.opts.attempts ?? 1) ? ', will retry' : '';
+    this.logger.warn(
+      `Place images job ${job.name} failed: ${error.message}${retry}`,
+    );
   }
 }
