@@ -108,4 +108,11 @@ export class AppConfigDto {
       'Where public transport routes (mode=transit) work. The tram button is dimmed where a route would start or end outside every area, and everywhere when this is empty (switched off). Grows as cities are added on the server, without an app update.',
   })
   transitAreas!: TransitAreaDto[];
+
+  @ApiProperty({
+    example: true,
+    description:
+      "Whether the apps show OpenStreetMap places. Off: no OSM pins on the map, in search, along the way, Around or Nearby, only users' own spots; routes stay (OSM_PINS_ENABLED).",
+  })
+  osmPinsEnabled!: boolean;
 }

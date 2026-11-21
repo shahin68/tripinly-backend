@@ -57,6 +57,9 @@ export class AppConfigController {
             ...TRANSIT_REGIONS[id].bbox,
           }))
         : [],
+      osmPinsEnabled: this.config.get('OSM_PINS_ENABLED', {
+        infer: true,
+      }),
     };
   }
 }

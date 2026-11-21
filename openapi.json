@@ -5043,6 +5043,11 @@
             "items": {
               "$ref": "#/components/schemas/TransitAreaDto"
             }
+          },
+          "osmPinsEnabled": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether the apps show OpenStreetMap places. Off: no OSM pins on the map, in search, along the way, Around or Nearby, only users' own spots; routes stay (OSM_PINS_ENABLED)."
           }
         },
         "required": [
@@ -5057,7 +5062,8 @@
           "photoPinMinHotCount",
           "mapMaxPhotoPins",
           "pinDotBelowZoom",
-          "transitAreas"
+          "transitAreas",
+          "osmPinsEnabled"
         ]
       },
       "RevenueCatWebhookDto": {
