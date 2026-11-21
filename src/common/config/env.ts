@@ -222,6 +222,15 @@ export const envSchema = z
     // tram button shows only where TRANSIT_ENABLED and TRANSIT_REGIONS say.
     /** Switches public transport routes on; off, the apps show the tram button dimmed everywhere. */
     TRANSIT_ENABLED: booleanFlag,
+    /**
+     * Off, the server lists no OpenStreetMap places: no OSM pins on the map, in search, along the way, Around,
+     * Nearby or Popular, only our users' spots (Shahin, 2026-11-21). Routes stay. Served as app-config
+     * osmPinsEnabled, so the apps can drop the OSM credit.
+     */
+    OSM_PINS_ENABLED: z
+      .enum(['true', 'false', '1', '0'])
+      .default('true')
+      .transform((value) => value === 'true' || value === '1'),
     /** The transit service, on Railway's private network. */
     TRANSIT_BASE_URL: z
       .string()

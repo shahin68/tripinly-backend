@@ -270,7 +270,7 @@ export class PlacesService {
       : Prisma.empty;
     const rows = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
-      WHERE p."isActive" AND p.popularity > 0 AND ${inBbox(bbox)} ${exclude}
+      WHERE p."isActive" AND p.popularity > 0 ${osmPinsFilter(this.osmPins())} AND ${inBbox(bbox)} ${exclude}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${query.limit ?? 20}`;
     return {
@@ -299,7 +299,8 @@ export class PlacesService {
         SELECT ${PLACE_COLUMNS}, ST_Distance(p.location, ${point}) AS distance,
                p.popularity / power(1 + ST_Distance(p.location, ${point}) / 1000.0, 1.2) AS score
         FROM places p
-        WHERE p."isActive" AND p.popularity > 0 AND ST_DWithin(p.location, ${point}, ${radius})
+        WHERE p."isActive" AND p.popularity > 0 ${osmPinsFilter(this.osmPins())}
+          AND ST_DWithin(p.location, ${point}, ${radius})
       ) ranked
       WHERE ${
         after
@@ -317,8 +318,13 @@ export class PlacesService {
     const hasMore = rows.length > limit;
     const last = kept[kept.length - 1];
 
-    // Few liked places around: top the first page up with OSM sights by distance.
-    if (!after && !hasMore && items.length < NEARBY_TOP_UP_BELOW) {
+    // Few liked places around: top the first page up with OSM sights by distance (while OSM pins are on).
+    if (
+      this.osmPins() &&
+      !after &&
+      !hasMore &&
+      items.length < NEARBY_TOP_UP_BELOW
+    ) {
       const sights = await this.prisma.$queryRaw<
         (PlaceRow & { distance: number })[]
       >`
@@ -371,7 +377,7 @@ export class PlacesService {
       ? Prisma.sql`AND p.id <> ${query.excludePlaceId}::uuid`
       : Prisma.empty;
     const inCircle = Prisma.sql`p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-      AND ST_DWithin(p.location, ${point}, ${radius}) ${notThePin}`;
+      ${osmPinsFilter(this.osmPins())} AND ST_DWithin(p.location, ${point}, ${radius}) ${notThePin}`;
     const minLikes = this.rankMinLikes();
     const maxPins = this.config.get('APP_AROUND_MAX_PINS', { infer: true });
     const limit = Math.min(query.limit ?? maxPins, maxPins);
@@ -441,9 +447,12 @@ export class PlacesService {
     // Places come from the city the map is in while it has any; otherwise from
     // anywhere, so the camera can go to another city (Shahin, 2026-11-20). Its
     // bounds are looked up while the places are, and the app frames by them.
+    // While OSM pins are off only our users' places are found: no Photon addresses either.
     const [ours, photon, city] = await Promise.all([
       this.searchOurs(query.q, lang, near),
-      this.photon.search({ q: query.q, lang, near }),
+      this.osmPins()
+        ? this.photon.search({ q: query.q, lang, near })
+        : Promise.resolve([]),
       near ? this.photon.cityAt({ ...near, lang }) : Promise.resolve(null),
     ]);
     const cityHasAny =
@@ -691,7 +700,8 @@ export class PlacesService {
     const minLikes = this.rankMinLikes();
     const tripinly = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
-      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} ${osmPinsFilter(this.osmPins())}
+        AND ${inBbox(bbox)} ${inCategories(categories)}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit}`;
     const osm = await this.osmFill(
@@ -725,7 +735,8 @@ export class PlacesService {
     const minLikes = this.rankMinLikes();
     const rows = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
-      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} ${osmPinsFilter(this.osmPins())}
+        AND ${inBbox(bbox)} ${inCategories(categories)}
       ORDER BY p.popularity DESC, p.id
       LIMIT ${limit + 1}`;
     if (rows.length <= limit) {
@@ -760,7 +771,8 @@ export class PlacesService {
                 'prominence', p.prominence, 'brand', ${BRAND_JSON})
               ORDER BY p.popularity DESC, p.id))[1] AS top
       FROM places p
-      WHERE p."isActive" AND p.popularity >= ${minLikes} AND ${inBbox(bbox)} ${inCategories(categories)}
+      WHERE p."isActive" AND p.popularity >= ${minLikes} ${osmPinsFilter(this.osmPins())}
+        AND ${inBbox(bbox)} ${inCategories(categories)}
       GROUP BY ${mapCell(tileSize(zoom))}
       ORDER BY count(*) DESC`;
 
@@ -799,7 +811,7 @@ export class PlacesService {
     const rows = await this.prisma.$queryRaw<PlaceRow[]>`
       SELECT ${PLACE_COLUMNS} FROM places p
       WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-        AND ${inBbox(bbox)}
+        ${osmPinsFilter(this.osmPins())} AND ${inBbox(bbox)}
         AND (${normalized} <% p."searchText" OR p."searchText" LIKE ${'%' + like(normalized) + '%'})
         AND ${searchTextWords()} LIKE ${'% ' + like(words) + '%'}
       ORDER BY p.popularity DESC, p.prominence DESC, p.id
@@ -843,7 +855,7 @@ export class PlacesService {
                ${categoryPriority()} AS priority
         FROM places p
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-          AND p.popularity < ${minLikes}
+          ${osmPinsFilter(this.osmPins())} AND p.popularity < ${minLikes}
           AND ${inBbox(bbox)} ${inCategories(categories)} ${notable}
       ) spread
       ORDER BY
@@ -851,6 +863,11 @@ export class PlacesService {
         CASE WHEN prominence >= ${OSM_NOTABLE_MIN_PROMINENCE} THEN id END,
         rank_in_cell, priority, prominence DESC, id
       LIMIT ${limit}`;
+  }
+
+  /** Whether OpenStreetMap places are listed at all (OSM_PINS_ENABLED). */
+  private osmPins(): boolean {
+    return this.config.get('OSM_PINS_ENABLED', { infer: true });
   }
 
   /** Hot count a place needs to rank above prominence on the map (APP_PLACE_RANK_MIN_HOT_COUNT). */
@@ -895,6 +912,7 @@ export class PlacesService {
           ${proximity} AS score
         FROM places p
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+          ${osmPinsFilter(this.osmPins())}
           AND (${q} <% p."searchText" OR p."searchText" LIKE ${'%' + like(q) + '%'})
           AND ${all} LIKE ${'% ' + like(words) + '%'}
       ) ranked
@@ -936,7 +954,8 @@ export class PlacesService {
       const box = [bbox.minLng, bbox.minLat, bbox.maxLng, bbox.maxLat]
         .map((value) => value.toFixed(6))
         .join(',');
-      return `places:in-view:v${version}:${zoom}:${box}:${categories?.join(',') ?? '*'}:${limit}:${lang}`;
+      const osm = this.osmPins() ? 'osm' : 'no-osm';
+      return `places:in-view:v${version}:${zoom}:${box}:${categories?.join(',') ?? '*'}:${limit}:${lang}:${osm}`;
     } catch {
       return null;
     }
@@ -988,6 +1007,14 @@ function tileSize(zoom: number): number {
 /** A square cell of the given size, anchored at 0°/0° so it doesn't move with the view. */
 function mapCell(size: number): Prisma.Sql {
   return Prisma.sql`floor(p.lng / ${size}), floor(p.lat / ${size})`;
+}
+
+/**
+ * While OSM pins are off (OSM_PINS_ENABLED=false) only our users' places are listed:
+ * this leaves OpenStreetMap places out of a query over `places p`.
+ */
+export function osmPinsFilter(enabled: boolean): Prisma.Sql {
+  return enabled ? Prisma.empty : Prisma.sql`AND p.source <> 'osm'`;
 }
 
 /** Sights before parks before food and drink. */

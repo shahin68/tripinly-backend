@@ -39,6 +39,7 @@ describe('App config (integration)', () => {
             east: 16.58,
           },
         ],
+        osmPinsEnabled: true,
       });
   });
 });

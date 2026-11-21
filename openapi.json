@@ -5043,6 +5043,11 @@
             "items": {
               "$ref": "#/components/schemas/TransitAreaDto"
             }
+          },
+          "osmPinsEnabled": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether OpenStreetMap places are listed (OSM_PINS_ENABLED). Off: the server leaves them out of in-view, tiles, search (no addresses), along the way, Around, Nearby and Popular, so only users' own spots come back; routes stay. The apps then show the OpenStreetMap credit only with a route."
           }
         },
         "required": [
@@ -5057,7 +5062,8 @@
           "photoPinMinHotCount",
           "mapMaxPhotoPins",
           "pinDotBelowZoom",
-          "transitAreas"
+          "transitAreas",
+          "osmPinsEnabled"
         ]
       },
       "RevenueCatWebhookDto": {

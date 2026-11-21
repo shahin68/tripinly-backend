@@ -93,6 +93,8 @@ Response: `{ "places": [ … ], "clusters": [ { "count": 37, "location": { … }
 
 **Which places are listed:** OSM places and places with `popularity > 0`. Other user places (custom pins, maybe from private trips) never appear in in-view, search, nearby or popular; they are visible only to people who can see a marker at them.
 
+**OSM pins switch (`OSM_PINS_ENABLED`, api, default `true`; Shahin, 2026-11-21):** while `false`, only `source = 'user'` places with `popularity > 0` are listed: in-view and tiles (the cache key carries the switch), the map search by name, search (no Photon call; `scope=destination` stays), along the way and its counts, Around and its counts, Nearby (no OSM sights top-up) and Popular. Routes, place detail and a stop's place matching are unchanged. Served as app-config `osmPinsEnabled` so the apps show the OSM credit only with a route.
+
 **Loading by map square — `GET /places/tiles`:** the app loads places per fixed map square (`z/x/y`, side `360 / 2^z` degrees, at `z = floor(zoom) − 2`) instead of per view, keeps the squares it has, and prefetches the ring of squares around the view when the camera stops. One request carries up to 16 squares; each square's answer is the in-view answer for its bbox (same picks, clusters and cache), so moving the map only fetches squares it hasn't seen.
 
 The old `/places/popular` endpoint becomes a thin variant of this (Tripinly places only, excluding a trip's own places).

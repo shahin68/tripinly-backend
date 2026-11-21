@@ -1240,6 +1240,108 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
     });
   });
 
+  describe('while OSM pins are off (OSM_PINS_ENABLED=false)', () => {
+    const osmPinsOff = async () => {
+      const config = app.get(ConfigService);
+      const get = config.get.bind(config);
+      jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string, options?: unknown) =>
+          key === 'OSM_PINS_ENABLED' ? false : get(key, options as never),
+        );
+    };
+
+    beforeEach(async () => {
+      await insertPlace(app, { name: 'OSM sight', lat: 48.205, lng: 16.37 });
+      await insertPlace(app, {
+        name: 'OSM sight liked',
+        lat: 48.2052,
+        lng: 16.3702,
+        popularity: 3,
+      });
+      await insertPlace(app, {
+        name: 'Users sight',
+        lat: 48.2054,
+        lng: 16.3704,
+        source: 'user',
+        popularity: 2,
+      });
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('lists only our users places on the map, in squares and by name', async () => {
+      const before = await as(alice)
+        .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+        .expect(200);
+      expect(names(before.body.places)).toContain('OSM sight');
+
+      await osmPinsOff();
+      // A cached answer from before the switch is not reused.
+      const detailed = await as(alice)
+        .get(`/v1/places/in-view?bbox=${VIEW}&zoom=15`)
+        .expect(200);
+      expect(names(detailed.body.places)).toEqual(['Users sight']);
+      const overview = await as(alice)
+        .get('/v1/places/in-view?bbox=16.2,48.1,16.5,48.3&zoom=11')
+        .expect(200);
+      expect(names(overview.body.places)).toEqual(['Users sight']);
+      const named = await as(alice)
+        .get('/v1/places/tiles?tiles=13/372/1096&zoom=15&q=sight')
+        .expect(200);
+      expect(names(named.body.tiles[0].places)).toEqual(['Users sight']);
+    });
+
+    it('searches only our users places, without Photon addresses', async () => {
+      photon.features = [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [16.37, 48.2] },
+          properties: {
+            osm_type: 'N',
+            osm_id: 77,
+            name: 'Sightstreet',
+            type: 'street',
+          },
+        },
+      ];
+      await osmPinsOff();
+      const { body } = await as(alice)
+        .get('/v1/places/search?q=sight')
+        .expect(200);
+      expect(body.items.map((item: { name: string }) => item.name)).toEqual([
+        'Users sight',
+      ]);
+      expect(photon.requests).toHaveLength(0);
+    });
+
+    it('keeps Nearby, Popular and Around to our users places', async () => {
+      await prisma.entitlement.create({
+        data: { userId: alice.userId, feature: 'routes', source: 'manual' },
+      });
+      await osmPinsOff();
+      const point = `lat=${CENTRE.lat}&lng=${CENTRE.lng}`;
+
+      const nearby = await as(alice)
+        .get(`/v1/places/nearby?${point}`)
+        .expect(200);
+      expect(names(nearby.body.items)).toEqual(['Users sight']);
+
+      const popular = await as(alice)
+        .get(`/v1/places/popular?bbox=${VIEW}`)
+        .expect(200);
+      expect(names(popular.body.items)).toEqual(['Users sight']);
+
+      const around = await as(alice)
+        .get(`/v1/places/around?${point}`)
+        .expect(200);
+      expect(names(around.body.items)).toEqual(['Users sight']);
+      expect(around.body.categoryCounts).toEqual([
+        { category: 'attraction', count: 1 },
+      ]);
+    });
+  });
+
   describe('GET /v1/places/:id and add-to-trip', () => {
     it('shows OSM places with tags and attribution', async () => {
       const id = await insertPlace(app, {
