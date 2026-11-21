@@ -12,12 +12,12 @@ restarts by itself, and each phone follows the next time the app starts.
 
 ### Hide OpenStreetMap pins: `OSM_PINS_ENABLED`
 
-| | |
-|---|---|
-| Service | api |
-| Default | `true` (OpenStreetMap places show) |
-| Values | `true` / `false` |
-| App field | `osmPinsEnabled` |
+|           |                                    |
+| --------- | ---------------------------------- |
+| Service   | api                                |
+| Default   | `true` (OpenStreetMap places show) |
+| Values    | `true` / `false`                   |
+| App field | `osmPinsEnabled`                   |
 
 **`false`:** the apps show no OpenStreetMap places anywhere, only our users' own spots:
 
@@ -32,9 +32,13 @@ from an OpenStreetMap place: they are the trip's own), the city search when crea
 
 **Good to know:**
 
-- The server still sends OpenStreetMap places; the apps leave them out. So with it off, a crowded area can show
-  fewer pins than `APP_MAP_MAX_PINS`.
-- App versions from before this switch ignore it.
+- The server leaves OpenStreetMap places out of its answers (map squares, search, along the way, Around, Nearby,
+  Popular), so pin limits and chip counts stay right, and app versions from before this switch follow it too (they
+  only keep showing the OpenStreetMap credit).
+- A user's spot made on an OpenStreetMap place (picked from search before the switch) is an OpenStreetMap place
+  in our database, so it is left out too; it stays a stop on its trip.
+- The map's cached squares carry the switch, so flipping it shows at once, no cache to clear.
 
-**Check it:** `curl https://<api host>/v1/app-config` shows `"osmPinsEnabled": false`; restart the app, and the map
-shows only users' spots.
+**Check it:** `curl https://<api host>/v1/app-config` shows `"osmPinsEnabled": false`; in the app, pan the map
+and search for a well-known sight: only users' spots come back. In SQL, what is still listed:
+`SELECT count(*) FROM places WHERE "isActive" AND source = 'user' AND popularity > 0;`

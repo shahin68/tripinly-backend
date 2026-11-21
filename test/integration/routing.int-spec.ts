@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { REDIS } from '../../src/common/redis/redis.module';
@@ -223,6 +224,37 @@ describe('Routing (integration)', () => {
         .expect(200);
       expect(museums.body.alongTheWay).toHaveLength(1);
       expect(museums.body.alongTheWayCounts).toEqual(expected);
+    });
+
+    it('lists only our users places along the way while OSM pins are off', async () => {
+      await insertPlace(app, {
+        name: 'Users café',
+        lat: 48.2008,
+        lng: 16.368,
+        category: 'cafe',
+        source: 'user',
+        popularity: 1,
+      });
+      const config = app.get(ConfigService);
+      const get = config.get.bind(config);
+      jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string, options?: unknown) =>
+          key === 'OSM_PINS_ENABLED' ? false : get(key, options as never),
+        );
+      try {
+        const { body } = await as(stranger)
+          .get(`/v1/routes?from=${point(FROM)}&to=${point(TO)}&mode=driving`)
+          .expect(200);
+        expect(
+          (body.alongTheWay as AlongBody[]).map((along) => along.place.name),
+        ).toEqual(['Users café']);
+        expect(body.alongTheWayCounts).toEqual([
+          { category: 'cafe', count: 1 },
+        ]);
+      } finally {
+        jest.restoreAllMocks();
+      }
     });
 
     it('caches routes by coordinates and mode', async () => {

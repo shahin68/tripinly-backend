@@ -261,7 +261,7 @@ Values that steer how the apps behave (cache times, refresh intervals, limits) c
 | `mapMaxPhotoPins`        | Most pins drawn with a photo at once, in pin order; the rest keep their icon (0–500)                                                                                | 100     |
 | `pinDotBelowZoom`        | Below this camera zoom the app draws place pins as small dots and grows them back when zoomed in, so route lines stay readable; the tapped place stays a pin (0–22) | 14      |
 | `transitAreas`           | Cities with public transport routes, `{ id, name, south, west, north, east }`; the tram button is dimmed where a route would start or end outside them (`TRANSIT_ENABLED`, `TRANSIT_REGIONS`, 2026-11-15) | `[]`    |
-| `osmPinsEnabled`      | Whether the apps show OpenStreetMap places; off: no OSM pins on the map, in search (Photon addresses too), along the way, Around or Nearby, only users' own spots; routes stay (`OSM_PINS_ENABLED`, 2026-11-21) | `true`  |
+| `osmPinsEnabled`      | Whether OpenStreetMap places are listed; off, the server leaves them out of in-view/tiles, search (no Photon addresses; `scope=destination` stays), along the way, Around, Nearby and Popular, so only users' own spots come back; routes stay. The apps then show the OSM credit only with a route (`OSM_PINS_ENABLED`, 2026-11-21) | `true`  |
 
 ## Stable error codes (starter set)
 

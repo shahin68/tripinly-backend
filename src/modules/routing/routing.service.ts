@@ -14,6 +14,7 @@ import { MarkersService } from '../markers/markers.service';
 import type { CategoryCountDto } from '../places/places.dto';
 import {
   categoryPriority,
+  osmPinsFilter,
   PLACE_COLUMNS,
   type PlaceRow,
   PlacesService,
@@ -614,6 +615,7 @@ export class RoutingService {
       SELECT p.category, count(*)::int AS count
       FROM places p, line
       WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+        ${osmPinsFilter(this.config.get('OSM_PINS_ENABLED', { infer: true }))}
         AND ST_DWithin(p.location, line.geog, ${bufferMeters})
         ${excludePlaceIds.length ? Prisma.sql`AND p.id <> ALL(${excludePlaceIds}::uuid[])` : Prisma.empty}
         ${
@@ -664,6 +666,7 @@ export class RoutingService {
                ${categoryPriority()} AS priority
         FROM places p, line
         WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+        ${osmPinsFilter(this.config.get('OSM_PINS_ENABLED', { infer: true }))}
           AND ST_DWithin(p.location, line.geog, ${bufferMeters})
           ${categories?.length ? Prisma.sql`AND p.category = ANY(${categories}::"PlaceCategory"[])` : Prisma.empty}
           ${excludePlaceIds.length ? Prisma.sql`AND p.id <> ALL(${excludePlaceIds}::uuid[])` : Prisma.empty}
