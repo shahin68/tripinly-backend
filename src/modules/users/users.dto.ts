@@ -94,6 +94,8 @@ export class MeDto {
     type: String,
     format: 'date-time',
     nullable: true,
+    // Always sent; not required so apps built before it keep reading /me.
+    required: false,
     example: '2027-10-20T08:00:00.000Z',
     description:
       'When the entitlements end (UTC); null when they never end (lifetime) or there are none. The app ends Pro locally at this time; changes before it arrive as the pro.changed socket event.',

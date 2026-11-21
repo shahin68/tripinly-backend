@@ -5387,8 +5387,7 @@
           "defaultTripVisibility",
           "role",
           "onboarding",
-          "entitlements",
-          "proExpiresAt"
+          "entitlements"
         ]
       },
       "UpdateMeDto": {
