@@ -107,6 +107,37 @@
         ]
       }
     },
+    "/v1/me/pro/sync": {
+      "post": {
+        "description": "Called once by the app right after the store says a purchase or restore went through, so Pro turns on without waiting for the webhook (which later writes the same). Answers my Pro as it now is; every device of mine also hears pro.changed. 503 SERVICE_UNAVAILABLE while RevenueCat is unset or unreachable: the webhook still brings it.",
+        "operationId": "Pro_sync",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProStatusDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: RevenueCat unset or unreachable"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Read my Pro from RevenueCat now (after a purchase or restore)",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/auth/google": {
       "post": {
         "operationId": "Auth_google_",
@@ -5045,6 +5076,32 @@
           "event"
         ]
       },
+      "ProStatusDto": {
+        "type": "object",
+        "properties": {
+          "entitlements": {
+            "example": [
+              "routes"
+            ],
+            "description": "Active premium features, as in GET /me. Show paid UI from this, never from a local flag.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "proExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2027-10-20T08:00:00.000Z",
+            "description": "When the active features end (UTC). Null when they never end (lifetime) or there is no Pro. The apps end Pro locally at this time; a renewal arrives earlier as pro.changed."
+          }
+        },
+        "required": [
+          "entitlements",
+          "proExpiresAt"
+        ]
+      },
       "GoogleSignInDto": {
         "type": "object",
         "properties": {
@@ -5310,6 +5367,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "proExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2027-10-20T08:00:00.000Z",
+            "description": "When the entitlements end (UTC); null when they never end (lifetime) or there are none. The app ends Pro locally at this time; changes before it arrive as the pro.changed socket event."
           }
         },
         "required": [

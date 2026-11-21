@@ -12,6 +12,7 @@ import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
 import { Prisma, type User } from '../../generated/prisma/client';
 import { EntitlementService } from '../billing/entitlement.service';
+import { toProStatusDto } from '../billing/billing.dto';
 import { ConsentsService } from '../consents/consents.service';
 import { FollowsService } from './follows.service';
 import { BlocksService } from '../moderation/blocks.service';
@@ -314,6 +315,7 @@ export class UsersService {
   private async toMeDto(user: User): Promise<MeDto> {
     const missingConsents = await this.consents.missingRequired(user.id);
     const missingFields = missingProfileFields(user);
+    const pro = toProStatusDto(await this.entitlements.status(user.id));
     return {
       id: user.id,
       username: user.username,
@@ -332,7 +334,8 @@ export class UsersService {
         missingProfileFields: missingFields,
         missingConsents,
       },
-      entitlements: await this.entitlements.active(user.id),
+      entitlements: pro.entitlements,
+      proExpiresAt: pro.proExpiresAt,
     };
   }
 }

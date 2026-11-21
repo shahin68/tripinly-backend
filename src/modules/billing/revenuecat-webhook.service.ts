@@ -1,10 +1,14 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { isUUID } from 'class-validator';
 import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { DomainEvents, domainEvent } from '../../common/events/domain-events';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { type ProStatusDto, toProStatusDto } from './billing.dto';
+import { EntitlementService } from './entitlement.service';
 import { PREMIUM_FEATURES } from './entitlements';
 import {
   RevenueCatClient,
@@ -27,7 +31,8 @@ export interface RevenueCatEvent {
 /**
  * Keeps `entitlements` in step with RevenueCat. An event only says which
  * customers changed: their current state is fetched and written, so repeated
- * and out-of-order events end up the same.
+ * and out-of-order events end up the same. Every sync tells the user's
+ * devices their Pro at once (`pro.changed`).
  */
 @Injectable()
 export class RevenueCatWebhookService {
@@ -37,6 +42,8 @@ export class RevenueCatWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly revenueCat: RevenueCatClient,
+    private readonly entitlements: EntitlementService,
+    private readonly events: EventEmitter2,
     config: ConfigService<Env, true>,
   ) {
     this.acceptSandbox =
@@ -46,18 +53,50 @@ export class RevenueCatWebhookService {
   async handle(event: RevenueCatEvent): Promise<void> {
     const userIds = await this.knownUsers(event);
     if (userIds.length === 0) return;
-    if (!this.revenueCat.configured) {
-      // RevenueCat retries, so the purchase lands once the key is set.
+    // RevenueCat retries, so the purchase lands once the key is set.
+    this.requireConfigured();
+    for (const userId of userIds) await this.syncUser(userId);
+    this.logger.log(
+      `RevenueCat ${String(event.type)}: synced ${userIds.length} customer(s)`,
+    );
+  }
+
+  /**
+   * Right after a purchase or restore in the app (`POST /me/pro/sync`): reads
+   * the customer from RevenueCat now instead of waiting for the webhook, which
+   * later writes the same. 503 while RevenueCat is unset or unreachable.
+   */
+  async syncNow(userId: string): Promise<ProStatusDto> {
+    this.requireConfigured();
+    try {
+      return await this.syncUser(userId);
+    } catch (error) {
+      this.logger.warn(
+        `RevenueCat sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new AppException(
         ErrorCode.SERVICE_UNAVAILABLE,
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    for (const userId of userIds) {
-      await this.sync(userId, await this.revenueCat.getSubscriber(userId));
-    }
-    this.logger.log(
-      `RevenueCat ${String(event.type)}: synced ${userIds.length} customer(s)`,
+  }
+
+  /** Writes the customer's Pro and tells their devices. */
+  private async syncUser(userId: string): Promise<ProStatusDto> {
+    await this.sync(userId, await this.revenueCat.getSubscriber(userId));
+    const status = toProStatusDto(await this.entitlements.status(userId));
+    this.events.emit(
+      DomainEvents.PRO_CHANGED,
+      domainEvent(DomainEvents.PRO_CHANGED, userId, status),
+    );
+    return status;
+  }
+
+  private requireConfigured(): void {
+    if (this.revenueCat.configured) return;
+    throw new AppException(
+      ErrorCode.SERVICE_UNAVAILABLE,
+      HttpStatus.SERVICE_UNAVAILABLE,
     );
   }
 

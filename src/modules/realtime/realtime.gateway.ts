@@ -14,9 +14,17 @@ import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccessTokenService } from '../auth/access-token.service';
+import { toProStatusDto } from '../billing/billing.dto';
+import { EntitlementService } from '../billing/entitlement.service';
 import { ConsentsService } from '../consents/consents.service';
 import { TripAccessService } from '../trips/trip-access.service';
-import { REALTIME_NAMESPACE, tripRoom, userRoom } from './realtime.rooms';
+import {
+  REALTIME_NAMESPACE,
+  type RealtimeMessage,
+  tripRoom,
+  UserEvents,
+  userRoom,
+} from './realtime.rooms';
 import { type View, ViewingService } from './viewing.service';
 
 interface SocketData {
@@ -58,6 +66,7 @@ export class RealtimeGateway
     private readonly prisma: PrismaService,
     private readonly consents: ConsentsService,
     private readonly viewing: ViewingService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   afterInit(namespace: Namespace): void {
@@ -79,6 +88,23 @@ export class RealtimeGateway
   async handleConnection(socket: AuthedSocket): Promise<void> {
     const { userId, expiresAt } = socket.data;
     await socket.join(userRoom(userId));
+    // Every (re)connect, also back from the background, brings my Pro as it is
+    // now: whatever pro.changed the app missed while offline (2026-11-21).
+    // A failed read only skips it: GET /me and the next event still tell it.
+    await this.entitlements.status(userId).then(
+      (status) =>
+        socket.emit(UserEvents.PRO_CHANGED, {
+          event: UserEvents.PRO_CHANGED,
+          tripId: null,
+          actorId: null,
+          at: new Date().toISOString(),
+          data: toProStatusDto(status),
+        } satisfies RealtimeMessage),
+      (error: unknown) =>
+        this.logger.warn(
+          `Pro on connect not sent: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+    );
     const timer = setTimeout(
       () => {
         socket.emit('error', { code: ErrorCode.TOKEN_EXPIRED });

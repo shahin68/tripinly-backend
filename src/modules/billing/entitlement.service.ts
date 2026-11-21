@@ -30,19 +30,38 @@ export class EntitlementService {
     return count > 0;
   }
 
-  /** Active feature keys, for `GET /me`. */
+  /** Active feature keys. */
   async active(userId: string): Promise<PremiumFeatureKey[]> {
-    if (await this.isProDevAccount(userId)) return [...PREMIUM_FEATURES].sort();
-    const rows = await this.prisma.entitlement.findMany({
-      where: { userId, ...active() },
-      select: { feature: true },
-      distinct: ['feature'],
-    });
+    return (await this.status(userId)).entitlements;
+  }
+
+  /**
+   * My Pro as `GET /me` and the `pro.changed` event tell it: the active
+   * features, and when they end. `proExpiresAt` is the latest end of the
+   * active rows; null when one never ends (lifetime, manual grant, dev
+   * account) or when there is no Pro. The apps end Pro locally at that time;
+   * a renewal arrives earlier through the webhook and `pro.changed`.
+   */
+  async status(userId: string): Promise<ProStatus> {
+    if (await this.isProDevAccount(userId)) {
+      return { entitlements: [...PREMIUM_FEATURES].sort(), proExpiresAt: null };
+    }
     const known = new Set<string>(PREMIUM_FEATURES);
-    return rows
-      .map((row) => row.feature)
-      .filter((feature): feature is PremiumFeatureKey => known.has(feature))
-      .sort();
+    const rows = (
+      await this.prisma.entitlement.findMany({
+        where: { userId, ...active() },
+        select: { feature: true, expiresAt: true },
+      })
+    ).filter((row) => known.has(row.feature));
+    const entitlements = [
+      ...new Set(rows.map((row) => row.feature as PremiumFeatureKey)),
+    ].sort();
+    const ends = rows.map((row) => row.expiresAt);
+    const proExpiresAt =
+      ends.length === 0 || ends.includes(null)
+        ? null
+        : new Date(Math.max(...ends.map((end) => (end as Date).getTime())));
+    return { entitlements, proExpiresAt };
   }
 
   private async isProDevAccount(userId: string): Promise<boolean> {
@@ -67,6 +86,12 @@ export class EntitlementService {
       update: { expiresAt },
     });
   }
+}
+
+/** Active premium features and when they end (see [EntitlementService.status]). */
+export interface ProStatus {
+  entitlements: PremiumFeatureKey[];
+  proExpiresAt: Date | null;
 }
 
 function active(): Prisma.EntitlementWhereInput {
