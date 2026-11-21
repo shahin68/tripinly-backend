@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Logger } from 'nestjs-pino';
 import { CoreModule } from '../common/core.module';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -10,7 +11,8 @@ import {
   type PremiumFeatureKey,
 } from '../modules/billing/entitlements';
 
-@Module({ imports: [CoreModule, BillingModule] })
+// The billing services emit pro.changed; here nobody listens.
+@Module({ imports: [CoreModule, EventEmitterModule.forRoot(), BillingModule] })
 class GrantScriptModule {}
 
 /**

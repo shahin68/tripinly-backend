@@ -229,6 +229,21 @@ export class RealtimeListener {
     });
   }
 
+  /** My Pro, on every device of mine: the same entitlements and end everywhere at once. */
+  @OnEvent(DomainEvents.PRO_CHANGED)
+  onProChanged(event: DomainEvent): Promise<void> {
+    return this.safely(event, () => {
+      this.publisher.toUser(event.actorId, {
+        event: UserEvents.PRO_CHANGED,
+        tripId: null,
+        actorId: null,
+        at: event.at,
+        data: event.data,
+      });
+      return Promise.resolve();
+    });
+  }
+
   /**
    * Suspension or deletion: their live sockets close at once. A suspended
    * user is told first so the app can explain why.

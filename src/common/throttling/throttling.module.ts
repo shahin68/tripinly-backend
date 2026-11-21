@@ -18,6 +18,8 @@ export const COMMENT_RATE_LIMIT = { limit: 30, ttl: MINUTE_MS };
 export const REPORT_RATE_LIMIT = { limit: 20, ttl: 24 * 60 * MINUTE_MS };
 /** Place search, per user: it also calls Photon, whose public instance asks for fair use. */
 export const SEARCH_RATE_LIMIT = { limit: 60, ttl: MINUTE_MS };
+/** Reading my Pro from RevenueCat after a purchase, per user. */
+export const PRO_SYNC_RATE_LIMIT = { limit: 10, ttl: MINUTE_MS };
 
 @Module({
   imports: [

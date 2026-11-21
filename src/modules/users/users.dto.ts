@@ -89,6 +89,16 @@ export class MeDto {
       'Active premium features. Show paid UI from this, never from a local flag.',
   })
   entitlements: string[];
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2027-10-20T08:00:00.000Z',
+    description:
+      'When the entitlements end (UTC); null when they never end (lifetime) or there are none. The app ends Pro locally at this time; changes before it arrive as the pro.changed socket event.',
+  })
+  proExpiresAt: string | null;
 }
 
 export class UpdateMeDto {

@@ -1,6 +1,8 @@
 import type { ConfigService } from '@nestjs/config';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Env } from '../../common/config/env';
 import type { PrismaService } from '../../common/prisma/prisma.service';
+import type { EntitlementService } from './entitlement.service';
 import type {
   RevenueCatClient,
   RevenueCatSubscriber,
@@ -41,12 +43,21 @@ describe('RevenueCatWebhookService', () => {
     const config = {
       get: jest.fn().mockReturnValue(options.deployEnv ?? 'staging'),
     } as unknown as ConfigService<Env, true>;
+    const entitlements = {
+      status: jest.fn().mockResolvedValue({
+        entitlements: ['routes'],
+        proExpiresAt: new Date('2027-10-20T08:00:00Z'),
+      }),
+    };
+    const events = { emit: jest.fn() };
     const service = new RevenueCatWebhookService(
       prisma as unknown as PrismaService,
       revenueCat as unknown as RevenueCatClient,
+      entitlements as unknown as EntitlementService,
+      events as unknown as EventEmitter2,
       config,
     );
-    return { service, tx, revenueCat };
+    return { service, tx, revenueCat, entitlements, events };
   }
 
   const yearly = {
@@ -152,5 +163,52 @@ describe('RevenueCatWebhookService', () => {
     await expect(
       service.handle({ type: 'INITIAL_PURCHASE', app_user_id: USER }),
     ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+  });
+
+  it('tells the user’s devices their Pro after every sync', async () => {
+    const { service, events } = setup(yearly);
+    await service.handle({ type: 'RENEWAL', app_user_id: USER });
+    expect(events.emit).toHaveBeenCalledWith(
+      'pro.changed',
+      expect.objectContaining({
+        event: 'pro.changed',
+        actorId: USER,
+        data: {
+          entitlements: ['routes'],
+          proExpiresAt: '2027-10-20T08:00:00.000Z',
+        },
+      }),
+    );
+  });
+
+  it('tells nobody when the event names none of our users', async () => {
+    const { service, events } = setup(yearly);
+    await service.handle({ type: 'TEST', app_user_id: '$RCAnonymousID:x' });
+    expect(events.emit).not.toHaveBeenCalled();
+  });
+
+  it('syncNow reads RevenueCat at once and answers the Pro it wrote', async () => {
+    const { service, revenueCat, tx, events } = setup(yearly);
+    await expect(service.syncNow(USER)).resolves.toEqual({
+      entitlements: ['routes'],
+      proExpiresAt: '2027-10-20T08:00:00.000Z',
+    });
+    expect(revenueCat.getSubscriber).toHaveBeenCalledWith(USER);
+    expect(tx.entitlement.upsert).toHaveBeenCalled();
+    expect(events.emit).toHaveBeenCalledTimes(1);
+  });
+
+  it('syncNow says 503 while RevenueCat is unset or failing, and writes nothing', async () => {
+    const unset = setup(yearly, { configured: false });
+    await expect(unset.service.syncNow(USER)).rejects.toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+    });
+    const failing = setup(yearly);
+    failing.revenueCat.getSubscriber.mockRejectedValueOnce(new Error('down'));
+    await expect(failing.service.syncNow(USER)).rejects.toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+    });
+    expect(failing.tx.entitlement.upsert).not.toHaveBeenCalled();
+    expect(failing.events.emit).not.toHaveBeenCalled();
   });
 });

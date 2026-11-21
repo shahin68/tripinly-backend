@@ -46,6 +46,12 @@ export const DomainEvents = {
    * the same dots (2026-11-07).
    */
   NOTIFICATIONS_CHANGED: 'notifications.changed',
+  /**
+   * My Tripinly Pro changed (purchase, renewal, expiry, refund, restore …);
+   * data ProStatusDto. Sent to my own room so every device has the same Pro
+   * at once (2026-11-21).
+   */
+  PRO_CHANGED: 'pro.changed',
   /** A user was suspended or started account deletion; data `{ userId, reason }`. Not a trip event. */
   ACCOUNT_CLOSED: 'account.closed',
 } as const;
