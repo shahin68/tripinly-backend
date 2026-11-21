@@ -112,7 +112,7 @@ export class AppConfigDto {
   @ApiProperty({
     example: true,
     description:
-      "Whether the apps show OpenStreetMap places. Off: no OSM pins on the map, in search, along the way, Around or Nearby, only users' own spots; routes stay (OSM_PINS_ENABLED).",
+      "Whether OpenStreetMap places are listed (OSM_PINS_ENABLED). Off: the server leaves them out of in-view, tiles, search (no addresses), along the way, Around, Nearby and Popular, so only users' own spots come back; routes stay. The apps then show the OpenStreetMap credit only with a route.",
   })
   osmPinsEnabled!: boolean;
 }
