@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DomainEvents, domainEvent } from '../../common/events/domain-events';
 import type { Redis } from 'ioredis';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -40,6 +42,7 @@ export class ConsentsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS) private readonly redis: Redis,
+    private readonly events: EventEmitter2,
   ) {}
 
   /** Current version of each document type, in the best available locale. */
@@ -146,6 +149,11 @@ export class ConsentsService {
       },
     });
     await this.redis.del(consentOkKey(userId)).catch(() => undefined);
+    // GET /me's missing consents changed: my other devices ask again.
+    this.events.emit(
+      DomainEvents.ME_CHANGED,
+      domainEvent(DomainEvents.ME_CHANGED, userId, {}),
+    );
   }
 
   /** Latest consent row per document type. */

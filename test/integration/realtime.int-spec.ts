@@ -275,6 +275,40 @@ describe('Realtime (integration)', () => {
     });
   });
 
+  describe('my account', () => {
+    it('tells my other devices, and only mine, when my account changes', async () => {
+      const phone = await open(owner);
+      const tablet = await open(owner);
+      const other = await open(stranger);
+
+      await as(owner)
+        .patch('/v1/me')
+        .send({ displayName: 'Owner Two' })
+        .expect(200);
+      for (const socket of [phone, tablet]) {
+        const event = await socket.waitFor('me.changed');
+        expect(event.data).toEqual({});
+      }
+
+      await as(owner)
+        .post('/v1/me/consents')
+        .send({
+          documentType: 'privacy',
+          version: 'v1',
+          locale: 'en',
+          granted: true,
+        })
+        .expect(200);
+      await phone.waitFor(
+        'me.changed',
+        () => phone.events('me.changed').length >= 2,
+      );
+
+      await sleep(300);
+      expect(other.events('me.changed')).toHaveLength(0);
+    });
+  });
+
   describe('access changes', () => {
     it('evicts non-members when a trip turns private', async () => {
       const strangerSocket = await subscribed(stranger, publicTrip.id);

@@ -52,6 +52,12 @@ export const DomainEvents = {
    * at once (2026-11-21).
    */
   PRO_CHANGED: 'pro.changed',
+  /**
+   * My own account (GET /me) changed: profile, username, photo, consents or
+   * onboarding; data `{}`. Sent to my own room so my other devices ask GET /me
+   * again instead of waiting for the next start (2026-11-22). Pro has its own.
+   */
+  ME_CHANGED: 'me.changed',
   /** A user was suspended or started account deletion; data `{ userId, reason }`. Not a trip event. */
   ACCOUNT_CLOSED: 'account.closed',
 } as const;
