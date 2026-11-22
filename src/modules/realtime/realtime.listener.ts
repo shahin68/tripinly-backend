@@ -244,6 +244,21 @@ export class RealtimeListener {
     });
   }
 
+  /** My account changed: my other devices ask GET /me again (no data: the account isn't copied into the event). */
+  @OnEvent(DomainEvents.ME_CHANGED)
+  onMeChanged(event: DomainEvent): Promise<void> {
+    return this.safely(event, () => {
+      this.publisher.toUser(event.actorId, {
+        event: UserEvents.ME_CHANGED,
+        tripId: null,
+        actorId: null,
+        at: event.at,
+        data: {},
+      });
+      return Promise.resolve();
+    });
+  }
+
   /**
    * Suspension or deletion: their live sockets close at once. A suspended
    * user is told first so the app can explain why.

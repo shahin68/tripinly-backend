@@ -196,7 +196,12 @@ export class PhotosService {
       await tx.photo.delete({ where: { id: user.avatarPhotoId } });
       return user.avatarPhotoId;
     });
-    if (photoId) await this.jobs.deleteFiles([photoId]);
+    if (!photoId) return;
+    await this.jobs.deleteFiles([photoId]);
+    this.events.emit(
+      DomainEvents.ME_CHANGED,
+      domainEvent(DomainEvents.ME_CHANGED, userId, {}),
+    );
   }
 
   private async uploadResponse(

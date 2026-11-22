@@ -106,6 +106,11 @@ export class PhotoProcessingService {
     if (!photo.markerId && !photo.placeId) {
       const adopted = await this.adoptAvatar(photo.uploaderId, photoId);
       if (!adopted) return 'deleted';
+      // My new photo is in GET /me: my other devices ask again.
+      this.events.emit(
+        DomainEvents.ME_CHANGED,
+        domainEvent(DomainEvents.ME_CHANGED, photo.uploaderId, {}),
+      );
     }
 
     const ready = await this.prisma.photo.findUniqueOrThrow({

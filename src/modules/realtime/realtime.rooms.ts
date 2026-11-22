@@ -11,6 +11,7 @@ export const UserEvents = {
   NOTIFICATION_CREATED: 'notification.created',
   NOTIFICATIONS_CHANGED: 'notifications.changed',
   PRO_CHANGED: 'pro.changed',
+  ME_CHANGED: 'me.changed',
   ACCOUNT_SUSPENDED: 'account.suspended',
 } as const;
 

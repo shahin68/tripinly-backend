@@ -1,6 +1,8 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Redis } from 'ioredis';
 import { AppException } from '../../common/errors/app.exception';
+import { DomainEvents, domainEvent } from '../../common/events/domain-events';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
   decodeCursor,
@@ -49,6 +51,7 @@ export class UsersService {
     private readonly storage: StorageService,
     private readonly entitlements: EntitlementService,
     private readonly follows: FollowsService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async getMe(userId: string): Promise<MeDto> {
@@ -140,6 +143,7 @@ export class UsersService {
     }
 
     await this.completeOnboardingIfReady(userId);
+    this.meChanged(userId);
     return this.getMe(userId);
   }
 
@@ -263,11 +267,20 @@ export class UsersService {
     if (user.onboardedAt) return true;
     if (missingProfileFields(user).length > 0) return false;
     if ((await this.consents.missingRequired(userId)).length > 0) return false;
-    await this.prisma.user.updateMany({
+    const { count } = await this.prisma.user.updateMany({
       where: { id: userId, onboardedAt: null },
       data: { onboardedAt: new Date() },
     });
+    if (count > 0) this.meChanged(userId);
     return true;
+  }
+
+  /** My other devices hear that GET /me answers something new (`me.changed`). */
+  meChanged(userId: string): void {
+    this.events.emit(
+      DomainEvents.ME_CHANGED,
+      domainEvent(DomainEvents.ME_CHANGED, userId, {}),
+    );
   }
 
   private async assertUsernameAvailable(username: string): Promise<void> {
