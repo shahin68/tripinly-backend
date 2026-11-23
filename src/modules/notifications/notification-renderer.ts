@@ -236,7 +236,8 @@ export class NotificationRenderer {
    * comments sheet for comments and comment likes (`markers/{id}/comments`),
    * the stop when the notification is about one (`markers/{id}`), a trip's
    * Members sheet for join requests, the profile for a follow (my Followers
-   * for several, `me/followers`), else the trip.
+   * for several, `me/followers`), the spot map for flames on a spot
+   * (`places/{id}`), else the trip.
    */
   deepLink(row: Notification, context: RenderContext): string {
     const aboutComments =
@@ -266,6 +267,9 @@ export class NotificationRenderer {
         return `tripinly://trips/${(row.payload as unknown as MembershipPayload).tripId}`;
       case 'removed_from_trip':
         return 'tripinly://notifications';
+      // The spot's own map (Shahin, 2026-11-23), not the creator's stop.
+      case 'place_hot':
+        return `tripinly://places/${(row.payload as unknown as PlaceHotPayload).placeId}`;
       default:
         if (row.markerId) return `tripinly://markers/${row.markerId}`;
         return row.tripId

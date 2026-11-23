@@ -457,8 +457,9 @@ export class NotificationPlanner {
    * A flame on a spot someone made themselves: its creator, and only its
    * creator, has one entry per spot with the latest flame and the count, and
    * hears that it's getting hot at each milestone, once. No per-flame pushes
-   * (Shahin, 2026-11-01: pushes cost money). The entry opens the creator's
-   * own stop at that spot when they have one.
+   * (Shahin, 2026-11-01: pushes cost money). The entry opens the spot's map
+   * (tripinly://places/{id}, Shahin 2026-11-23); the creator's stop there,
+   * when they have one, is still kept on the row.
    */
   private async placeHot(
     input: Extract<PlanInput, { kind: 'place_hot' }>,

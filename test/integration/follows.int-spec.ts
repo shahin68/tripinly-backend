@@ -9,7 +9,7 @@ import {
   resetState,
   type Session,
 } from '../utils/auth-helpers';
-import { api } from '../utils/api';
+import { api, type TripBody } from '../utils/api';
 import { createTestApp } from '../utils/create-test-app';
 
 interface UserPage {
@@ -257,5 +257,133 @@ describe('Follows (integration)', () => {
     expect(blocked.body.error.code).toBe('ONBOARDING_INCOMPLETE');
     const friends = await as(newcomer).get('/v1/me/friends').expect(403);
     expect(friends.body.error.code).toBe('ONBOARDING_INCOMPLETE');
+  });
+
+  describe('GET /v1/users/search (people)', () => {
+    interface PeoplePage {
+      items: { username: string; isFriend: boolean; isFollowing: boolean }[];
+      total: number;
+      nextCursor: string | null;
+    }
+    const VIENNA = { lat: 48.205, lng: 16.37 };
+    const people = async (session: Session, query: string) =>
+      (await as(session).get(`/v1/users/search${query}`).expect(200))
+        .body as PeoplePage;
+
+    let dan: Session;
+    let eve: Session;
+    let fay: Session;
+
+    beforeEach(async () => {
+      dan = await onboardedUser(app, 'dan');
+      eve = await onboardedUser(app, 'eve');
+      fay = await onboardedUser(app, 'fay');
+      // Bea is Ann's friend, Cid follows Ann, Eve has a follower, Dan has a public trip in Vienna.
+      await follow(ann, bea);
+      await follow(bea, ann);
+      await follow(cid, ann);
+      await follow(bea, eve);
+      const trip = (
+        await as(dan)
+          .post('/v1/trips')
+          .send({
+            title: 'Vienna',
+            startDate: '2026-10-09',
+            endDate: '2026-10-09',
+            visibility: 'public',
+          })
+          .expect(201)
+      ).body as TripBody;
+      await as(dan)
+        .post(`/v1/days/${trip.days[0].id}/markers`)
+        .send({ name: 'Flat', location: { lat: 48.206, lng: 16.371 } })
+        .expect(201);
+    });
+
+    it('ranks friends, follows, people around the point, then the most followed', async () => {
+      const near = await people(ann, `?lat=${VIENNA.lat}&lng=${VIENNA.lng}`);
+      expect(near.items.map((p) => p.username)).toEqual([
+        'bea',
+        'cid',
+        'dan',
+        'eve',
+        'fay',
+      ]);
+      expect(near.total).toBe(5);
+      expect(near.items[0]).toMatchObject({
+        isFriend: true,
+        isFollowing: true,
+      });
+      expect(near.items[1]).toMatchObject({
+        isFriend: false,
+        isFollowing: false,
+      });
+
+      // Without a point Dan is just one more person: Eve's follower ranks her first.
+      const anywhere = await people(ann, '');
+      expect(anywhere.items.map((p) => p.username)).toEqual([
+        'bea',
+        'cid',
+        'eve',
+        'dan',
+        'fay',
+      ]);
+
+      // Ann follows Fay: a follow either way ranks with Cid, the more followed first.
+      await follow(ann, fay);
+      const after = await people(ann, '');
+      expect(after.items.map((p) => p.username)).toEqual([
+        'bea',
+        'fay',
+        'cid',
+        'eve',
+        'dan',
+      ]);
+      expect(after.items[1]).toMatchObject({
+        isFriend: false,
+        isFollowing: true,
+      });
+    });
+
+    it('pages by cursor, filters by prefix and leaves out blocks', async () => {
+      const first = await people(ann, '?limit=2');
+      expect(first.items.map((p) => p.username)).toEqual(['bea', 'cid']);
+      const second = await people(
+        ann,
+        `?limit=2&cursor=${first.nextCursor ?? ''}`,
+      );
+      expect(second.items.map((p) => p.username)).toEqual(['eve', 'dan']);
+      const last = await people(
+        ann,
+        `?limit=2&cursor=${second.nextCursor ?? ''}`,
+      );
+      expect(last.items.map((p) => p.username)).toEqual(['fay']);
+      expect(last.nextCursor).toBeNull();
+      expect(last.total).toBe(5);
+
+      const eves = await people(ann, '?q=EV');
+      expect(eves.items.map((p) => p.username)).toEqual(['eve']);
+      expect(eves.total).toBe(1);
+
+      await as(fay).post(`/v1/users/${ann.userId}/block`).expect(204);
+      const unblocked = await people(ann, '');
+      expect(unblocked.items.map((p) => p.username)).not.toContain('fay');
+      expect(unblocked.total).toBe(4);
+      expect(
+        (await people(fay, '')).items.map((p) => p.username),
+      ).not.toContain('ann');
+    });
+
+    it('rejects a bad cursor, a one-letter query and half a point', async () => {
+      const cursor = await as(ann)
+        .get('/v1/users/search?cursor=nope')
+        .expect(400);
+      expect(cursor.body.error.details.fields).toEqual({
+        cursor: ['invalidCursor'],
+      });
+      await as(ann).get('/v1/users/search?q=e').expect(400);
+      await as(ann).get('/v1/users/search?lat=48.2').expect(400);
+      await anonymous.get('/v1/users/search').expect(401);
+    });
   });
 });

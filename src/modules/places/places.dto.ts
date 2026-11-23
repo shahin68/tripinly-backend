@@ -26,6 +26,7 @@ import {
   TIME_PATTERN,
 } from '../markers/markers.dto';
 import { UserSummaryDto } from '../users/user-summary';
+import { PageQueryDto } from '../../common/pagination/pagination';
 
 export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
@@ -462,6 +463,77 @@ export class NearbyPageDto {
   attribution: string;
 }
 
+export class SpotSearchQueryDto extends PageQueryDto {
+  @ApiProperty({
+    minLength: 2,
+    maxLength: 100,
+    example: 'stephansdom',
+    description:
+      'Part of a spot name, in any language OSM has. Debounce on the client (300 ms)',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @Length(2, 100)
+  q: string;
+
+  @ApiPropertyOptional({
+    example: 48.2082,
+    description:
+      'With lng: nearer spots rank higher and come with distanceMeters. Not stored.',
+  })
+  @ValidateIf(
+    (o: SpotSearchQueryDto) => o.lat !== undefined || o.lng !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLatitude()
+  lat?: number;
+
+  @ApiPropertyOptional({ example: 16.3738 })
+  @ValidateIf(
+    (o: SpotSearchQueryDto) => o.lat !== undefined || o.lng !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLongitude()
+  lng?: number;
+}
+
+export class SpotDto extends PlaceItemDto {
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'From lat/lng, in metres; null without them',
+  })
+  distanceMeters: number | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Wien',
+    description:
+      "The city from OpenStreetMap's address (addr:city), shown instead of a distance without location; null when OSM has none",
+  })
+  city: string | null;
+}
+
+export class SpotPageDto {
+  @ApiProperty({
+    type: [SpotDto],
+    description:
+      'Hot spots first, then the rest, each by how well the name matches, how well known and (with lat/lng) how near',
+  })
+  items: SpotDto[];
+
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor: string | null;
+
+  @ApiProperty({ example: OSM_ATTRIBUTION })
+  attribution: string;
+}
+
 export class CategoryCountDto {
   @ApiProperty({
     type: String,
@@ -748,6 +820,21 @@ export class PlaceDetailDto extends PickType(PlaceItemDto, [
       'Images for the card: up to 10 photos that may represent the place (place photos and public trip photos, most likes first), then its Wikimedia Commons images. The first one is the cover',
   })
   images: PlaceImageDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'Stephansplatz 1, Wien',
+    description:
+      'Street and house number, city, from OpenStreetMap; null when it has none (user places have none)',
+  })
+  address: string | null;
+
+  @ApiProperty({
+    description:
+      'Public, visible trips with a visible stop here, not counting trips of people with a block with you either way',
+  })
+  tripCount: number;
 
   @ApiProperty({
     type: UserSummaryDto,

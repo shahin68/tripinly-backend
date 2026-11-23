@@ -1342,6 +1342,91 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
     });
   });
 
+  describe('GET /v1/places/spots', () => {
+    interface SpotPage {
+      items: (PlaceBody & {
+        distanceMeters: number | null;
+        city: string | null;
+      })[];
+      nextCursor: string | null;
+      attribution: string;
+    }
+    const spots = async (query: string) =>
+      (await as(alice).get(`/v1/places/spots${query}`).expect(200))
+        .body as SpotPage;
+
+    beforeEach(async () => {
+      await insertPlace(app, {
+        name: 'Stephansplatz Bar',
+        lat: 48.2081,
+        lng: 16.3721,
+        category: 'bar',
+      });
+      await insertPlace(app, {
+        name: 'Stephansdom',
+        lat: 48.2085,
+        lng: 16.3731,
+        prominence: 90,
+        tags: { 'addr:city': 'Wien' },
+      });
+      // A hot custom spot far away still ranks first.
+      await insertPlace(app, {
+        name: 'Stephans Garden',
+        lat: 47.07,
+        lng: 15.44,
+        source: 'user',
+        popularity: 3,
+      });
+      // A custom spot only in private trips never shows.
+      await insertPlace(app, {
+        name: 'Stephans Flat',
+        lat: 48.2,
+        lng: 16.37,
+        source: 'user',
+      });
+    });
+
+    it('finds only our spots by name, hot spots first, with the city and no Photon', async () => {
+      const body = await spots('?q=stephans');
+      expect(names(body.items)).toEqual([
+        'Stephans Garden',
+        'Stephansdom',
+        'Stephansplatz Bar',
+      ]);
+      expect(body.items.map((item) => item.distanceMeters)).toEqual([
+        null,
+        null,
+        null,
+      ]);
+      expect(body.items[1].city).toBe('Wien');
+      expect(body.items[0].city).toBeNull();
+      expect(body.nextCursor).toBeNull();
+      expect(body.attribution).toBe('© OpenStreetMap contributors');
+      expect(photon.requests).toEqual([]);
+    });
+
+    it('gives distances from a point and pages by cursor', async () => {
+      const first = await spots(
+        `?q=stephans&lat=${CENTRE.lat}&lng=${CENTRE.lng}&limit=2`,
+      );
+      expect(names(first.items)).toEqual(['Stephans Garden', 'Stephansdom']);
+      expect(first.items[1].distanceMeters).toEqual(expect.any(Number));
+      expect(first.items[1].distanceMeters).toBeLessThan(1000);
+      const second = await spots(
+        `?q=stephans&lat=${CENTRE.lat}&lng=${CENTRE.lng}&limit=2&cursor=${first.nextCursor ?? ''}`,
+      );
+      expect(names(second.items)).toEqual(['Stephansplatz Bar']);
+      expect(second.nextCursor).toBeNull();
+    });
+
+    it('rejects a one-letter query, half a point and a bad cursor', async () => {
+      const short = await as(alice).get('/v1/places/spots?q=s').expect(400);
+      expect(short.body.error.details.fields).toEqual({ q: ['isLength'] });
+      await as(alice).get('/v1/places/spots?q=st&lat=48.2').expect(400);
+      await as(alice).get('/v1/places/spots?q=st&cursor=nope').expect(400);
+    });
+  });
+
   describe('GET /v1/places/:id and add-to-trip', () => {
     it('shows OSM places with tags and attribution', async () => {
       const id = await insertPlace(app, {
@@ -1383,9 +1468,47 @@ describe('Places: in-view, search, nearby, popular (integration)', () => {
         },
         photoThumbUrls: [],
         images: [],
+        address: null,
+        tripCount: 0,
         addedBy: null,
         attribution: '© OpenStreetMap contributors',
       });
+    });
+
+    it('shows the OSM address and counts the public trips with the spot', async () => {
+      const id = await insertPlace(app, {
+        name: 'Stephansdom',
+        lat: 48.2085,
+        lng: 16.3731,
+        tags: {
+          'addr:street': 'Stephansplatz',
+          'addr:housenumber': '3',
+          'addr:city': 'Wien',
+        },
+      });
+      const add = async (session: Session, visibility: string) => {
+        const trip = await createTrip(session, visibility);
+        await as(session)
+          .post(`/v1/days/${trip.days[0].id}/markers`)
+          .send({ placeId: id })
+          .expect(201);
+      };
+      await add(alice, 'public');
+      await add(alice, 'public');
+      await add(bob, 'private');
+
+      const detail = async (viewer: Session) =>
+        (await as(viewer).get(`/v1/places/${id}`).expect(200)).body as {
+          address: string | null;
+          tripCount: number;
+        };
+      expect(await detail(bob)).toMatchObject({
+        address: 'Stephansplatz 3, Wien',
+        tripCount: 2,
+      });
+      // A block either way leaves the other's trips out.
+      await as(bob).post(`/v1/users/${alice.userId}/block`).expect(204);
+      expect((await detail(bob)).tripCount).toBe(0);
     });
 
     it("credits a custom spot's creator only while one of their public trips has it", async () => {
