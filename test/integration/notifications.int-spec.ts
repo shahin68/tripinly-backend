@@ -934,7 +934,8 @@ describe('Notifications (integration)', () => {
       expect(hot).toMatchObject({
         title: 'DC Flats is getting hot',
         body: '5 people marked your spot hot. Nice find!',
-        data: { deepLink: `tripinly://markers/${markerId}` },
+        // Opens the spot map (2026-11-23), not the creator's stop.
+        data: { deepLink: `tripinly://places/${spotId}` },
       });
       await flame(25);
       await eventually(
