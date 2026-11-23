@@ -623,9 +623,6 @@ function toPlaceInput(input: CreateMarkerDto): PlaceInput {
     if (input.osmType || input.osmId) {
       throw AppException.validation({ osmId: ['notWithPlaceId'] });
     }
-    if (input.brandId) {
-      throw AppException.validation({ brandId: ['notWithPlaceId'] });
-    }
     return { placeId: input.placeId };
   }
   // DTO validation guarantees location here; create() looks up a missing name.
@@ -634,7 +631,6 @@ function toPlaceInput(input: CreateMarkerDto): PlaceInput {
     lat: input.location!.lat,
     lng: input.location!.lng,
     category: input.category,
-    brandId: input.brandId,
     osm:
       input.osmType && input.osmId
         ? { type: input.osmType, id: BigInt(input.osmId) }

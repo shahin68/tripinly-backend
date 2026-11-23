@@ -6,7 +6,6 @@ import {
   type PlaceSource,
 } from '../../generated/prisma/client';
 import { TripAccessService } from '../trips/trip-access.service';
-import { BrandPolicy } from './brands';
 import { normalizePlaceName } from './normalize-name';
 import { PUBLIC_STOP_WHERE } from './popularity';
 
@@ -23,8 +22,6 @@ export type PlaceInput =
       lng: number;
       osm?: { type: 'node' | 'way' | 'relation'; id: bigint };
       category?: PlaceCategory;
-      /** "This is a brand store": an existing brand, only for a new place. */
-      brandId?: string;
     };
 
 export interface MatchedPlace {
@@ -41,10 +38,7 @@ export interface MatchedPlace {
  */
 @Injectable()
 export class PlaceMatchingService {
-  constructor(
-    private readonly access: TripAccessService,
-    private readonly brands: BrandPolicy,
-  ) {}
+  constructor(private readonly access: TripAccessService) {}
 
   /** `userId` is the caller: a place picked by id must be one they can see. */
   async match(
@@ -89,15 +83,6 @@ export class PlaceMatchingService {
       if (nearby) return nearby;
     }
 
-    // While brands are off a picked brand is dropped: a spot made then stays plain.
-    const brandId = this.brands.isOn() ? input.brandId : undefined;
-    if (brandId) {
-      const brand = await tx.brand.findUnique({
-        where: { id: brandId },
-        select: { id: true },
-      });
-      if (!brand) throw AppException.validation({ brandId: ['notFound'] });
-    }
     const data: Prisma.PlaceCreateInput = {
       name: input.name,
       normalizedName,
@@ -109,7 +94,6 @@ export class PlaceMatchingService {
       osmType: input.osm?.type,
       osmId: input.osm?.id,
       createdBy: { connect: { id: userId } },
-      brand: brandId ? { connect: { id: brandId } } : undefined,
     };
     if (!input.osm) {
       return tx.place.create({
@@ -119,10 +103,9 @@ export class PlaceMatchingService {
     }
     // Two markers for the same OSM feature may race; the unique (osmType, osmId) decides.
     const [created] = await tx.$queryRaw<MatchedPlace[]>`
-      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "brandId", "updatedAt")
+      INSERT INTO places (id, name, "normalizedName", "searchText", category, lat, lng, source, "osmType", "osmId", "createdById", "updatedAt")
       VALUES (gen_random_uuid(), ${data.name}, ${normalizedName}, ${normalizedName}, ${data.category}::"PlaceCategory",
-              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid,
-              ${brandId ?? null}::uuid, now())
+              ${input.lat}, ${input.lng}, 'user', ${input.osm.type}::"OsmType", ${input.osm.id}, ${userId}::uuid, now())
       ON CONFLICT ("osmType", "osmId") DO UPDATE SET "updatedAt" = places."updatedAt"
       RETURNING id, name, lat, lng`;
     return created;
