@@ -59,7 +59,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 - **Listing rule:** only `osm` places and places with `popularity > 0` (so a public user place with likes) appear in in-view, search, nearby and popular. Any other `user` place (a custom pin, possibly from a private trip) is visible only to people who can see a marker at it, including through `GET /places/{id}` and when picked by `placeId`.
 - **No Google data** in this table (see `10-maps-places-routing.md`).
 
-- `brandId` → brands (nullable, `SET NULL`): the brand store it is. Set by the OSM import from `brand:wikidata` on OSM places, picked by the creator on a new `user` place, untied by admins.
+- `brandId` → brands (nullable, `SET NULL`): the brand store it is. Set only by the OSM import from `brand:wikidata` on OSM places (people cannot tie their spots to brands; decision 2026-11-23), untied by admins.
 
 **brands** — our list of brands (`10-maps-places-routing.md`, Brands): `name`, `wikidataId` (unique, nullable), `logo` (bytea, a 96 px WebP of a few KB, nullable), `logoHash` (16 hex chars of its SHA-256, in the logo URL), `logoSource` (`wikimedia` \| `upload`, null without a logo; an upload is never replaced by Wikimedia), `commonsTitle` (the Commons file of a Wikimedia logo), `logoCheckedAt` (last Wikimedia check; again after 30 days). No personal data.
 

@@ -162,8 +162,9 @@ export class CreateMarkerDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
+    deprecated: true,
     description:
-      '"This is a brand store": a brand from GET /brands for a new place (people cannot add brands; 400 `fields.brandId` when it does not exist). Ignored when the stop joins an existing place or while brands are off (BRAND_LOGOS_ENABLED). Omit when sending placeId.',
+      'Ignored: people cannot tie a spot to a brand; brand stores come only from the OpenStreetMap import (decision 2026-11-23). Still accepted so older app builds that send it are not refused; to be removed before release.',
   })
   @IsOptional()
   @IsUUID()

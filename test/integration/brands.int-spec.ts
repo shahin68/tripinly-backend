@@ -182,7 +182,7 @@ describe('Brands (integration)', () => {
     await api(app).anonymous.get('/v1/brands?q=zar').expect(401);
   });
 
-  it('ties a new spot to a picked brand, never to an unknown one', async () => {
+  it('never ties a spot people make to a brand, even when an old app sends one', async () => {
     const zara = await createBrand('Zara', 'Q147662');
     const trip = (
       await as(alice)
@@ -191,27 +191,24 @@ describe('Brands (integration)', () => {
         .expect(201)
     ).body as TripBody;
     const day = trip.days[0].id;
-    const spot = {
-      name: 'Zara Mariahilfer',
-      location: { lat: 48.198, lng: 16.35 },
-      category: 'shopping',
-    };
 
-    const unknown = await as(alice)
-      .post(`/v1/days/${day}/markers`)
-      .send({ ...spot, brandId: '00000000-0000-4000-8000-000000000000' })
-      .expect(400);
-    expect(unknown.body.error.details.fields).toHaveProperty('brandId');
-
-    const created = await as(alice)
-      .post(`/v1/days/${day}/markers`)
-      .send({ ...spot, brandId: zara.id })
-      .expect(201);
-    const place = await prisma.place.findUniqueOrThrow({
-      where: { id: created.body.placeId as string },
-      select: { brandId: true, source: true },
-    });
-    expect(place).toEqual({ brandId: zara.id, source: 'user' });
+    // Brand stores come only from the OSM import (decision 2026-11-23): a sent brandId, known or not, is ignored.
+    for (const brandId of [zara.id, '00000000-0000-4000-8000-000000000000']) {
+      const created = await as(alice)
+        .post(`/v1/days/${day}/markers`)
+        .send({
+          name: `Zara ${brandId.slice(0, 4)}`,
+          location: { lat: 48.198, lng: 16.35 },
+          category: 'shopping',
+          brandId,
+        })
+        .expect(201);
+      const place = await prisma.place.findUniqueOrThrow({
+        where: { id: created.body.placeId as string },
+        select: { brandId: true, source: true },
+      });
+      expect(place).toEqual({ brandId: null, source: 'user' });
+    }
 
     const placeId = await insertPlace(app, {
       name: 'Albertina',
@@ -221,47 +218,35 @@ describe('Brands (integration)', () => {
     await as(alice)
       .post(`/v1/days/${day}/markers`)
       .send({ placeId, brandId: zara.id })
-      .expect(400);
+      .expect(201);
+  });
 
-    // An admin unties a wrong brand store.
+  it('lets an admin untie a wrong brand store', async () => {
+    const zara = await createBrand('Zara', 'Q147662');
+    const placeId = await insertPlace(app, {
+      name: 'Zara Mariahilfer',
+      lat: 48.198,
+      lng: 16.35,
+    });
+    await prisma.place.update({
+      where: { id: placeId },
+      data: { brandId: zara.id },
+    });
     await as(admin)
-      .put(`/v1/admin/places/${created.body.placeId}/brand`)
+      .put(`/v1/admin/places/${placeId}/brand`)
       .send({ brandId: null })
       .expect(204);
     expect(
-      (
-        await prisma.place.findUniqueOrThrow({
-          where: { id: created.body.placeId as string },
-        })
-      ).brandId,
+      (await prisma.place.findUniqueOrThrow({ where: { id: placeId } }))
+        .brandId,
     ).toBeNull();
   });
 
-  it('offers no brands and ties no spot to one while brands are off', async () => {
-    const zara = await createBrand('Zara', 'Q147662');
+  it('offers no brands while brands are off', async () => {
+    await createBrand('Zara', 'Q147662');
     withConfig({ BRAND_LOGOS_ENABLED: false });
     const found = await as(alice).get('/v1/brands?q=zar').expect(200);
     expect(found.body.items).toEqual([]);
-
-    const trip = (
-      await as(alice)
-        .post('/v1/trips')
-        .send({ title: 'Vienna', visibility: 'public' })
-        .expect(201)
-    ).body as TripBody;
-    const created = await as(alice)
-      .post(`/v1/days/${trip.days[0].id}/markers`)
-      .send({
-        name: 'Zara Mariahilfer',
-        location: { lat: 48.198, lng: 16.35 },
-        category: 'shopping',
-        brandId: zara.id,
-      })
-      .expect(201);
-    const place = await prisma.place.findUniqueOrThrow({
-      where: { id: created.body.placeId as string },
-    });
-    expect(place.brandId).toBeNull();
   });
 
   it('keeps brand admin to admins and refuses images it cannot use', async () => {
