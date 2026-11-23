@@ -10,21 +10,16 @@ import {
   type AuthUser,
   CurrentUser,
 } from '../../common/auth/auth.decorators';
-import { ApiProperty } from '@nestjs/swagger';
-import { UserSummaryDto } from './user-summary';
 import { PageQueryDto } from '../../common/pagination/pagination';
 import { ProfileDto } from './profile.dto';
 import {
   CheckUsernameQueryDto,
   SearchUsersQueryDto,
+  UserSearchPageDto,
   UsernameAvailabilityDto,
   UsernameParamDto,
 } from './users.dto';
 
-class UserSearchResultDto {
-  @ApiProperty({ type: [UserSummaryDto], description: 'Up to 20 matches' })
-  items: UserSummaryDto[];
-}
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -45,13 +40,17 @@ export class UsersController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Find people by username or display name prefix' })
-  @ApiOkResponse({ type: UserSearchResultDto })
-  async search(
+  @ApiOperation({
+    summary: 'Find people by username or display name prefix',
+    description:
+      'Friends first, then people who follow you or whom you follow, then (with lat/lng) people with a public trip around the point, then the most followed; paged with cursor and limit. Without q: everyone, ranked the same way. Never yourself or anyone with a block either way.',
+  })
+  @ApiOkResponse({ type: UserSearchPageDto })
+  search(
     @CurrentUser() user: AuthUser,
     @Query() query: SearchUsersQueryDto,
-  ): Promise<UserSearchResultDto> {
-    return { items: await this.users.search(user.id, query.q) };
+  ): Promise<UserSearchPageDto> {
+    return this.users.search(user.id, query);
   }
 
   // Keep after the fixed paths above: ':username' would match them otherwise.

@@ -1,13 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
   IsOptional,
   IsString,
   Length,
   Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
+import { PageQueryDto } from '../../common/pagination/pagination';
+import { UserSummaryDto } from './user-summary';
+
+/** People search counts matches up to this (UserSearchPageDto.total). */
+export const USER_SEARCH_TOTAL_CAP = 999;
 import {
   DOCUMENT_TYPES,
   LOCALE_PATTERN,
@@ -185,17 +194,64 @@ export class RegisterDeviceDto {
   locale: string;
 }
 
-export class SearchUsersQueryDto {
-  @ApiProperty({
+export class SearchUsersQueryDto extends PageQueryDto {
+  @ApiPropertyOptional({
     minLength: 2,
     maxLength: 50,
     example: 'jon',
-    description: 'Prefix of a username or display name',
+    description:
+      'Prefix of a username or display name. Leave it out to list everyone, ranked the same way (the people row on Nearby).',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(2, 50)
-  q: string;
+  q?: string;
+
+  @ApiPropertyOptional({
+    example: 48.2082,
+    description:
+      'With lng: people with a public trip around this point rank after friends and follows. Used for this query only, never stored or logged.',
+  })
+  @ValidateIf(
+    (o: SearchUsersQueryDto) => o.lat !== undefined || o.lng !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLatitude()
+  lat?: number;
+
+  @ApiPropertyOptional({ example: 16.3738 })
+  @ValidateIf(
+    (o: SearchUsersQueryDto) => o.lat !== undefined || o.lng !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLongitude()
+  lng?: number;
+}
+
+/** A person in search results and the people row, with what they are to the viewer. */
+export class PersonDto extends UserSummaryDto {
+  @ApiProperty({ description: 'You follow each other' })
+  isFriend: boolean;
+
+  @ApiProperty({ description: 'You follow them' })
+  isFollowing: boolean;
+}
+
+export class UserSearchPageDto {
+  @ApiProperty({ type: [PersonDto] })
+  items: PersonDto[];
+
+  @ApiProperty({
+    maximum: USER_SEARCH_TOTAL_CAP,
+    description: `How many people match, counted up to ${USER_SEARCH_TOTAL_CAP}: ${USER_SEARCH_TOTAL_CAP} means that many or more (the app shows "${USER_SEARCH_TOTAL_CAP}+")`,
+  })
+  total: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor: string | null;
 }
 
 export class UsernameParamDto {

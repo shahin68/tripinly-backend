@@ -30,13 +30,62 @@ import {
 import {
   toUserSummary,
   USER_SUMMARY_SELECT,
-  type UserSummaryDto,
+  type UserSummaryRow,
 } from './user-summary';
 import type { ProfileDto } from './profile.dto';
-import type { MeDto, UpdateMeDto, UsernameAvailabilityDto } from './users.dto';
+import {
+  type MeDto,
+  type SearchUsersQueryDto,
+  type UpdateMeDto,
+  USER_SEARCH_TOTAL_CAP,
+  type UserSearchPageDto,
+  type UsernameAvailabilityDto,
+} from './users.dto';
 import { thumbUrl } from '../photos/photo-keys';
 
-export const USER_SEARCH_LIMIT = 20;
+/** "Trips around here" in people search: the Nearby tab's default radius. */
+export const PEOPLE_AROUND_RADIUS_METERS = 5000;
+
+type PersonRow = UserSummaryRow & {
+  isFollowing: boolean;
+  followers: number;
+  tier: number;
+};
+
+/** Where a people page ends: rank tier, follower count and username (unique). */
+interface PeopleCursor {
+  tier: number;
+  followers: number;
+  username: string;
+}
+
+function encodePeopleCursor(position: PeopleCursor): string {
+  return Buffer.from(
+    JSON.stringify([position.tier, position.followers, position.username]),
+  ).toString('base64url');
+}
+
+function decodePeopleCursor(cursor: string): PeopleCursor {
+  try {
+    const [tier, followers, username] = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString(),
+    ) as unknown[];
+    if (
+      Number.isInteger(tier) &&
+      Number.isInteger(followers) &&
+      typeof username === 'string'
+    ) {
+      return {
+        tier: tier as number,
+        followers: followers as number,
+        username,
+      };
+    }
+  } catch {
+    // fall through
+  }
+  throw AppException.validation({ cursor: ['invalidCursor'] });
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -167,27 +216,87 @@ export class UsersService {
   }
 
   /**
-   * Prefix search on username and display name among onboarded, active users,
-   * excluding the caller and anyone with a block in either direction.
+   * People search and the people row on Nearby: onboarded, active users whose
+   * username or display name starts with q (everyone without q), never the
+   * caller or anyone with a block either way. Ranked friends first, then
+   * follows either way, then (with a point) people with a visible stop of a
+   * public, visible trip of theirs within PEOPLE_AROUND_RADIUS_METERS, then
+   * the most followed, then by username. The point is used for this query
+   * only and never stored or logged.
    */
-  async search(userId: string, query: string): Promise<UserSummaryDto[]> {
-    const prefix = query.trim();
-    const users = await this.prisma.user.findMany({
-      where: {
-        id: { not: userId },
-        status: 'active',
-        onboardedAt: { not: null },
-        OR: [
-          { username: { startsWith: normalizeUsername(prefix) } },
-          { displayName: { startsWith: prefix, mode: 'insensitive' } },
-        ],
-        ...BlocksService.notBlockedWith(userId),
-      },
-      orderBy: [{ username: 'asc' }],
-      take: USER_SEARCH_LIMIT,
-      select: USER_SUMMARY_SELECT,
-    });
-    return users.map((user) => toUserSummary(user, this.storage));
+  async search(
+    userId: string,
+    query: SearchUsersQueryDto,
+  ): Promise<UserSearchPageDto> {
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+    const after = query.cursor ? decodePeopleCursor(query.cursor) : null;
+    const prefix = query.q?.trim();
+    const like = (text: string) => text.replace(/[\\%_]/g, '\\$&') + '%';
+    const matches = prefix
+      ? Prisma.sql`AND (u.username LIKE ${like(normalizeUsername(prefix))}
+          OR u."displayName" ILIKE ${like(prefix)})`
+      : Prisma.empty;
+    const visible = Prisma.sql`u.id <> ${userId}::uuid AND u.status = 'active'
+      AND u."onboardedAt" IS NOT NULL ${matches}
+      AND NOT EXISTS (SELECT 1 FROM blocks b
+        WHERE (b."blockerId" = u.id AND b."blockedId" = ${userId}::uuid)
+           OR (b."blockerId" = ${userId}::uuid AND b."blockedId" = u.id))`;
+    const near =
+      query.lat !== undefined && query.lng !== undefined
+        ? Prisma.sql`EXISTS (SELECT 1 FROM trips t JOIN markers m ON m."tripId" = t.id
+            WHERE t."ownerId" = u.id AND t.visibility = 'public' AND t."hiddenAt" IS NULL
+              AND m."hiddenAt" IS NULL
+              AND ST_DWithin(m.location, ST_SetSRID(ST_MakePoint(${query.lng}, ${query.lat}), 4326)::geography, ${PEOPLE_AROUND_RADIUS_METERS}))`
+        : Prisma.sql`false`;
+    const position = after
+      ? Prisma.sql`(tier > ${after.tier} OR (tier = ${after.tier} AND followers < ${after.followers})
+          OR (tier = ${after.tier} AND followers = ${after.followers} AND username > ${after.username}))`
+      : Prisma.sql`true`;
+    const [rows, [{ total }]] = await Promise.all([
+      this.prisma.$queryRaw<PersonRow[]>`
+        SELECT * FROM (
+          SELECT id, username, "displayName", "avatarPhotoId", "isFollowing", followers,
+            CASE WHEN "isFollowing" AND "followsMe" THEN 0
+                 WHEN "isFollowing" OR "followsMe" THEN 1
+                 WHEN near THEN 2 ELSE 3 END AS tier
+          FROM (
+            SELECT u.id, u.username, u."displayName", u."avatarPhotoId",
+              EXISTS (SELECT 1 FROM follows f WHERE f."followerId" = ${userId}::uuid AND f."followeeId" = u.id) AS "isFollowing",
+              EXISTS (SELECT 1 FROM follows f WHERE f."followerId" = u.id AND f."followeeId" = ${userId}::uuid) AS "followsMe",
+              (SELECT count(*)::int FROM follows f JOIN users fu ON fu.id = f."followerId"
+                WHERE f."followeeId" = u.id AND fu.status = 'active') AS followers,
+              ${near} AS near
+            FROM users u
+            WHERE ${visible}
+          ) person
+        ) ranked
+        WHERE ${position}
+        ORDER BY tier, followers DESC, username
+        LIMIT ${limit + 1}`,
+      this.prisma.$queryRaw<{ total: number }[]>`
+        SELECT count(*)::int AS total FROM (
+          SELECT 1 FROM users u WHERE ${visible} LIMIT ${USER_SEARCH_TOTAL_CAP}
+        ) capped`,
+    ]);
+    const kept = rows.slice(0, limit);
+    const last = kept[kept.length - 1];
+    return {
+      items: kept.map((row) =>
+        Object.assign(toUserSummary(row, this.storage), {
+          isFriend: row.tier === 0,
+          isFollowing: row.isFollowing,
+        }),
+      ),
+      total,
+      nextCursor:
+        rows.length > limit && last
+          ? encodePeopleCursor({
+              tier: last.tier,
+              followers: last.followers,
+              username: last.username ?? '',
+            })
+          : null,
+    };
   }
 
   /**

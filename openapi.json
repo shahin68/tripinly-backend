@@ -599,18 +599,58 @@
     },
     "/v1/users/search": {
       "get": {
+        "description": "Friends first, then people who follow you or whom you follow, then (with lat/lng) people with a public trip around the point, then the most followed; paged with cursor and limit. Without q: everyone, ranked the same way. Never yourself or anyone with a block either way.",
         "operationId": "Users_search",
         "parameters": [
           {
-            "name": "q",
-            "required": true,
+            "name": "cursor",
+            "required": false,
             "in": "query",
-            "description": "Prefix of a username or display name",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Prefix of a username or display name. Leave it out to list everyone, ranked the same way (the people row on Nearby).",
             "schema": {
               "minLength": 2,
               "maxLength": 50,
               "example": "jon",
               "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "description": "With lng: people with a public trip around this point rank after friends and follows. Used for this query only, never stored or logged.",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
             }
           }
         ],
@@ -620,7 +660,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserSearchResultDto"
+                  "$ref": "#/components/schemas/UserSearchPageDto"
                 }
               }
             }
@@ -1985,6 +2025,86 @@
           }
         ],
         "summary": "Search places, addresses and cities",
+        "tags": [
+          "places"
+        ]
+      }
+    },
+    "/v1/places/spots": {
+      "get": {
+        "description": "Only our places (no Photon addresses or cities), from anywhere: hot spots first, then OSM places. For the Nearby tab search. lat/lng only rank results and give distances; they are not stored.",
+        "operationId": "Places_spots",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Part of a spot name, in any language OSM has. Debounce on the client (300 ms)",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 100,
+              "example": "stephansdom",
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "description": "With lng: nearer spots rank higher and come with distanceMeters. Not stored.",
+            "schema": {
+              "example": 48.2082,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 16.3738,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpotPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search our spots by name",
         "tags": [
           "places"
         ]
@@ -5674,6 +5794,76 @@
           "available"
         ]
       },
+      "PersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "example": "jonas.k"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Jonas"
+          },
+          "avatarPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The profile photo, the image cache key; null when there is none (apps show the letter avatar)"
+          },
+          "avatarThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed 256 px square thumb of the profile photo, or null"
+          },
+          "isFriend": {
+            "type": "boolean",
+            "description": "You follow each other"
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "You follow them"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "avatarPhotoId",
+          "avatarThumbUrl",
+          "isFriend",
+          "isFollowing"
+        ]
+      },
+      "UserSearchPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "maximum": 999,
+            "description": "How many people match, counted up to 999: 999 means that many or more (the app shows \"999+\")"
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "nextCursor"
+        ]
+      },
       "UserSummaryDto": {
         "type": "object",
         "properties": {
@@ -5707,21 +5897,6 @@
           "displayName",
           "avatarPhotoId",
           "avatarThumbUrl"
-        ]
-      },
-      "UserSearchResultDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "description": "Up to 20 matches",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserSummaryDto"
-            }
-          }
-        },
-        "required": [
-          "items"
         ]
       },
       "TripSummaryDto": {
@@ -6830,6 +7005,134 @@
           "attribution"
         ]
       },
+      "SpotDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Localized from OSM name:<lang> when available"
+          },
+          "category": {
+            "type": "string",
+            "example": "cafe",
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationDto"
+          },
+          "isTripinly": {
+            "type": "boolean",
+            "description": "A hot spot (hotCount > 0); show the Tripinly pin style"
+          },
+          "hotCount": {
+            "type": "number",
+            "description": "How many people marked the place hot (a stop's flame marks its place); a custom spot counts only while a public trip has it"
+          },
+          "prominence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How well known the place is, 0–100, from QRank (Wikimedia page views) and OSM tags; 0 when unknown. Size map pins by it (thresholds in GET /v1/app-config)"
+          },
+          "coverPhotoId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover when it is a Tripinly photo (a place photo or a trip photo), or null (a Commons cover has only coverImageId)"
+          },
+          "coverImageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id of the cover image, a Tripinly photo or a Commons image (stable; cache the image by it and coverSource), or null"
+          },
+          "coverSource": {
+            "type": "string",
+            "enum": [
+              "trip",
+              "commons"
+            ],
+            "nullable": true,
+            "description": "`trip`: a Tripinly photo (a place photo or a trip photo); `commons`: a Wikimedia Commons image (credit it on tap from GET /places/{id}); null without a cover"
+          },
+          "coverThumbUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Thumbnail of the cover, also drawn in the map pin: the place's photo, or a photo on a stop here in a public trip, with the most likes, once at least APP_PLACE_PHOTO_PIN_MIN_LIKES (3) people other than its uploader liked it (ties: the newest); else the place's first Wikimedia Commons image; signed, valid ≥ 1 h"
+          },
+          "hotByMe": {
+            "type": "boolean",
+            "description": "I marked the place hot"
+          },
+          "brand": {
+            "nullable": true,
+            "description": "The brand this place is a store of; with a logoUrl the pin is a rounded square showing the logo, otherwise round as usual",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlaceBrandDto"
+              }
+            ]
+          },
+          "distanceMeters": {
+            "type": "number",
+            "nullable": true,
+            "description": "From lat/lng, in metres; null without them"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "example": "Wien",
+            "description": "The city from OpenStreetMap's address (addr:city), shown instead of a distance without location; null when OSM has none"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "location",
+          "isTripinly",
+          "hotCount",
+          "prominence",
+          "coverPhotoId",
+          "coverImageId",
+          "coverSource",
+          "coverThumbUrl",
+          "hotByMe",
+          "brand",
+          "distanceMeters",
+          "city"
+        ]
+      },
+      "SpotPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Hot spots first, then the rest, each by how well the name matches, how well known and (with lat/lng) how near",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpotDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "attribution": {
+            "type": "string",
+            "example": "© OpenStreetMap contributors"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "attribution"
+        ]
+      },
       "NearbyPlaceDto": {
         "type": "object",
         "properties": {
@@ -7262,6 +7565,16 @@
               "$ref": "#/components/schemas/PlaceImageDto"
             }
           },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "example": "Stephansplatz 1, Wien",
+            "description": "Street and house number, city, from OpenStreetMap; null when it has none (user places have none)"
+          },
+          "tripCount": {
+            "type": "number",
+            "description": "Public, visible trips with a visible stop here, not counting trips of people with a block with you either way"
+          },
           "addedBy": {
             "nullable": true,
             "description": "Who made this user place, credited as 'Added by': set only while they have it in one of their public trips, and never for someone with a block either way. Null for OSM places",
@@ -7300,6 +7613,8 @@
           "tags",
           "photoThumbUrls",
           "images",
+          "address",
+          "tripCount",
           "addedBy",
           "attribution"
         ]

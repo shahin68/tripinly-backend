@@ -22,6 +22,8 @@ import {
   PopularResponseDto,
   SearchQueryDto,
   SearchResponseDto,
+  SpotPageDto,
+  SpotSearchQueryDto,
   TilesQueryDto,
   TilesResponseDto,
 } from './places.dto';
@@ -76,6 +78,22 @@ export class PlacesController {
     @I18nLang() lang: string,
   ): Promise<SearchResponseDto> {
     return this.places.search(query, lang);
+  }
+
+  @Get('spots')
+  @Throttle({ default: SEARCH_RATE_LIMIT })
+  @ApiOperation({
+    summary: 'Search our spots by name',
+    description:
+      'Only our places (no Photon addresses or cities), from anywhere: hot spots first, then OSM places. For the Nearby tab search. lat/lng only rank results and give distances; they are not stored.',
+  })
+  @ApiOkResponse({ type: SpotPageDto })
+  spots(
+    @CurrentUser() user: AuthUser,
+    @Query() query: SpotSearchQueryDto,
+    @I18nLang() lang: string,
+  ): Promise<SpotPageDto> {
+    return this.places.spots(user.id, query, lang);
   }
 
   @Get('nearby')

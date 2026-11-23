@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis';
 import type { Env } from '../../common/config/env';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { DEFAULT_PAGE_SIZE } from '../../common/pagination/pagination';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { StorageService } from '../../common/storage/storage.service';
@@ -75,6 +76,9 @@ import {
   type SearchQueryDto,
   type SearchResponseDto,
   type SearchResultDto,
+  type SpotDto,
+  type SpotPageDto,
+  type SpotSearchQueryDto,
   type TilesQueryDto,
   type TilesResponseDto,
 } from './places.dto';
@@ -102,6 +106,8 @@ const POPULAR_MAX_SPAN_DEGREES = 5;
 const DEFAULT_RADIUS_KM = 5;
 const NEARBY_TOP_UP_BELOW = 10;
 const SEARCH_LIMIT = 10;
+/** Spot search: added to the score of hot spots, so they all rank before the rest. */
+const SPOTS_HOT_TIER = 100;
 /** Our best matches before those outside the map's city are left out. */
 const OURS_CANDIDATES = 40;
 /** What a trip can head to: Photon's area layers, never addresses, streets or farms. */
@@ -481,6 +487,68 @@ export class PlacesService {
   }
 
   /**
+   * Spot search on the Nearby tab: only our places, from anywhere, no Photon
+   * (Shahin, 2026-11-23). Hot spots (APP_PLACE_RANK_MIN_HOT_COUNT flames or
+   * more) first, then the rest, each by the search score (name match,
+   * prominence, flames and, with a point, nearness). Private spots never
+   * match (their popularity is 0). The point is used for this query only.
+   */
+  async spots(
+    userId: string,
+    query: SpotSearchQueryDto,
+    lang: string,
+  ): Promise<SpotPageDto> {
+    const near =
+      query.lat !== undefined && query.lng !== undefined
+        ? { lat: query.lat, lng: query.lng }
+        : undefined;
+    const match = this.nameMatch(query.q, near);
+    if (!match)
+      return { items: [], nextCursor: null, attribution: OSM_ATTRIBUTION };
+    const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+    const after = query.cursor ? decodeScoreCursor(query.cursor) : null;
+    const distance = near
+      ? Prisma.sql`ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography)`
+      : Prisma.sql`NULL::float8`;
+    const rows = await this.prisma.$queryRaw<
+      (PlaceRow & {
+        tags: Prisma.JsonValue;
+        distance: number | null;
+        score: number;
+      })[]
+    >`
+      SELECT * FROM (
+        SELECT ${PLACE_COLUMNS}, p.tags, ${distance} AS distance,
+          CASE WHEN p.popularity >= ${this.rankMinLikes()} THEN ${SPOTS_HOT_TIER}::float8 ELSE 0 END
+          + ${match.score} AS score
+        FROM places p
+        WHERE ${match.where}
+      ) ranked
+      WHERE ${
+        after
+          ? Prisma.sql`(ranked.score < ${after.score} OR (ranked.score = ${after.score} AND ranked.id > ${after.id}::uuid))`
+          : Prisma.sql`true`
+      }
+      ORDER BY ranked.score DESC, ranked.id
+      LIMIT ${limit + 1}`;
+    const kept = rows.slice(0, limit);
+    const last = kept[kept.length - 1];
+    const items: SpotDto[] = kept.map((row) => ({
+      ...toPlaceItem(row, lang, this.brands),
+      distanceMeters: row.distance === null ? null : Math.round(row.distance),
+      city: asStringRecord(row.tags)['addr:city'] ?? null,
+    }));
+    return {
+      items: await this.personalize(userId, items),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeScoreCursor(last.score, last.id)
+          : null,
+      attribution: OSM_ATTRIBUTION,
+    };
+  }
+
+  /**
    * What a stop tapped on the map is: one of our public places within 25 m,
    * else the Photon address there, else a place named by its coordinates.
    * The point is used for this lookup only and not logged.
@@ -542,12 +610,25 @@ export class PlacesService {
       throw AppException.notFound();
     }
     const tags = asStringRecord(place.tags);
-    const [[item], tripPhotos, commons, addedBy] = await Promise.all([
-      this.personalize(userId, [toPlaceItem(place, lang, this.brands)]),
-      this.placeTripPhotos(userId, place.id),
-      this.placeCommonsImages(place.id),
-      this.addedBy(userId, place.id, place.createdById),
-    ]);
+    const [[item], tripPhotos, commons, addedBy, tripCount] = await Promise.all(
+      [
+        this.personalize(userId, [toPlaceItem(place, lang, this.brands)]),
+        this.placeTripPhotos(userId, place.id),
+        this.placeCommonsImages(place.id),
+        this.addedBy(userId, place.id, place.createdById),
+        this.prisma.trip.count({
+          where: {
+            visibility: 'public',
+            hiddenAt: null,
+            owner: {
+              status: 'active',
+              ...BlocksService.notBlockedWith(userId),
+            },
+            markers: { some: { placeId: place.id, hiddenAt: null } },
+          },
+        }),
+      ],
+    );
     return {
       ...item,
       source: place.source,
@@ -562,6 +643,8 @@ export class PlacesService {
       },
       photoThumbUrls: tripPhotos.flatMap((photo) => photo.thumbUrl ?? []),
       images: [...tripPhotos, ...commons],
+      address: placeAddress(tags),
+      tripCount,
       addedBy,
       attribution:
         place.source === 'osm' || place.osmId ? OSM_ATTRIBUTION : null,
@@ -875,23 +958,49 @@ export class PlacesService {
     return this.config.get('APP_PLACE_RANK_MIN_HOT_COUNT', { infer: true });
   }
 
-  /** Our places for a search, each with its score (see `search-ranking.ts`). */
-  private async searchOurs(
+  /**
+   * The name match and score of our places for a search phrase (see
+   * `search-ranking.ts`), or null when the phrase is too short for trigram
+   * matching (two characters).
+   */
+  private nameMatch(
     query: string,
-    lang: string,
     near: { lat: number; lng: number } | undefined,
-  ): Promise<Scored[]> {
+  ): { where: Prisma.Sql; score: Prisma.Sql } | null {
     const q = normalizePlaceName(query);
-    // Trigram matching needs two characters; one letter is left to Photon's prefix search.
     const words = searchWords(query);
-    if (q.length < 2 || !words) return [];
+    if (q.length < 2 || !words) return null;
     const like = (text: string) => text.replace(/[\\%_]/g, '\\$&');
     const w = SEARCH_WEIGHTS;
     const proximity = near
       ? Prisma.sql`+ ${w.near}::float8 / (1 + ST_Distance(p.location, ST_SetSRID(ST_MakePoint(${near.lng}, ${near.lat}), 4326)::geography) / ${w.nearMeters}::float8)`
       : Prisma.empty;
     const name = Prisma.sql`regexp_replace(p."normalizedName", ${SQL_WORD_SEPARATORS}, ' ', 'g')`;
-    const all = searchTextWords();
+    return {
+      where: Prisma.sql`p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
+          ${osmPinsFilter(this.osmPins())}
+          AND (${q} <% p."searchText" OR p."searchText" LIKE ${'%' + like(q) + '%'})
+          AND ${searchTextWords()} LIKE ${'% ' + like(words) + '%'}`,
+      score: Prisma.sql`CASE
+            WHEN ${name} LIKE ${like(words) + '%'} THEN ${w.nameStart}::float8
+            ELSE ${w.wordStart}::float8
+          END
+          + CASE WHEN ${name} = ${words} THEN ${w.exact}::float8 ELSE 0 END
+          + ${w.prominence}::float8 * p.prominence / 100.0
+          + ${w.hot}::float8 * ln(1 + p.popularity)
+          ${proximity}`,
+    };
+  }
+
+  /** Our places for a search, each with its score (see `search-ranking.ts`). */
+  private async searchOurs(
+    query: string,
+    lang: string,
+    near: { lat: number; lng: number } | undefined,
+  ): Promise<Scored[]> {
+    // One letter is left to Photon's prefix search.
+    const match = this.nameMatch(query, near);
+    if (!match) return [];
     const rows = await this.prisma.$queryRaw<
       (PlaceRow & {
         osmType: 'node' | 'way' | 'relation' | null;
@@ -901,20 +1010,9 @@ export class PlacesService {
       })[]
     >`
       SELECT * FROM (
-        SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags,
-          CASE
-            WHEN ${name} LIKE ${like(words) + '%'} THEN ${w.nameStart}::float8
-            ELSE ${w.wordStart}::float8
-          END
-          + CASE WHEN ${name} = ${words} THEN ${w.exact}::float8 ELSE 0 END
-          + ${w.prominence}::float8 * p.prominence / 100.0
-          + ${w.hot}::float8 * ln(1 + p.popularity)
-          ${proximity} AS score
+        SELECT ${PLACE_COLUMNS}, p."osmType", p."osmId", p.tags, ${match.score} AS score
         FROM places p
-        WHERE p."isActive" AND (p.source = 'osm' OR p.popularity > 0)
-          ${osmPinsFilter(this.osmPins())}
-          AND (${q} <% p."searchText" OR p."searchText" LIKE ${'%' + like(q) + '%'})
-          AND ${all} LIKE ${'% ' + like(words) + '%'}
+        WHERE ${match.where}
       ) ranked
       ORDER BY score DESC, id
       LIMIT ${OURS_CANDIDATES}`;

@@ -299,12 +299,11 @@ describe('NotificationRenderer', () => {
       title: 'DC Flats is getting hot',
       body: '25 people marked your spot hot. Nice find!',
     });
-    expect(renderer.deepLink(hot, context)).toBe(
-      `tripinly://markers/${MARKER}`,
-    );
+    // The spot's own map, with or without a stop of the creator's there.
+    expect(renderer.deepLink(hot, context)).toBe('tripinly://places/p');
     expect(
       renderer.deepLink({ ...hot, markerId: null, tripId: null }, context),
-    ).toBe('tripinly://notifications');
+    ).toBe('tripinly://places/p');
   });
 });
 
