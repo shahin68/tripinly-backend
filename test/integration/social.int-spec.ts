@@ -764,7 +764,7 @@ describe('Social (integration)', () => {
 
       await as(stranger).get('/v1/explore/trips?cursor=nope').expect(400);
     });
-    it('filters by period, season and nearby', async () => {
+    it('filters by period and nearby', async () => {
       const budapest = await createTrip(editor, 'Budapest', 'public');
       const pest = await insertPlace(app, {
         name: 'Parliament',
@@ -792,21 +792,6 @@ describe('Social (integration)', () => {
       expect(await titles('period=month')).toEqual(['Budapest']);
       expect(await titles('period=year')).toEqual(['Vienna', 'Budapest']);
 
-      // Season: only trips travelled in the current season.
-      const now = new Date();
-      const offSeason = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 6, 1),
-      );
-      await prisma.trip.update({
-        where: { id: trip.id },
-        data: { startDate: now, endDate: now },
-      });
-      await prisma.trip.update({
-        where: { id: budapest.id },
-        data: { startDate: offSeason, endDate: offSeason },
-      });
-      expect(await titles('period=season')).toEqual(['Vienna']);
-
       // Nearby: a stop within the radius (50 km), with any period.
       const near = `lat=${ALBERTINA.lat}&lng=${ALBERTINA.lng}`;
       expect(await titles(near)).toEqual(['Vienna']);
@@ -815,6 +800,8 @@ describe('Social (integration)', () => {
       expect(await titles('lat=47.5&lng=19.05')).toEqual(['Budapest']);
 
       await as(stranger).get('/v1/explore/trips?period=day').expect(400);
+      // Seasons are gone (Shahin 2026-11-23).
+      await as(stranger).get('/v1/explore/trips?period=season').expect(400);
       await as(stranger).get('/v1/explore/trips?lat=48.2').expect(400);
       await as(stranger).get('/v1/explore/trips?lat=200&lng=16').expect(400);
     });

@@ -306,7 +306,12 @@ export class PlaceItemDto {
   @ApiProperty({ description: 'Localized from OSM name:<lang> when available' })
   name: string;
 
-  @ApiProperty({ enum: PLACE_CATEGORIES })
+  @ApiProperty({
+    type: String,
+    example: 'cafe',
+    description:
+      'A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)',
+  })
   category: PlaceCategory;
 
   @ApiProperty({ type: LocationDto })
@@ -458,7 +463,12 @@ export class NearbyPageDto {
 }
 
 export class CategoryCountDto {
-  @ApiProperty({ enum: PLACE_CATEGORIES })
+  @ApiProperty({
+    type: String,
+    example: 'cafe',
+    description:
+      'A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)',
+  })
   category: PlaceCategory;
 
   @ApiProperty({ minimum: 1 })
@@ -506,9 +516,11 @@ export class SearchResultDto {
   name: string;
 
   @ApiProperty({
-    enum: PLACE_CATEGORIES,
+    type: String,
+    example: 'cafe',
     nullable: true,
-    description: 'null for photon',
+    description:
+      'A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot); null for photon',
   })
   category: PlaceCategory | null;
 

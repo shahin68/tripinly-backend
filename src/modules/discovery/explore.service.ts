@@ -41,7 +41,7 @@ interface ExploreCursor {
  * tells the app not to offer Save; `includeMine` false leaves them out), owner without a block with the viewer.
  * Ranked by likes only (saves never count, Shahin 2026-10-16), newest first on ties. `week`,
  * `month` and `year` keep the trips created in the last 7, 30 or 365 days (Shahin 2026-10-18);
- * `season` keeps trips travelled in the current season; `all` keeps every trip. `near` keeps trips with a stop within
+ * `all` keeps every trip (season removed, Shahin 2026-11-23). `near` keeps trips with a stop within
  * `APP_EXPLORE_NEARBY_RADIUS_KM`.
  */
 @Injectable()
@@ -66,11 +66,6 @@ export class ExploreService {
       days === undefined
         ? Prisma.sql`true`
         : Prisma.sql`t."createdAt" > ${ref.toISOString()}::timestamp - make_interval(days => ${days}::int)`;
-    const season =
-      filter.period === 'season'
-        ? Prisma.sql`(extract(month FROM t."startDate")::int IN (${Prisma.join(seasonMonths(ref))})
-            OR extract(month FROM t."endDate")::int IN (${Prisma.join(seasonMonths(ref))}))`
-        : Prisma.sql`true`;
     const near = filter.near
       ? Prisma.sql`EXISTS (
           SELECT 1 FROM markers nm WHERE nm."tripId" = t.id AND nm."hiddenAt" IS NULL
@@ -90,7 +85,6 @@ export class ExploreService {
           AND EXISTS (SELECT 1 FROM users u WHERE u.id = t."ownerId" AND u.status = 'active')
           AND EXISTS (SELECT 1 FROM markers m WHERE m."tripId" = t.id AND m."hiddenAt" IS NULL)
           AND ${createdSince}
-          AND ${season}
           AND ${near}
           AND ${
             filter.includeMine
@@ -132,13 +126,6 @@ export class ExploreService {
           : null,
     };
   }
-}
-
-/** The months of the season [ref] is in (meteorological, northern hemisphere: fall is September to November). */
-function seasonMonths(ref: Date): number[] {
-  const month = ref.getUTCMonth() + 1;
-  const first = month - (month % 3);
-  return [first, first + 1, first + 2].map((m) => ((m + 11) % 12) + 1);
 }
 
 function encodeExploreCursor(cursor: ExploreCursor): string {

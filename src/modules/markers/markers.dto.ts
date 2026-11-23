@@ -153,8 +153,10 @@ export class CreateMarkerDto {
   osmId?: string;
 
   @ApiPropertyOptional({
-    enum: PLACE_CATEGORIES,
-    description: 'Category for a new place; defaults to other',
+    type: String,
+    example: 'cafe',
+    description:
+      'Category for a new place, a key from app-config `placeKinds`; defaults to other',
   })
   @IsOptional()
   @IsIn(PLACE_CATEGORIES)
@@ -283,9 +285,10 @@ export class MarkerDto {
   name: string;
 
   @ApiProperty({
-    enum: PLACE_CATEGORIES,
+    type: String,
+    example: 'cafe',
     description:
-      "The stop's place's kind, so the apps show its icon without loading the place",
+      "The stop's place's kind, so the apps show its icon without loading the place. A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)",
   })
   category: PlaceCategory;
 

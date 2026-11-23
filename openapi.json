@@ -57,7 +57,7 @@
     },
     "/v1/app-config": {
       "get": {
-        "description": "Values that steer app behaviour (cache times, limits), set per environment, so they change without an app update. Public: the app reads it at start, before sign-in.",
+        "description": "Values that steer app behaviour (cache times, limits) and the lists the apps show (place kinds, Explore periods, report reasons, labelled in the Accept-Language language), so they change without an app update. Public: the app reads it at start, before sign-in.",
         "operationId": "AppConfig_get",
         "parameters": [],
         "responses": {
@@ -3865,7 +3865,7 @@
     },
     "/v1/explore/trips": {
       "get": {
-        "description": "Ranked by likes only (saves never count), newest on ties; period week/month/year keeps the trips created in the last 7/30/365 days, season the trips travelled in the current season, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.",
+        "description": "Ranked by likes only (saves never count), newest on ties; period week/month/year keeps the trips created in the last 7/30/365 days, lat+lng keeps trips with a stop nearby. Includes trips the caller owns or edits (role owner or editor) unless includeMine=false: offer no Save on those. Only trips with at least one marker. Pass nextCursor (with the same filters) to continue the same ranking.",
         "operationId": "Explore_trips",
         "parameters": [
           {
@@ -3902,7 +3902,7 @@
             "name": "period",
             "required": false,
             "in": "query",
-            "description": "Every trip (all), only trips created in the last 7, 30 or 365 days (week, month, year), or trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov); always ranked by likes, newest first on ties",
+            "description": "Every trip (all) or only trips created in the last 7, 30 or 365 days (week, month, year); always ranked by likes, newest first on ties. The apps take the list with its labels from app-config `explorePeriods`",
             "schema": {
               "default": "all",
               "type": "string",
@@ -3910,7 +3910,6 @@
                 "week",
                 "month",
                 "year",
-                "season",
                 "all"
               ]
             }
@@ -4979,6 +4978,88 @@
           "east"
         ]
       },
+      "PlaceKindDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "cafe",
+            "description": "The key places carry as `category`"
+          },
+          "label": {
+            "type": "string",
+            "example": "Café",
+            "description": "In the Accept-Language language"
+          },
+          "icon": {
+            "type": "integer",
+            "example": 4,
+            "description": "An ID in the apps' icon table; never reused. An ID the app doesn't know shows the plain Spot icon"
+          },
+          "forSpots": {
+            "type": "boolean",
+            "description": "People can pick it for a spot they make"
+          },
+          "forFilters": {
+            "type": "boolean",
+            "description": "Offered as a filter chip"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "icon",
+          "forSpots",
+          "forFilters"
+        ]
+      },
+      "ExplorePeriodItemDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "month",
+            "description": "Sent back as `period` to GET /explore/trips"
+          },
+          "label": {
+            "type": "string",
+            "example": "This month"
+          },
+          "icon": {
+            "type": "integer",
+            "example": 60,
+            "description": "As PlaceKindDto.icon"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "The one picked when Explore opens"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "icon",
+          "isDefault"
+        ]
+      },
+      "ReportReasonDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "spam",
+            "description": "Sent back as `reason` to POST /reports"
+          },
+          "label": {
+            "type": "string",
+            "example": "Spam"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ]
+      },
       "AppConfigDto": {
         "type": "object",
         "properties": {
@@ -5048,6 +5129,27 @@
             "type": "boolean",
             "example": true,
             "description": "Whether OpenStreetMap places are listed (OSM_PINS_ENABLED). Off: the server leaves them out of in-view, tiles, search (no addresses), along the way, Around, Nearby and Popular, so only users' own spots come back; routes stay. The apps then show the OpenStreetMap credit only with a route."
+          },
+          "placeKinds": {
+            "description": "Every place kind in display order, labels in the Accept-Language language. The apps keep it with the config, per language.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceKindDto"
+            }
+          },
+          "explorePeriods": {
+            "description": "Explore's periods in menu order",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExplorePeriodItemDto"
+            }
+          },
+          "reportReasons": {
+            "description": "Report reasons in display order",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportReasonDto"
+            }
           }
         },
         "required": [
@@ -5063,7 +5165,10 @@
           "mapMaxPhotoPins",
           "pinDotBelowZoom",
           "transitAreas",
-          "osmPinsEnabled"
+          "osmPinsEnabled",
+          "placeKinds",
+          "explorePeriods",
+          "reportReasons"
         ]
       },
       "RevenueCatWebhookDto": {
@@ -5942,47 +6047,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ],
-            "description": "The stop's place's kind, so the apps show its icon without loading the place"
+            "example": "cafe",
+            "description": "The stop's place's kind, so the apps show its icon without loading the place. A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
           },
           "location": {
             "$ref": "#/components/schemas/LocationDto"
@@ -6439,46 +6505,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ]
+            "example": "cafe",
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
           },
           "location": {
             "$ref": "#/components/schemas/LocationDto"
@@ -6672,48 +6700,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ],
+            "example": "cafe",
             "nullable": true,
-            "description": "null for photon"
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot); null for photon"
           },
           "location": {
             "$ref": "#/components/schemas/LocationDto"
@@ -6854,46 +6843,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ]
+            "example": "cafe",
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
           },
           "location": {
             "$ref": "#/components/schemas/LocationDto"
@@ -7004,46 +6955,8 @@
         "properties": {
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ]
+            "example": "cafe",
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
           },
           "count": {
             "type": "number",
@@ -7247,46 +7160,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ]
+            "example": "cafe",
+            "description": "A place kind key from app-config `placeKinds`; can be one the app does not know yet (shown as Spot)"
           },
           "location": {
             "$ref": "#/components/schemas/LocationDto"
@@ -7532,47 +7407,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "cafe",
-              "restaurant",
-              "bar",
-              "attraction",
-              "museum",
-              "historic",
-              "park",
-              "nature",
-              "landmark",
-              "other",
-              "bakery",
-              "fast_food",
-              "viewpoint",
-              "beach",
-              "entertainment",
-              "shopping",
-              "stay",
-              "transport",
-              "cinema",
-              "nightlife",
-              "health",
-              "pharmacy",
-              "groceries",
-              "market",
-              "sports",
-              "spa",
-              "zoo",
-              "kids",
-              "library",
-              "camping",
-              "winery",
-              "parking",
-              "fuel",
-              "money",
-              "toilets",
-              "rental",
-              "photo_spot",
-              "romantic"
-            ],
-            "description": "Category for a new place; defaults to other"
+            "example": "cafe",
+            "description": "Category for a new place, a key from app-config `placeKinds`; defaults to other"
           },
           "brandId": {
             "type": "string",
@@ -8887,15 +8723,8 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam",
+            "description": "A key from app-config `reportReasons`"
           },
           "details": {
             "type": "string",
@@ -8932,15 +8761,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam"
           },
           "status": {
             "type": "string",
@@ -9051,15 +8872,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam"
           },
           "status": {
             "type": "string",

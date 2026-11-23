@@ -46,7 +46,11 @@ export class CreateReportDto {
   @IsUUID()
   targetId!: string;
 
-  @ApiProperty({ enum: REPORT_REASONS })
+  @ApiProperty({
+    type: String,
+    example: 'spam',
+    description: 'A key from app-config `reportReasons`',
+  })
   @IsIn(REPORT_REASONS)
   reason!: (typeof REPORT_REASONS)[number];
 
@@ -68,7 +72,7 @@ export class ReportDto {
   @ApiProperty({ format: 'uuid' })
   targetId!: string;
 
-  @ApiProperty({ enum: REPORT_REASONS })
+  @ApiProperty({ type: String, example: 'spam' })
   reason!: (typeof REPORT_REASONS)[number];
 
   @ApiProperty({ enum: REPORT_STATUSES })
