@@ -11,13 +11,7 @@ import {
 } from 'class-validator';
 import { PageQueryDto } from '../../common/pagination/pagination';
 
-export const EXPLORE_PERIODS = [
-  'week',
-  'month',
-  'year',
-  'season',
-  'all',
-] as const;
+export const EXPLORE_PERIODS = ['week', 'month', 'year', 'all'] as const;
 export type ExplorePeriod = (typeof EXPLORE_PERIODS)[number];
 
 export class ExploreTripsQueryDto extends PageQueryDto {
@@ -36,7 +30,7 @@ export class ExploreTripsQueryDto extends PageQueryDto {
     enum: EXPLORE_PERIODS,
     default: 'all',
     description:
-      'Every trip (all), only trips created in the last 7, 30 or 365 days (week, month, year), or trips travelled in the current season (season: Dec–Feb, Mar–May, Jun–Aug, Sep–Nov); always ranked by likes, newest first on ties',
+      'Every trip (all) or only trips created in the last 7, 30 or 365 days (week, month, year); always ranked by likes, newest first on ties. The apps take the list with its labels from app-config `explorePeriods`',
   })
   @IsOptional()
   @IsIn(EXPLORE_PERIODS)

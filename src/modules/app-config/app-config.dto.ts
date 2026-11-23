@@ -21,6 +21,69 @@ export class TransitAreaDto {
   east!: number;
 }
 
+/** A place kind the apps show (spot card, filter chips, pins). */
+export class PlaceKindDto {
+  @ApiProperty({
+    example: 'cafe',
+    description: 'The key places carry as `category`',
+  })
+  key!: string;
+
+  @ApiProperty({
+    example: 'Café',
+    description: 'In the Accept-Language language',
+  })
+  label!: string;
+
+  @ApiProperty({
+    type: 'integer',
+    example: 4,
+    description:
+      "An ID in the apps' icon table; never reused. An ID the app doesn't know shows the plain Spot icon",
+  })
+  icon!: number;
+
+  @ApiProperty({ description: 'People can pick it for a spot they make' })
+  forSpots!: boolean;
+
+  @ApiProperty({ description: 'Offered as a filter chip' })
+  forFilters!: boolean;
+}
+
+/** An Explore period the apps offer (Near me is the apps' own toggle on top). */
+export class ExplorePeriodItemDto {
+  @ApiProperty({
+    example: 'month',
+    description: 'Sent back as `period` to GET /explore/trips',
+  })
+  key!: string;
+
+  @ApiProperty({ example: 'This month' })
+  label!: string;
+
+  @ApiProperty({
+    type: 'integer',
+    example: 60,
+    description: 'As PlaceKindDto.icon',
+  })
+  icon!: number;
+
+  @ApiProperty({ description: 'The one picked when Explore opens' })
+  isDefault!: boolean;
+}
+
+/** A reason people can give when they report something. */
+export class ReportReasonDto {
+  @ApiProperty({
+    example: 'spam',
+    description: 'Sent back as `reason` to POST /reports',
+  })
+  key!: string;
+
+  @ApiProperty({ example: 'Spam' })
+  label!: string;
+}
+
 /**
  * Values that steer the apps' behaviour, served so they change without an app
  * update. The app keeps a default for each, used until this answers.
@@ -115,4 +178,23 @@ export class AppConfigDto {
       "Whether OpenStreetMap places are listed (OSM_PINS_ENABLED). Off: the server leaves them out of in-view, tiles, search (no addresses), along the way, Around, Nearby and Popular, so only users' own spots come back; routes stay. The apps then show the OpenStreetMap credit only with a route.",
   })
   osmPinsEnabled!: boolean;
+
+  @ApiProperty({
+    type: [PlaceKindDto],
+    description:
+      'Every place kind in display order, labels in the Accept-Language language. The apps keep it with the config, per language.',
+  })
+  placeKinds!: PlaceKindDto[];
+
+  @ApiProperty({
+    type: [ExplorePeriodItemDto],
+    description: "Explore's periods in menu order",
+  })
+  explorePeriods!: ExplorePeriodItemDto[];
+
+  @ApiProperty({
+    type: [ReportReasonDto],
+    description: 'Report reasons in display order',
+  })
+  reportReasons!: ReportReasonDto[];
 }

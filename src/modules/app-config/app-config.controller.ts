@@ -1,25 +1,32 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { I18nLang, I18nService } from 'nestjs-i18n';
 import { Public } from '../../common/auth/auth.decorators';
 import type { Env } from '../../common/config/env';
 import { TRANSIT_REGIONS } from '../routing/transit/transit-regions';
+import { REPORT_REASONS } from '../moderation/reports.dto';
 import { AppConfigDto } from './app-config.dto';
+import { EXPLORE_PERIOD_ITEMS, PLACE_KINDS } from './app-lists';
 
 @ApiTags('app-config')
 @Controller('app-config')
 export class AppConfigController {
-  constructor(private readonly config: ConfigService<Env, true>) {}
+  constructor(
+    private readonly config: ConfigService<Env, true>,
+    private readonly i18n: I18nService,
+  ) {}
 
   @Get()
   @Public()
   @ApiOperation({
     summary: 'Settings for the apps',
     description:
-      'Values that steer app behaviour (cache times, limits), set per environment, so they change without an app update. Public: the app reads it at start, before sign-in.',
+      'Values that steer app behaviour (cache times, limits) and the lists the apps show (place kinds, Explore periods, report reasons, labelled in the Accept-Language language), so they change without an app update. Public: the app reads it at start, before sign-in.',
   })
   @ApiOkResponse({ type: AppConfigDto })
-  get(): AppConfigDto {
+  get(@I18nLang() lang: string): AppConfigDto {
+    const label = (key: string) => this.i18n.t(`lists.${key}`, { lang });
     return {
       placesRefreshSeconds: this.config.get('APP_PLACES_REFRESH_SECONDS', {
         infer: true,
@@ -60,6 +67,18 @@ export class AppConfigController {
       osmPinsEnabled: this.config.get('OSM_PINS_ENABLED', {
         infer: true,
       }),
+      placeKinds: PLACE_KINDS.map((kind) => ({
+        ...kind,
+        label: label(`kinds.${kind.key}`),
+      })),
+      explorePeriods: EXPLORE_PERIOD_ITEMS.map((period) => ({
+        ...period,
+        label: label(`periods.${period.key}`),
+      })),
+      reportReasons: REPORT_REASONS.map((key) => ({
+        key,
+        label: label(`reasons.${key}`),
+      })),
     };
   }
 }
