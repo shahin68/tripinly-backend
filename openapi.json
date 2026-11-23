@@ -8723,15 +8723,8 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam",
+            "description": "A key from app-config `reportReasons`"
           },
           "details": {
             "type": "string",
@@ -8768,15 +8761,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam"
           },
           "status": {
             "type": "string",
@@ -8887,15 +8872,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": [
-              "spam",
-              "harassment",
-              "nudity",
-              "violence",
-              "hate",
-              "copyright",
-              "other"
-            ]
+            "example": "spam"
           },
           "status": {
             "type": "string",
