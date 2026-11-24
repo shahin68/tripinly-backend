@@ -9,20 +9,20 @@ Tripinly is a social travel-planning app. People plan trips day by day as marker
 
 ## Screens and what the backend must support
 
-| Screen             | Backend needs                                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in            | Google / Apple sign-in, token issuing                                                                                                                         |
-| Onboarding         | Profile (name, username, birth date), age check (16+), consent capture                                                                                        |
-| Your trips         | Trips the user owns or collaborates on, plus other people's trips they saved (read-only, "by @owner")                                                         |
-| Trip map           | Days, markers (optional time, order), cover photo inside markers, popular spots near the trip, privacy toggle, collaborators, add day, add marker, best route |
-| Marker sheet       | Photo gallery (scrollable, one cover), likes on marker and photos, comments with likes, share, delete                                                         |
-| Explore            | Public trips, mine included, ranked by popularity; like; "Add to my trips" (save, or ask to join)                                                             |
-| Nearby             | Popular places around the user's current location, from Tripinly's own data ranked by likes                                                                   |
-| Popular spot sheet | Place details, like, add to a trip/day                                                                                                                        |
-| New trip           | Name, length/dates, public/private, invite friends                                                                                                            |
-| Travel together    | Add/remove collaborators by username search or invite link                                                                                                    |
-| Profile / Me       | Stats, default privacy for new trips, notifications, activity, delete account                                                                                 |
-| Delete account     | Explain what is deleted and what survives (markers others copied), confirm                                                                                    |
+| Screen              | Backend needs                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in             | Google / Apple sign-in, token issuing                                                                                                                         |
+| Onboarding          | Profile (name, username, birth date), age check (16+), consent capture                                                                                        |
+| Your trips          | Trips the user owns or collaborates on, plus other people's trips they saved (read-only, "by @owner")                                                         |
+| Trip map            | Days, markers (optional time, order), cover photo inside markers, popular spots near the trip, privacy toggle, collaborators, add day, add marker, best route |
+| Marker sheet        | Photo gallery (scrollable, one cover), likes on marker and photos, comments with likes, share, delete                                                         |
+| Explore             | Public trips, mine included, ranked by popularity; like; "Add to my trips" (save, or ask to join)                                                             |
+| Search (was Nearby) | Popular places around the user's current location, from Tripinly's own data ranked by likes                                                                   |
+| Popular spot sheet  | Place details, like, add to a trip/day                                                                                                                        |
+| New trip            | Name, length/dates, public/private, invite friends                                                                                                            |
+| Travel together     | Add/remove collaborators by username search or invite link                                                                                                    |
+| Profile / Me        | Stats, default privacy for new trips, notifications, activity, delete account                                                                                 |
+| Delete account      | Explain what is deleted and what survives (markers others copied), confirm                                                                                    |
 
 ## Core features
 
@@ -35,7 +35,7 @@ Tripinly is a social travel-planning app. People plan trips day by day as marker
 7. **Likes** on trips, markers, photos and comments.
 8. **Public discovery:** public trips appear in Explore; public markers feed place popularity.
 9. **Popular spots** on the trip map: unselected markers for the most-liked places in the visible area that aren't already in the trip.
-10. **Nearby:** popular places around the user, based on Tripinly data and likes, topped up with OSM attractions where Tripinly data is thin.
+10. **Search (was Nearby):** popular places around the user, based on Tripinly data and likes, topped up with OSM attractions where Tripinly data is thin.
     10a. **Map browsing:** as the user pans/zooms, places in view appear: Tripinly places (liked by users) prominently, plus cafés, restaurants, attractions etc. from OpenStreetMap as smaller dots when zoomed in, so the map is never empty.
     10b. **Routes and places along the way:** a route between two points or through a day's markers is drawn on the map, with attractions, cafés and restaurants along the way suggested.
     10c. **Search:** a search box finds places (ours + OSM POIs) and addresses/cities.

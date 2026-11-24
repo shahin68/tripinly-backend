@@ -261,7 +261,12 @@ describe('Follows (integration)', () => {
 
   describe('GET /v1/users/search (people)', () => {
     interface PeoplePage {
-      items: { username: string; isFriend: boolean; isFollowing: boolean }[];
+      items: {
+        username: string;
+        isFriend: boolean;
+        isFollowing: boolean;
+        followsMe: boolean;
+      }[];
       total: number;
       nextCursor: string | null;
     }
@@ -313,11 +318,15 @@ describe('Follows (integration)', () => {
       expect(near.items[0]).toMatchObject({
         isFriend: true,
         isFollowing: true,
+        followsMe: true,
       });
+      // Cid follows Ann, so a follow back from Ann makes them friends.
       expect(near.items[1]).toMatchObject({
         isFriend: false,
         isFollowing: false,
+        followsMe: true,
       });
+      expect(near.items[2]).toMatchObject({ followsMe: false });
 
       // Without a point Dan is just one more person: Eve's follower ranks her first.
       const anywhere = await people(ann, '');
@@ -342,6 +351,7 @@ describe('Follows (integration)', () => {
       expect(after.items[1]).toMatchObject({
         isFriend: false,
         isFollowing: true,
+        followsMe: false,
       });
     });
 
