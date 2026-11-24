@@ -48,6 +48,7 @@ export const PEOPLE_AROUND_RADIUS_METERS = 5000;
 
 type PersonRow = UserSummaryRow & {
   isFollowing: boolean;
+  followsMe: boolean;
   followers: number;
   tier: number;
 };
@@ -255,7 +256,7 @@ export class UsersService {
     const [rows, [{ total }]] = await Promise.all([
       this.prisma.$queryRaw<PersonRow[]>`
         SELECT * FROM (
-          SELECT id, username, "displayName", "avatarPhotoId", "isFollowing", followers,
+          SELECT id, username, "displayName", "avatarPhotoId", "isFollowing", "followsMe", followers,
             CASE WHEN "isFollowing" AND "followsMe" THEN 0
                  WHEN "isFollowing" OR "followsMe" THEN 1
                  WHEN near THEN 2 ELSE 3 END AS tier
@@ -285,6 +286,7 @@ export class UsersService {
         Object.assign(toUserSummary(row, this.storage), {
           isFriend: row.tier === 0,
           isFollowing: row.isFollowing,
+          followsMe: row.followsMe,
         }),
       ),
       total,

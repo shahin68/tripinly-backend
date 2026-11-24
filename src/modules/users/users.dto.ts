@@ -238,6 +238,12 @@ export class PersonDto extends UserSummaryDto {
 
   @ApiProperty({ description: 'You follow them' })
   isFollowing: boolean;
+
+  @ApiProperty({
+    description:
+      'They follow you: with isFollowing, the app knows at once whether a follow or unfollow tap makes you friends or ends it',
+  })
+  followsMe: boolean;
 }
 
 export class UserSearchPageDto {
