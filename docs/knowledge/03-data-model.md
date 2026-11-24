@@ -9,7 +9,7 @@ All tables have `id uuid` (primary key) and `createdAt`; mutable tables also hav
 **users**
 
 - `username` (unique, lowercase, null until onboarding), `usernameChangedAt` (last change after onboarding; one change per 30 days), `displayName`, `birthDate` (date), `locale` (BCP 47, e.g. `hu-HU`)
-- `defaultTripVisibility` (`public` | `private`, default `public`)
+- `defaultTripVisibility` (`public` | `private`, default `private` since 2026-11-24; accounts made before keep theirs)
 - `role` (`user` | `admin`), `status` (`active` | `suspended` | `deleting`)
 - `onboardedAt` (null until profile + consents complete)
 - `avatarPhotoId` → photos (nullable, unique, `SET NULL`): the profile photo, a ready photo with no stop and no place; null shows the letter avatar

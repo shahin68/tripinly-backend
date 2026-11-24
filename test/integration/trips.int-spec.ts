@@ -84,12 +84,25 @@ describe('Trips, days and members (integration)', () => {
       ]);
     });
 
-    it('creates a single undated day and uses the default visibility', async () => {
+    it('uses my default visibility', async () => {
       await as(owner)
         .patch('/v1/me')
         .send({ defaultTripVisibility: 'private' })
         .expect(200);
       const trip = await createTrip();
+      expect(trip.visibility).toBe('private');
+      await as(owner)
+        .patch('/v1/me')
+        .send({ defaultTripVisibility: 'public' })
+        .expect(200);
+      expect((await createTrip()).visibility).toBe('public');
+    });
+
+    it('starts a new account with private trips and a single undated day', async () => {
+      const newcomer = await onboardedUser(app, 'newcomer', 'private');
+      const me = await as(newcomer).get('/v1/me').expect(200);
+      expect(me.body.defaultTripVisibility).toBe('private');
+      const trip = await createTrip({}, newcomer);
       expect(trip).toMatchObject({
         startDate: null,
         endDate: null,

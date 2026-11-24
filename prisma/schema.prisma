@@ -59,7 +59,7 @@ model User {
   /// Never shown to other users; used for the 16+ check.
   birthDate             DateTime?      @db.Date
   locale                String         @default("en")
-  defaultTripVisibility TripVisibility @default(public)
+  defaultTripVisibility TripVisibility @default(private)
   role                  UserRole       @default(user)
   status                UserStatus     @default(active)
   onboardedAt           DateTime?
