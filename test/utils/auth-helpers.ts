@@ -86,10 +86,14 @@ export async function acceptRequiredConsents(
   }
 }
 
-/** Signs in and completes onboarding (profile + consents). Needs published documents. */
+/**
+ * Signs in and completes onboarding (profile + consents). Needs published documents. New trips start public here
+ * ([defaultTripVisibility]), as most tests are about what others see; a real new account starts private.
+ */
 export async function onboardedUser(
   app: INestApplication,
   subject: string,
+  defaultTripVisibility: 'public' | 'private' = 'public',
 ): Promise<Session> {
   const session = await devSignIn(app, subject, subject);
   await request(app.getHttpServer())
@@ -97,6 +101,13 @@ export async function onboardedUser(
     .auth(session.accessToken, { type: 'bearer' })
     .send({ username: subject, birthDate: '1990-05-17' })
     .expect(200);
+  if (defaultTripVisibility === 'public') {
+    await request(app.getHttpServer())
+      .patch('/v1/me')
+      .auth(session.accessToken, { type: 'bearer' })
+      .send({ defaultTripVisibility })
+      .expect(200);
+  }
   await acceptRequiredConsents(app, session);
   return session;
 }

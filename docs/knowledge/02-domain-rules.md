@@ -30,7 +30,7 @@ These rules are product decisions. Implement them exactly; ask the user before c
 - A trip has one **owner**, optional **editors** (collaborators), title, start/end dates, ordered **days**, and **visibility**: `public` or `private`. There is no viewer role.
 - Days: with a start date, a trip has one day per date and each day shows its date; without dates, days show "Day n". A trip always has at least one day.
 - Limits: 20 days per trip, 50 markers per day, 200 owned trips per user, `APP_TRIP_MAX_MEMBERS` members per trip (default 50, set on Railway), 20 active invite links per trip (`LIMIT_REACHED`).
-- New trips default to the user's `defaultTripVisibility` setting.
+- New trips default to the user's `defaultTripVisibility` setting, which is `private` for a new account (Shahin, 2026-11-24); the user can switch it to `public` in Settings.
 - **Public:** visible to anyone (not blocked), listed in Explore, its markers count toward place popularity; others can save it, ask to join it and copy its markers.
 - **Private:** visible only to owner and editors. Never in Explore, search, Nearby, Popular spots or popularity counts. Can't be saved, joined from outside or copied from. Share links to private trips only work for members.
 - Only the owner can change visibility, rename, delete the trip, and manage members. Editors can add, edit and reorder markers and days, upload and remove photos, and set covers; deleting a stop follows "Deleting a stop" below.

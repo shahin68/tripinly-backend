@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { describeError } from '../common/logging/describe-error';
 import {
   MOTIS_LOCAL_PORT,
   PACKAGE_PREFIX,
@@ -20,6 +22,8 @@ import {
 } from '../modules/routing/transit/transit-regions';
 
 const OSM_MAX_AGE_DAYS = 30;
+/** Downloads fail now and then (a Geofabrik download did, 2026-11-24): try again after 1 and 5 minutes. */
+const RETRY_WAITS_MS = [60_000, 300_000];
 
 type FeedState = TransitManifest['feeds'][string] & { downloaded: boolean };
 
@@ -149,30 +153,26 @@ async function downloadFeed(
   if (previous?.lastModified) {
     headers['If-Modified-Since'] = previous.lastModified;
   }
-  const response = await fetch(url, {
-    headers,
-    signal: AbortSignal.timeout(10 * 60_000),
+  return withRetry(url, async () => {
+    const response = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+    if (response.status === 304 && previous) {
+      return { changed: false, state: { ...previous, downloaded: false } };
+    }
+    await save(response, file);
+    const sha256 = await hashFile(file);
+    return {
+      changed: sha256 !== previous?.sha256,
+      state: {
+        sha256,
+        etag: response.headers.get('etag') ?? undefined,
+        lastModified: response.headers.get('last-modified') ?? undefined,
+        downloaded: true,
+      },
+    };
   });
-  if (response.status === 304 && previous) {
-    return { changed: false, state: { ...previous, downloaded: false } };
-  }
-  if (!response.ok || !response.body) {
-    throw new Error(`Feed download answered ${response.status}: ${url}`);
-  }
-  await pipeline(
-    Readable.fromWeb(response.body as WebReadableStream),
-    createWriteStream(file),
-  );
-  const sha256 = await hashFile(file);
-  return {
-    changed: sha256 !== previous?.sha256,
-    state: {
-      sha256,
-      etag: response.headers.get('etag') ?? undefined,
-      lastModified: response.headers.get('last-modified') ?? undefined,
-      downloaded: true,
-    },
-  };
 }
 
 /**
@@ -188,15 +188,11 @@ async function streets(
   const extracts = [...new Set(regions.map((region) => region.osmExtract))];
   for (const extract of extracts) {
     const url = `${env.GEOFABRIK_BASE_URL.replace(/\/+$/, '')}/${extract}-latest.osm.pbf`;
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(30 * 60_000),
-    });
-    if (!response.ok || !response.body) {
-      throw new Error(`OSM download answered ${response.status}: ${url}`);
-    }
-    await pipeline(
-      Readable.fromWeb(response.body as WebReadableStream),
-      createWriteStream(join(work, `${extract.replace(/\//g, '_')}.osm.pbf`)),
+    await withRetry(url, async () =>
+      save(
+        await fetch(url, { signal: AbortSignal.timeout(30 * 60_000) }),
+        join(work, `${extract.replace(/\//g, '_')}.osm.pbf`),
+      ),
     );
   }
   const cut: string[] = [];
@@ -293,6 +289,53 @@ async function redeploy(env: TransitJobEnv): Promise<void> {
     );
   }
   log('Transit service redeploy started');
+}
+
+/** An answer the server gave, not a network failure; only a 5xx is worth trying again. */
+class HttpError extends Error {
+  constructor(readonly status: number) {
+    super(`answered ${status}`);
+  }
+}
+
+/** Writes an answer's body to a file; an answer that isn't 2xx throws. */
+async function save(response: Response, file: string): Promise<void> {
+  if (!response.ok || !response.body) {
+    await response.body?.cancel();
+    throw new HttpError(response.status);
+  }
+  await pipeline(
+    Readable.fromWeb(response.body as WebReadableStream),
+    createWriteStream(file),
+  );
+}
+
+/**
+ * Runs a download again after a network error (also one in the middle of the
+ * body) or a 5xx answer, waiting [waits] between tries. The last failure
+ * names the file and why: fetch alone only says "fetch failed".
+ */
+export async function withRetry<T>(
+  url: string,
+  download: () => Promise<T>,
+  waits: readonly number[] = RETRY_WAITS_MS,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await download();
+    } catch (error) {
+      const reason = describeError(error);
+      const wait = waits[attempt];
+      if (
+        wait === undefined ||
+        (error instanceof HttpError && error.status < 500)
+      ) {
+        throw new Error(`Download of ${url} failed: ${reason}`);
+      }
+      log(`${url}: ${reason}; trying again in ${wait / 60_000} min`);
+      await sleep(wait);
+    }
+  }
 }
 
 function hashFile(file: string): Promise<string> {

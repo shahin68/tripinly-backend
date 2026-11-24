@@ -51,6 +51,10 @@ Smoke test after the api redeploys: `GET /v1/app-config` lists `transitAreas: [{
 
 Taking a city out works the same way in reverse (api first).
 
+## When the builder fails
+
+A failed run shows as **Crashed** on `transit-builder`; the live `transit` service keeps serving its package. Each download (timetables, the Geofabrik extract) is tried three times, 1 and 5 minutes apart, after a network error or a 5xx answer; the log names the file and the reason, e.g. `failed: Download of https://download.geofabrik.de/europe/austria-latest.osm.pbf failed: fetch failed: ECONNRESET read ECONNRESET`. A failed run saves nothing, so the next daily run builds again; "Run now" does it at once. A MOTIS import that refuses a feed also stops before the upload.
+
 ## Rollback
 
 R2 keeps the live package and the one before (`transit/packages/`). To go back, edit `transit/current.json` in the R2 bucket so `package` names the older file, then redeploy `transit`.

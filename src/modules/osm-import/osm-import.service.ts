@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { Client } from 'pg';
 import type { Env } from '../../common/config/env';
+import { describeError } from '../../common/logging/describe-error';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { REDIS } from '../../common/redis/redis.module';
 import { OsmImportStatus } from '../../generated/prisma/client';
@@ -622,37 +623,4 @@ async function deactivateMissing(db: Client, region: string): Promise<number> {
     [region],
   );
   return result.rowCount ?? 0;
-}
-
-/**
- * A failed osmium run's message is mostly the command line, which pushes its
- * stderr past what the run row keeps. Name the tool, how it ended (exit code
- * or the signal that killed it, e.g. SIGKILL when out of memory) and stderr.
- */
-function describeError(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const failed = error as Error & {
-    cmd?: string;
-    code?: number | string;
-    signal?: string | null;
-    killed?: boolean;
-    stderr?: string;
-  };
-  if (!failed.cmd) {
-    // fetch only says "fetch failed"; the reason (DNS, refused, reset, TLS) is in the cause.
-    const cause = error.cause instanceof Error ? error.cause : undefined;
-    if (!cause) return error.message;
-    const code = (cause as Error & { code?: string }).code;
-    const reason =
-      code && !cause.message.includes(code)
-        ? `${code} ${cause.message}`
-        : cause.message;
-    return `${error.message}: ${reason}`;
-  }
-  const tool = failed.cmd.split(' ').slice(0, 2).join(' ');
-  const ending = failed.signal
-    ? `killed by ${failed.signal}`
-    : `exit code ${failed.code}`;
-  const stderr = failed.stderr?.trim();
-  return `${tool} failed (${ending})${stderr ? `: ${stderr}` : ''}`;
 }
